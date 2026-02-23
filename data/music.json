@@ -1,0 +1,410 @@
+{
+    "activePlaylist": "favorites",
+    "recentlyPlayed": [
+        "favorites",
+        "chill",
+        "late-night",
+        "hype"
+    ],
+    "playlists": {
+        "favorites": {
+            "name": "Favorites",
+            "color": "#8b9dc3",
+            "currentIndex": 1,
+            "songs": [
+                {
+                    "title": "Ma Meilleure Ennemie",
+                    "artist": "Stromae ft. Pomme",
+                    "album": "Arcane League of Legends",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273e5a95573f1b91234630fd2cf",
+                    "youtube_id": "Ga174raRMBg"
+                },
+                {
+                    "title": "No Pole",
+                    "artist": "Don Toliver",
+                    "album": "Love Sick",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273feeff698e6090e6b02f21ec0",
+                    "youtube_id": "fiizRbwD1ZI"
+                },
+                {
+                    "title": "From the Start",
+                    "artist": "Laufey",
+                    "album": "Bewitched",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b27374c732f8aa0e0ccbb3d17d96",
+                    "youtube_id": "p46zrxhp5OU"
+                },
+                {
+                    "title": "Praise The Lord (Da Shine)",
+                    "artist": "A$AP Rocky ft. Skepta",
+                    "album": "Testing",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273bfcb8d00cee4f8257a6b7fe1",
+                    "youtube_id": "rkEPIjtv15U"
+                },
+                {
+                    "title": "Jugg",
+                    "artist": "Young Nudy",
+                    "album": "Slimeball",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273781b1a0ed5d8ff7eaf3c0432",
+                    "youtube_id": "8gWXVP7AK0s"
+                },
+                {
+                    "title": "MVP",
+                    "artist": "Fimiguerrero ft. YT",
+                    "album": "New World Order",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2733b3e571ea9131e6018a019cd",
+                    "youtube_id": "OBR1Bpvrzvo"
+                },
+                {
+                    "title": "Airplane Mode",
+                    "artist": "Limbo",
+                    "album": "Airplane Mode",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273a1c71edf4ba5de6802444e4d",
+                    "youtube_id": "KQnQEu03iVY"
+                },
+                {
+                    "title": "The London",
+                    "artist": "Young Thug ft. J. Cole & Travis Scott",
+                    "album": "So Much Fun",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2736fcd1b6e205d0d19d9efa0cc",
+                    "youtube_id": "3Vu-t1yz7eY"
+                },
+                {
+                    "title": "Pretty Girl",
+                    "artist": "Clairo",
+                    "album": "diary 001",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273b9c93163c53545df6182e7ef",
+                    "youtube_id": "U9zvH4GBYNk"
+                },
+                {
+                    "title": "the perfect pair",
+                    "artist": "beabadoobee",
+                    "album": "Beatopia",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273384d10f967c2b914de7e2713",
+                    "youtube_id": "Wo6_mWfdtNI"
+                },
+                {
+                    "title": "Lover Girl",
+                    "artist": "Laufey",
+                    "album": "A Matter of Time",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2738f68f6e65c1cfd36bb21561c",
+                    "youtube_id": "RZn-0aA6v3c"
+                },
+                {
+                    "title": "Bay City Vibe",
+                    "artist": "HI-ZEN",
+                    "album": "Anger & Love",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b27375c4a0237afafdd44f68f2c1",
+                    "youtube_id": "t-pIrA7HSt8"
+                },
+                {
+                    "title": "I GET IT",
+                    "artist": "Moving in Silence, Lilaj, DaleoDaVinci",
+                    "album": "I GET IT",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2734ef238522656c4dadf29f58e",
+                    "youtube_id": "azXi4ybC2-A"
+                },
+                {
+                    "title": "Mandy",
+                    "artist": "Fimiguerrero",
+                    "album": "New World Order",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2733b3e571ea9131e6018a019cd",
+                    "youtube_id": "xK7JQgvSoJA"
+                },
+                {
+                    "title": "You and I",
+                    "artist": "d4vd",
+                    "album": "Petals to Thorns",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b27364fa1bda999f4fbd2b7c4bb7",
+                    "youtube_id": "bPQB0a65ptg"
+                },
+                {
+                    "title": "OUT WEST",
+                    "artist": "JACKBOYS, Travis Scott ft. Young Thug",
+                    "album": "JACKBOYS",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273b920fc01c37be38130418a34",
+                    "youtube_id": "XGrp5g0JHzM"
+                },
+                {
+                    "title": "I CAN'T LET GO",
+                    "artist": "Lil Tecca ft. Don Toliver",
+                    "album": "PLAN A",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273e55a3924103c132fd3fdc480",
+                    "youtube_id": "koNknehPyyM"
+                },
+                {
+                    "title": "Glue Song",
+                    "artist": "beabadoobee ft. Clairo",
+                    "album": "Glue Song",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2734ed4cd453322102dafa3e3ec",
+                    "youtube_id": "2jHn18PDjaA"
+                },
+                {
+                    "title": "LET THE WORLD BURN",
+                    "artist": "Chris Grey",
+                    "album": "The Castle Never Falls",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273ec387576b8f64454e7efb01f",
+                    "youtube_id": "pRLwJG1EFDY"
+                },
+                {
+                    "title": "strangers",
+                    "artist": "proderics ft. melodybloom",
+                    "album": "strangers",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273f753fa08e3115b19bd62ca10",
+                    "youtube_id": "ziAMzhwd-dQ"
+                },
+                {
+                    "title": "CITY OF ANGELS",
+                    "artist": "24kGoldn",
+                    "album": "El Dorado",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273b4141fad9af613c35f55d589",
+                    "youtube_id": "x-qQoEbwdzQ"
+                },
+                {
+                    "title": "Blow (Hoodtrap\/Mylancore)",
+                    "artist": "Kryd",
+                    "album": "Blow",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2732f3e2542e997bdb5403e02ac",
+                    "youtube_id": "yCb0Ln4l5x8"
+                },
+                {
+                    "title": "Bauklotze",
+                    "artist": "Sawano Hiroyuki ft. Mika Kobayashi",
+                    "album": "Attack on Titan OST",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2732e09d63a7ba7fa7071e26524",
+                    "youtube_id": "5VX30BrqQyE"
+                },
+                {
+                    "title": "I Kissed a Girl (Hoodtrap\/Mylancore)",
+                    "artist": "Kryd",
+                    "album": "I Kissed a Girl",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273351cb34b677b002c4e1d481d",
+                    "youtube_id": "lmXc18fVN9s"
+                },
+                {
+                    "title": "Babydoll",
+                    "artist": "Dominic Fike",
+                    "album": "Don't Forget About Me, Demos",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2734a42166d927b3acce345c5c0",
+                    "youtube_id": "nb8CnIo_-_A"
+                }
+            ]
+        },
+        "chill": {
+            "name": "Chill",
+            "color": "#7eb8da",
+            "currentIndex": 2,
+            "songs": [
+                {
+                    "title": "From the Start",
+                    "artist": "Laufey",
+                    "album": "Bewitched",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b27374c732f8aa0e0ccbb3d17d96",
+                    "youtube_id": "p46zrxhp5OU"
+                },
+                {
+                    "title": "Pretty Girl",
+                    "artist": "Clairo",
+                    "album": "diary 001",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273b9c93163c53545df6182e7ef",
+                    "youtube_id": "U9zvH4GBYNk"
+                },
+                {
+                    "title": "the perfect pair",
+                    "artist": "beabadoobee",
+                    "album": "Beatopia",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273384d10f967c2b914de7e2713",
+                    "youtube_id": "Wo6_mWfdtNI"
+                },
+                {
+                    "title": "Lover Girl",
+                    "artist": "Laufey",
+                    "album": "A Matter of Time",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2738f68f6e65c1cfd36bb21561c",
+                    "youtube_id": "RZn-0aA6v3c"
+                },
+                {
+                    "title": "You and I",
+                    "artist": "d4vd",
+                    "album": "Petals to Thorns",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b27364fa1bda999f4fbd2b7c4bb7",
+                    "youtube_id": "bPQB0a65ptg"
+                },
+                {
+                    "title": "Glue Song",
+                    "artist": "beabadoobee ft. Clairo",
+                    "album": "Glue Song",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2734ed4cd453322102dafa3e3ec",
+                    "youtube_id": "2jHn18PDjaA"
+                },
+                {
+                    "title": "strangers",
+                    "artist": "proderics ft. melodybloom",
+                    "album": "strangers",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273f753fa08e3115b19bd62ca10",
+                    "youtube_id": "ziAMzhwd-dQ"
+                },
+                {
+                    "title": "Babydoll",
+                    "artist": "Dominic Fike",
+                    "album": "Don't Forget About Me, Demos",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2734a42166d927b3acce345c5c0",
+                    "youtube_id": "nb8CnIo_-_A"
+                },
+                {
+                    "title": "Airplane Mode",
+                    "artist": "Limbo",
+                    "album": "Airplane Mode",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273a1c71edf4ba5de6802444e4d",
+                    "youtube_id": "KQnQEu03iVY"
+                },
+                {
+                    "title": "Bay City Vibe",
+                    "artist": "HI-ZEN",
+                    "album": "Anger & Love",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b27375c4a0237afafdd44f68f2c1",
+                    "youtube_id": "t-pIrA7HSt8"
+                }
+            ]
+        },
+        "hype": {
+            "name": "Hype",
+            "color": "#e85d75",
+            "currentIndex": 1,
+            "songs": [
+                {
+                    "title": "Praise The Lord (Da Shine)",
+                    "artist": "A$AP Rocky ft. Skepta",
+                    "album": "Testing",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273bfcb8d00cee4f8257a6b7fe1",
+                    "youtube_id": "rkEPIjtv15U"
+                },
+                {
+                    "title": "Jugg",
+                    "artist": "Young Nudy",
+                    "album": "Slimeball",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273781b1a0ed5d8ff7eaf3c0432",
+                    "youtube_id": "8gWXVP7AK0s"
+                },
+                {
+                    "title": "The London",
+                    "artist": "Young Thug ft. J. Cole & Travis Scott",
+                    "album": "So Much Fun",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2736fcd1b6e205d0d19d9efa0cc",
+                    "youtube_id": "3Vu-t1yz7eY"
+                },
+                {
+                    "title": "OUT WEST",
+                    "artist": "JACKBOYS, Travis Scott ft. Young Thug",
+                    "album": "JACKBOYS",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273b920fc01c37be38130418a34",
+                    "youtube_id": "XGrp5g0JHzM"
+                },
+                {
+                    "title": "I CAN'T LET GO",
+                    "artist": "Lil Tecca ft. Don Toliver",
+                    "album": "PLAN A",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273e55a3924103c132fd3fdc480",
+                    "youtube_id": "koNknehPyyM"
+                },
+                {
+                    "title": "No Pole",
+                    "artist": "Don Toliver",
+                    "album": "Love Sick",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273feeff698e6090e6b02f21ec0",
+                    "youtube_id": "fiizRbwD1ZI"
+                },
+                {
+                    "title": "MVP",
+                    "artist": "Fimiguerrero ft. YT",
+                    "album": "New World Order",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2733b3e571ea9131e6018a019cd",
+                    "youtube_id": "OBR1Bpvrzvo"
+                },
+                {
+                    "title": "Mandy",
+                    "artist": "Fimiguerrero",
+                    "album": "New World Order",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2733b3e571ea9131e6018a019cd",
+                    "youtube_id": "xK7JQgvSoJA"
+                },
+                {
+                    "title": "I GET IT",
+                    "artist": "Moving in Silence, Lilaj, DaleoDaVinci",
+                    "album": "I GET IT",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2734ef238522656c4dadf29f58e",
+                    "youtube_id": "azXi4ybC2-A"
+                },
+                {
+                    "title": "CITY OF ANGELS",
+                    "artist": "24kGoldn",
+                    "album": "El Dorado",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273b4141fad9af613c35f55d589",
+                    "youtube_id": "x-qQoEbwdzQ"
+                }
+            ]
+        },
+        "late-night": {
+            "name": "Late Night",
+            "color": "#9b7ed9",
+            "currentIndex": 3,
+            "songs": [
+                {
+                    "title": "Ma Meilleure Ennemie",
+                    "artist": "Stromae ft. Pomme",
+                    "album": "Arcane League of Legends",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273e5a95573f1b91234630fd2cf",
+                    "youtube_id": "Ga174raRMBg"
+                },
+                {
+                    "title": "LET THE WORLD BURN",
+                    "artist": "Chris Grey",
+                    "album": "The Castle Never Falls",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273ec387576b8f64454e7efb01f",
+                    "youtube_id": "pRLwJG1EFDY"
+                },
+                {
+                    "title": "Blow (Hoodtrap\/Mylancore)",
+                    "artist": "Kryd",
+                    "album": "Blow",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2732f3e2542e997bdb5403e02ac",
+                    "youtube_id": "yCb0Ln4l5x8"
+                },
+                {
+                    "title": "Bauklotze",
+                    "artist": "Sawano Hiroyuki ft. Mika Kobayashi",
+                    "album": "Attack on Titan OST",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b2732e09d63a7ba7fa7071e26524",
+                    "youtube_id": "5VX30BrqQyE"
+                },
+                {
+                    "title": "I Kissed a Girl (Hoodtrap\/Mylancore)",
+                    "artist": "Kryd",
+                    "album": "I Kissed a Girl",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273351cb34b677b002c4e1d481d",
+                    "youtube_id": "lmXc18fVN9s"
+                },
+                {
+                    "title": "strangers",
+                    "artist": "proderics ft. melodybloom",
+                    "album": "strangers",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273f753fa08e3115b19bd62ca10",
+                    "youtube_id": "ziAMzhwd-dQ"
+                },
+                {
+                    "title": "No Pole",
+                    "artist": "Don Toliver",
+                    "album": "Love Sick",
+                    "cover": "https:\/\/i.scdn.co\/image\/ab67616d0000b273feeff698e6090e6b02f21ec0",
+                    "youtube_id": "fiizRbwD1ZI"
+                },
+                {
+                    "title": "Cool For The Summer (Hoodtrap \/ Mylancore)",
+                    "artist": "Kryd - Topic",
+                    "album": "",
+                    "cover": "https:\/\/img.youtube.com\/vi\/APJPidU6zGA\/hqdefault.jpg",
+                    "youtube_id": "APJPidU6zGA"
+                }
+            ]
+        }
+    }
+}
