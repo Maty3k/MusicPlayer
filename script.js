@@ -8,6 +8,30 @@ function loadYouTubeAPI() {
     document.head.appendChild(tag);
 }
 
+// HTML-escape any string that ends up in innerHTML / attribute interpolation.
+// Song fields and Spotify metadata are user-controlled and reach DOM sinks
+// via template literals throughout this file.
+function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Only allow http(s) URLs in <img src> / <audio src>. Empty string for
+// anything else (javascript:, data:, file:, etc.) so the attribute renders
+// as empty rather than executing.
+function safeUrl(s) {
+    if (s === null || s === undefined || s === '') return '';
+    const str = String(s).trim();
+    if (/^https?:\/\//i.test(str)) return str;
+    if (/^\//.test(str) && !str.startsWith('//')) return str;
+    return '';
+}
+
 // Music player controls
 // Song and playlist data from PHP
 // activePlaylistId is injected by PHP in index.php
@@ -24,27 +48,32 @@ async function animateRecordChange(newSong) {
     const miniTonearm = document.getElementById('miniTonearm');
     const platterVinyl = document.getElementById('platterVinyl');
 
+    const isApp = !!window.ReactNativeWebView;
+
     // Stop vinyl spinning during change
     vinyl.classList.remove('playing');
     tonearm.classList.remove('playing');
     if (miniTonearm) miniTonearm.classList.remove('playing');
     if (platterVinyl) platterVinyl.classList.remove('spinning');
 
-    // Move tonearm away
-    tonearm.style.transition = 'transform 0.4s ease';
-    tonearm.style.transform = 'rotate(-30deg)';
+    if (!isApp) {
+        // Move tonearm away
+        tonearm.style.transition = 'transform 0.4s ease';
+        tonearm.style.transform = 'rotate(-30deg)';
 
-    // Lift off old record
-    vinyl.classList.add('lifting');
-    songInfo.classList.add('changing');
+        // Lift off old record
+        vinyl.classList.add('lifting');
+        songInfo.classList.add('changing');
 
-    // Wait for lift animation
-    await new Promise(resolve => setTimeout(resolve, 600));
+        // Wait for lift animation
+        await new Promise(resolve => setTimeout(resolve, 600));
+    }
 
     // Update the cover while hidden
     const label = document.querySelector('.record-label');
-    if (newSong.cover) {
-        label.innerHTML = `<img src="${newSong.cover}" alt="Album Cover">`;
+    const newCoverUrl = safeUrl(newSong.cover);
+    if (newCoverUrl) {
+        label.innerHTML = `<img src="${escapeHtml(newCoverUrl)}" alt="Album Cover">`;
     } else {
         label.innerHTML = '<div class="record-label-placeholder">&#9834;</div>';
     }
@@ -66,6 +95,12 @@ async function animateRecordChange(newSong) {
             sleeveImg.style.display = 'none';
             if (sleevePlaceholder) sleevePlaceholder.style.display = '';
         }
+        // Replay album art fade-in animation in app mode
+        if (isApp) {
+            sleeveImg.style.animation = 'none';
+            void sleeveImg.offsetHeight;
+            sleeveImg.style.animation = '';
+        }
     }
     // Update backdrop
     const backdropImg = document.getElementById('backdropImg');
@@ -81,24 +116,26 @@ async function animateRecordChange(newSong) {
     const trackNum = document.getElementById('sleeveTrackNum');
     if (trackNum) trackNum.textContent = 'TRACK ' + String(currentSongIndex + 1).padStart(2, '0');
 
-    // Prepare for drop-in
-    vinyl.classList.remove('lifting');
-    vinyl.classList.add('dropping');
+    if (!isApp) {
+        // Prepare for drop-in
+        vinyl.classList.remove('lifting');
+        vinyl.classList.add('dropping');
 
-    // Force reflow
-    void vinyl.offsetWidth;
+        // Force reflow
+        void vinyl.offsetWidth;
 
-    // Drop in new record
-    await new Promise(resolve => setTimeout(resolve, 50));
-    vinyl.classList.remove('dropping');
-    vinyl.classList.add('dropping-in');
-    songInfo.classList.remove('changing');
+        // Drop in new record
+        await new Promise(resolve => setTimeout(resolve, 50));
+        vinyl.classList.remove('dropping');
+        vinyl.classList.add('dropping-in');
+        songInfo.classList.remove('changing');
 
-    // Reset tonearm
-    await new Promise(resolve => setTimeout(resolve, 600));
-    tonearm.style.transform = '';
-    vinyl.classList.remove('dropping-in');
-    tonearm.style.transition = '';
+        // Reset tonearm
+        await new Promise(resolve => setTimeout(resolve, 600));
+        tonearm.style.transform = '';
+        vinyl.classList.remove('dropping-in');
+        tonearm.style.transition = '';
+    }
 
     // Reset mini turntable elements (they'll be set to playing by onPlayerStateChange when video plays)
 }
@@ -172,10 +209,8 @@ async function switchSong(index) {
     // Reset progress bar for new song
     resetSleeveProgress();
 
-    // Update YouTube player with new song
-    if (song.youtube_id && ytPlayer && ytPlayer.loadVideoById) {
-        ytPlayer.loadVideoById(song.youtube_id);
-    }
+    // Update player with new song (YouTube or MP3)
+    playSongSource(song, false);
 
     // Save to server
     await fetch('save-music.php', {
@@ -207,8 +242,10 @@ async function selectPlaylistFromCrate(playlistId) {
 
     // If clicking the already-active playlist, just open the player without reloading
     if (playlistId === activePlaylistId) {
-        if (clickedRecord) clickedRecord.classList.add('pulling');
-        await new Promise(resolve => setTimeout(resolve, 500));
+        if (!window.ReactNativeWebView) {
+            if (clickedRecord) clickedRecord.classList.add('pulling');
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
         vinylCrate.classList.add('hidden');
         playerView.classList.add('active');
         if (clickedRecord) clickedRecord.classList.remove('pulling');
@@ -271,8 +308,9 @@ async function selectPlaylistFromCrate(playlistId) {
         // Update the record player with first song
         const currentSong = songsData[currentSongIndex] || {};
         const label = document.querySelector('.record-label');
-        if (currentSong.cover) {
-            label.innerHTML = `<img src="${currentSong.cover}" alt="Album Cover">`;
+        const cs_cover = safeUrl(currentSong.cover);
+        if (cs_cover) {
+            label.innerHTML = `<img src="${escapeHtml(cs_cover)}" alt="Album Cover">`;
         } else {
             label.innerHTML = '<div class="record-label-placeholder">&#9834;</div>';
         }
@@ -296,17 +334,17 @@ async function selectPlaylistFromCrate(playlistId) {
         const trackNum2 = document.getElementById('sleeveTrackNum');
         if (trackNum2) trackNum2.textContent = 'TRACK ' + String(currentSongIndex + 1).padStart(2, '0');
 
-        // Cue the video without auto-playing - let the user choose
-        if (currentSong.youtube_id && ytPlayer && ytPlayer.cueVideoById) {
-            ytPlayer.cueVideoById(currentSong.youtube_id);
-        }
+        // Cue the song without auto-playing - let the user choose
+        playSongSource(currentSong, true);
 
         // Load lyrics for the new playlist's first song
         loadLyricsForSong(currentSong);
     }
 
-    // Wait for pull animation
-    await new Promise(resolve => setTimeout(resolve, 500));
+    if (!window.ReactNativeWebView) {
+        // Wait for pull animation
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
 
     // Transition to player view
     vinylCrate.classList.add('hidden');
@@ -668,10 +706,8 @@ async function playRadioSong(song) {
     // Reset progress bar
     resetSleeveProgress();
 
-    // Load in YouTube player
-    if (song.youtube_id && ytPlayer && ytPlayer.loadVideoById) {
-        ytPlayer.loadVideoById(song.youtube_id);
-    }
+    // Load in player
+    playSongSource(song, false);
 
     updateAmpDisplay();
     loadLyricsForSong(song);
@@ -683,18 +719,19 @@ function addRadioSidebarItem(song) {
     if (!songList) return;
     const li = document.createElement('li');
     li.className = 'song-list-item radio-song-item active';
+    const radioCover = safeUrl(song.cover);
     li.innerHTML = `
         <div class="song-list-vinyl">
             <div class="song-list-vinyl-groove"></div>
-            ${song.cover
-                ? `<img class="song-list-cover" src="${song.cover}" alt="">`
+            ${radioCover
+                ? `<img class="song-list-cover" src="${escapeHtml(radioCover)}" alt="">`
                 : `<div class="song-list-cover song-list-cover-empty">&#9834;</div>`
             }
             <div class="song-list-vinyl-hole"></div>
         </div>
         <div class="song-list-info">
-            <div class="song-list-title">${song.title}</div>
-            <div class="song-list-artist">${song.artist}</div>
+            <div class="song-list-title">${escapeHtml(song.title)}</div>
+            <div class="song-list-artist">${escapeHtml(song.artist)}</div>
             <div class="song-list-playing-indicator">
                 <span></span><span></span><span></span><span></span>
             </div>
@@ -785,24 +822,59 @@ function playNextByLoop() {
 
 // YouTube IFrame API
 let ytPlayer;
+let ytPlayerReady = false;
+let pendingPlay = false;
 
 function onYouTubeIframeAPIReady() {
-    const currentSong = songsData[currentSongIndex];
-    const youtubeId = currentSong ? currentSong.youtube_id : '';
-
-    ytPlayer = new YT.Player('youtubePlayer', {
+    const player = new YT.Player('youtubePlayer', {
         height: '225',
         width: '400',
-        videoId: youtubeId,
         playerVars: {
             'playsinline': 1,
             'rel': 0,
-            'modestbranding': 1
+            'modestbranding': 1,
+            'origin': window.location.origin
         },
         events: {
-            'onStateChange': onPlayerStateChange
+            'onReady': function(event) {
+                ytPlayerReady = true;
+                // Set volume
+                if (typeof currentVolume !== 'undefined') {
+                    event.target.setVolume(currentVolume);
+                }
+                // If user already clicked play before player was ready, start now
+                if (pendingPlay) {
+                    pendingPlay = false;
+                    const song = currentRadioSong || songsData[currentSongIndex];
+                    const source = getPlaybackSource(song);
+                    if (song && source) {
+                        if (song.mp3_url && !song.youtube_id) {
+                            playSongSource(song, false);
+                        } else {
+                            event.target.loadVideoById(source);
+                        }
+                    }
+                } else {
+                    // Cue initial song (no autoplay)
+                    const currentSong = songsData[currentSongIndex];
+                    const source = getPlaybackSource(currentSong);
+                    if (currentSong && source) {
+                        if (currentSong.mp3_url && !currentSong.youtube_id) {
+                            playSongSource(currentSong, true);
+                        } else {
+                            event.target.cueVideoById(source);
+                        }
+                    }
+                }
+            },
+            'onStateChange': onPlayerStateChange,
+            'onError': function(event) {
+                console.warn('YouTube player error:', event.data);
+            }
         }
     });
+    ytPlayer = player;
+    ytPlayerReal = player;
 }
 
 function onPlayerStateChange(event) {
@@ -814,6 +886,8 @@ function onPlayerStateChange(event) {
     const led = document.getElementById('turntableLed');
     const eqVis = document.getElementById('playerEqVis');
 
+    var isApp = !!window.ReactNativeWebView;
+
     if (event.data === YT.PlayerState.PLAYING) {
         if (vinyl) vinyl.classList.add('playing');
         if (tonearm) tonearm.classList.add('playing');
@@ -822,7 +896,7 @@ function onPlayerStateChange(event) {
         if (led) led.classList.add('on');
         if (eqVis) eqVis.classList.add('active');
         if (playBtn) {
-            playBtn.innerHTML = '&#9208;';
+            if (isApp) { playBtn.textContent = '||'; } else { playBtn.innerHTML = '&#9208;'; }
             playBtn.classList.add('playing');
         }
         startSleeveProgress();
@@ -834,7 +908,7 @@ function onPlayerStateChange(event) {
         if (led) led.classList.remove('on');
         if (eqVis) eqVis.classList.remove('active');
         if (playBtn) {
-            playBtn.innerHTML = '&#9654;';
+            if (isApp) { playBtn.textContent = '\u25B6'; } else { playBtn.innerHTML = '&#9654;'; }
             playBtn.classList.remove('playing');
         }
         stopSleeveProgress();
@@ -847,7 +921,7 @@ function onPlayerStateChange(event) {
         if (led) led.classList.remove('on');
         if (eqVis) eqVis.classList.remove('active');
         if (playBtn) {
-            playBtn.innerHTML = '&#9654;';
+            if (isApp) { playBtn.textContent = '\u25B6'; } else { playBtn.innerHTML = '&#9654;'; }
             playBtn.classList.remove('playing');
         }
         stopSleeveProgress();
@@ -929,6 +1003,7 @@ document.getElementById('sleeveProgressBar')?.addEventListener('click', function
 const lyricsCache = {};
 let currentLyrics = null; // array of {time, text} or null
 let activeLyricIndex = -1;
+let lyricsRequestId = 0; // guards against stale lyrics from previous songs
 
 function parseLRC(lrcString) {
     const lines = lrcString.split('\n');
@@ -1014,24 +1089,31 @@ function renderLyrics(lyrics) {
         return;
     }
 
-    // Synced lyrics — render each word as a span for word-level highlighting
+    // Synced lyrics
     currentLyrics = lyrics.lines;
+    const isApp = !!window.ReactNativeWebView;
     lyrics.lines.forEach((line, i) => {
         const div = document.createElement('div');
         div.className = 'lyrics-line';
         div.dataset.index = i;
 
-        const words = line.text.split(/(\s+)/);
-        words.forEach(word => {
-            if (/^\s+$/.test(word)) {
-                div.appendChild(document.createTextNode(word));
-            } else {
-                const span = document.createElement('span');
-                span.className = 'lyrics-word';
-                span.textContent = word;
-                div.appendChild(span);
-            }
-        });
+        if (isApp) {
+            // App mode: line-level only, no word spans
+            div.textContent = line.text;
+        } else {
+            // Desktop: word-level spans for highlighting
+            const words = line.text.split(/(\s+)/);
+            words.forEach(word => {
+                if (/^\s+$/.test(word)) {
+                    div.appendChild(document.createTextNode(word));
+                } else {
+                    const span = document.createElement('span');
+                    span.className = 'lyrics-word';
+                    span.textContent = word;
+                    div.appendChild(span);
+                }
+            });
+        }
 
         div.addEventListener('click', () => {
             if (ytPlayer && ytPlayer.seekTo) {
@@ -1081,8 +1163,8 @@ function updateActiveLyric() {
         }
     }
 
-    // Word-level highlighting within active line (character-weighted timing)
-    if (newIndex >= 0 && newIndex < currentLyrics.length && lines[newIndex]) {
+    // Word-level highlighting within active line (desktop only)
+    if (!window.ReactNativeWebView && newIndex >= 0 && newIndex < currentLyrics.length && lines[newIndex]) {
         const lineStart = currentLyrics[newIndex].time;
         const lineEnd = (newIndex + 1 < currentLyrics.length) ? currentLyrics[newIndex + 1].time : (ytPlayer.getDuration ? ytPlayer.getDuration() : lineStart + 5);
         const lineDuration = Math.min(lineEnd - lineStart, 8) * 0.85; // tighter timing — words finish before next line
@@ -1128,9 +1210,13 @@ async function loadLyricsForSong(song) {
         renderLyrics(null);
         return;
     }
+    const requestId = ++lyricsRequestId;
     showLyricsLoading();
     const lyrics = await fetchLyrics(song.title, song.artist);
-    renderLyrics(lyrics);
+    // Only render if this is still the active request (prevents stale lyrics)
+    if (requestId === lyricsRequestId) {
+        renderLyrics(lyrics);
+    }
 }
 
 function updateAmpDisplay() {
@@ -1152,8 +1238,9 @@ function updateAmpDisplay() {
     // Update small turntable cover
     const platterLabel = document.getElementById('platterLabel');
     if (platterLabel) {
-        if (song.cover) {
-            platterLabel.innerHTML = `<img src="${song.cover}" alt="">`;
+        const platterCover = safeUrl(song.cover);
+        if (platterCover) {
+            platterLabel.innerHTML = `<img src="${escapeHtml(platterCover)}" alt="">`;
         } else {
             platterLabel.innerHTML = '';
         }
@@ -1164,6 +1251,10 @@ function updateAmpDisplay() {
 document.addEventListener('DOMContentLoaded', () => {
     updateAmpDisplay();
     if (shuffleMode !== 'off') buildShuffleQueue();
+    // Check if returning from Spotify OAuth
+    if (new URLSearchParams(window.location.search).get('spotify') === 'connected') {
+        checkSpotifyStatus();
+    }
 });
 
 function restartSong() {
@@ -1175,16 +1266,35 @@ function restartSong() {
 }
 
 function toggleMusic() {
-    if (!ytPlayer) return;
+    const song = currentRadioSong || songsData[currentSongIndex];
+
+    // Activate the right player for this song
+    if (song) activatePlayerForSong(song);
+
+    // If player isn't ready yet, queue the play
+    if (!ytPlayer || !isPlayerReady()) {
+        pendingPlay = true;
+        // Load lyrics immediately even if player isn't ready
+        if (song && !currentLyrics && activeLyricIndex === -1) {
+            loadLyricsForSong(song);
+        }
+        return;
+    }
 
     const state = ytPlayer.getPlayerState();
     if (state === YT.PlayerState.PLAYING) {
         ytPlayer.pauseVideo();
-    } else {
+    } else if (state === YT.PlayerState.PAUSED) {
+        // Resume from pause
         ytPlayer.playVideo();
+    } else {
+        // Unstarted (-1), cued (5), ended (0), or buffering (3)
+        const source = getPlaybackSource(song);
+        if (song && source) {
+            ytPlayer.loadVideoById(source);
+        }
         // Load lyrics on first play if not yet loaded
         if (!currentLyrics && activeLyricIndex === -1) {
-            const song = currentRadioSong || songsData[currentSongIndex];
             if (song) loadLyricsForSong(song);
         }
     }
@@ -1364,6 +1474,7 @@ setPitch(0);
 // ============================================================
 
 function showAddSongModal() {
+    updateAddSongFormForSource();
     document.getElementById('addSongModal').classList.add('active');
     document.getElementById('addSongYoutube').focus();
 }
@@ -1423,18 +1534,24 @@ async function fetchYoutubeInfo(input) {
     }
 }
 
-// Auto-fetch info when YouTube URL is pasted or typed
+// Auto-fetch info when URL is pasted or typed (source-aware)
 document.getElementById('addSongYoutube')?.addEventListener('input', (e) => {
     const val = e.target.value.trim();
-    if (val.length >= 11) fetchYoutubeInfo(val);
+    if (musicSource === 'youtube' && val.length >= 11) {
+        fetchYoutubeInfo(val);
+    } else if (musicSource === 'spotify' && val.length >= 10) {
+        fetchSpotifyInfo(val);
+    }
+    // MP3 mode: no auto-fetch, user fills in metadata manually
 });
 
 function updateSongDisplay(song) {
     // Record label
     const label = document.querySelector('.record-label');
     if (label) {
-        label.innerHTML = song.cover
-            ? `<img src="${song.cover}" alt="Album Cover">`
+        const dispCover = safeUrl(song.cover);
+        label.innerHTML = dispCover
+            ? `<img src="${escapeHtml(dispCover)}" alt="Album Cover">`
             : '<div class="record-label-placeholder">&#9834;</div>';
     }
     // Sleeve art
@@ -1472,21 +1589,22 @@ function updateSongDisplay(song) {
 }
 
 function buildSongListItem(song, index) {
+    const itemCover = safeUrl(song.cover);
     return `
         <li class="song-list-item ${index === currentSongIndex ? 'active' : ''}"
             data-index="${index}"
             onclick="switchSong(${index})">
             <div class="song-list-vinyl">
                 <div class="song-list-vinyl-groove"></div>
-                ${song.cover
-                    ? `<img class="song-list-cover" src="${song.cover}" alt="">`
+                ${itemCover
+                    ? `<img class="song-list-cover" src="${escapeHtml(itemCover)}" alt="">`
                     : `<div class="song-list-cover song-list-cover-empty">&#9834;</div>`
                 }
                 <div class="song-list-vinyl-hole"></div>
             </div>
             <div class="song-list-info">
-                <div class="song-list-title">${song.title}</div>
-                <div class="song-list-artist">${song.artist}</div>
+                <div class="song-list-title">${escapeHtml(song.title)}</div>
+                <div class="song-list-artist">${escapeHtml(song.artist)}</div>
                 <div class="song-list-playing-indicator">
                     <span></span><span></span><span></span><span></span>
                 </div>
@@ -1537,15 +1655,25 @@ function refreshMetaCovers() {
 
 async function addSongToPlaylist(e) {
     e.preventDefault();
-    const youtubeId = extractYoutubeId(document.getElementById('addSongYoutube').value);
+    const sourceValue = document.getElementById('addSongYoutube').value.trim();
     const title = document.getElementById('addSongTitle').value.trim();
     const artist = document.getElementById('addSongArtist').value.trim();
     const album = document.getElementById('addSongAlbum').value.trim();
     const cover = document.getElementById('addSongCover').value.trim();
 
-    if (!title || !youtubeId) return;
+    if (!title || !sourceValue) return;
 
-    const song = { title, artist, album, cover, youtube_id: youtubeId };
+    let song;
+    if (musicSource === 'mp3') {
+        song = { title, artist, album, cover, youtube_id: '', mp3_url: sourceValue };
+    } else if (musicSource === 'spotify') {
+        // Spotify: metadata only, no direct playback source
+        song = { title, artist, album, cover, youtube_id: '', mp3_url: '' };
+    } else {
+        // YouTube (default)
+        const youtubeId = extractYoutubeId(sourceValue);
+        song = { title, artist, album, cover, youtube_id: youtubeId, mp3_url: '' };
+    }
 
     const response = await fetch('save-music.php', {
         method: 'POST',
@@ -1556,17 +1684,13 @@ async function addSongToPlaylist(e) {
 
     if (result.success) {
         songsData.push(song);
-        const prevIndex = currentSongIndex;
         currentSongIndex = songsData.length - 1;
         if (shuffleMode !== 'off') buildShuffleQueue();
         rebuildSongList();
         updateTrackCount();
         hideAddSongModal();
-        // Load the new song — can't use switchSong since we already updated currentSongIndex
         updateSongDisplay(song);
-        if (song.youtube_id && ytPlayer && ytPlayer.cueVideoById) {
-            ytPlayer.cueVideoById(song.youtube_id);
-        }
+        playSongSource(song, true);
     }
 }
 
@@ -1590,9 +1714,7 @@ async function deleteSong(index) {
         if (wasPlaying && songsData.length > 0) {
             const song = songsData[currentSongIndex];
             updateSongDisplay(song);
-            if (song.youtube_id && ytPlayer && ytPlayer.cueVideoById) {
-                ytPlayer.cueVideoById(song.youtube_id);
-            }
+            playSongSource(song, true);
         }
     }
 }
@@ -1643,9 +1765,11 @@ function buildCoverPicker(playlistId) {
     let html = `<div class="cover-picker-item ${selectedCoverIndex === null ? 'selected' : ''}" data-cover-index="-1" onclick="selectCoverSong(this)" title="Auto"><div class="cover-picker-thumb cover-picker-auto">AUTO</div></div>`;
     covers.forEach(c => {
         const isSelected = selectedCoverIndex === c.index || (selectedCoverUrl && c.url === selectedCoverUrl);
-        const safeTitle = c.title.replace(/"/g, '&quot;');
-        html += `<div class="cover-picker-item ${isSelected ? 'selected' : ''}" data-cover-index="${c.index}" onclick="selectCoverSong(this)" title="${safeTitle}">
-            <img class="cover-picker-thumb" src="${c.url}" alt="">
+        const safeTitle = escapeHtml(c.title);
+        const cUrl = safeUrl(c.url);
+        const cIdx = Number(c.index) || 0;
+        html += `<div class="cover-picker-item ${isSelected ? 'selected' : ''}" data-cover-index="${cIdx}" onclick="selectCoverSong(this)" title="${safeTitle}">
+            <img class="cover-picker-thumb" src="${escapeHtml(cUrl)}" alt="">
         </div>`;
     });
     grid.innerHTML = html;
@@ -1750,7 +1874,7 @@ async function savePlaylistEdit() {
                     }
                 }
                 if (vinylLabel) {
-                    vinylLabel.innerHTML = `<img src="${newCoverUrl}" alt="">`;
+                    vinylLabel.innerHTML = `<img src="${escapeHtml(safeUrl(newCoverUrl))}" alt="">`;
                 }
             }
         }
@@ -1788,6 +1912,8 @@ function closeSendMenu() {
         activeSendMenu.remove();
         activeSendMenu = null;
     }
+    const smBackdrop = document.querySelector('.send-menu-backdrop');
+    if (smBackdrop) smBackdrop.remove();
     document.removeEventListener('click', onSendMenuOutsideClick);
 }
 
@@ -1799,34 +1925,55 @@ function onSendMenuOutsideClick(e) {
 
 function showSendMenu(btn, songIndex) {
     closeSendMenu();
+    const isApp = !!window.ReactNativeWebView || new URLSearchParams(window.location.search).has('app');
     const rect = btn.getBoundingClientRect();
     const menu = document.createElement('div');
     menu.className = 'send-menu';
 
-    let html = '<div class="send-menu-title">Move to...</div>';
+    let html = '<div class="send-menu-title">Send to...</div>';
     for (const [id, meta] of Object.entries(playlistsMeta)) {
         if (id === activePlaylistId) continue;
+        const idJs = JSON.stringify(String(id));
+        const colorAttr = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#888';
         html += `
-            <div class="send-menu-item" onclick="event.stopPropagation(); moveSongTo('${id}', ${songIndex})" style="cursor:pointer">
-                <span class="send-menu-dot" style="background:${meta.color}"></span>
-                <span class="send-menu-name">${meta.name}</span>
+            <div class="send-menu-item" onclick="event.stopPropagation(); moveSongTo(${escapeHtml(idJs)}, ${songIndex})" style="cursor:pointer">
+                <span class="send-menu-dot" style="background:${colorAttr}"></span>
+                <span class="send-menu-name">${escapeHtml(meta.name)}</span>
             </div>`;
     }
+
+    if (isApp) {
+        if (songsData.length > 1) {
+            html += '<div class="send-menu-divider"></div>';
+            html += `<div class="send-menu-item send-menu-delete" onclick="event.stopPropagation(); closeSendMenu(); deleteSong(${songIndex})">
+                <span class="send-menu-delete-icon">&#10005;</span>
+                <span class="send-menu-name" style="color:#e85d75">Delete from playlist</span>
+            </div>`;
+        }
+        html += `<div class="send-menu-cancel" onclick="event.stopPropagation(); closeSendMenu()">Cancel</div>`;
+    }
+
     menu.innerHTML = html;
 
-    // Position menu
-    menu.style.position = 'fixed';
-    menu.style.top = (rect.bottom + 4) + 'px';
-    menu.style.left = (rect.left - 160) + 'px';
-    document.body.appendChild(menu);
+    if (isApp) {
+        const smBackdrop = document.createElement('div');
+        smBackdrop.className = 'send-menu-backdrop';
+        smBackdrop.onclick = function() { closeSendMenu(); };
+        document.body.appendChild(smBackdrop);
+        document.body.appendChild(menu);
+    } else {
+        menu.style.position = 'fixed';
+        menu.style.top = (rect.bottom + 4) + 'px';
+        menu.style.left = (rect.left - 160) + 'px';
+        document.body.appendChild(menu);
 
-    // Ensure menu stays within viewport
-    const menuRect = menu.getBoundingClientRect();
-    if (menuRect.right > window.innerWidth - 8) {
-        menu.style.left = (window.innerWidth - menuRect.width - 8) + 'px';
-    }
-    if (menuRect.bottom > window.innerHeight - 8) {
-        menu.style.top = (rect.top - menuRect.height - 4) + 'px';
+        const menuRect = menu.getBoundingClientRect();
+        if (menuRect.right > window.innerWidth - 8) {
+            menu.style.left = (window.innerWidth - menuRect.width - 8) + 'px';
+        }
+        if (menuRect.bottom > window.innerHeight - 8) {
+            menu.style.top = (rect.top - menuRect.height - 4) + 'px';
+        }
     }
 
     activeSendMenu = menu;
@@ -1883,9 +2030,7 @@ async function moveSongTo(toPlaylist, songIndex) {
         if (wasPlaying && songsData.length > 0) {
             const song = songsData[currentSongIndex];
             updateSongDisplay(song);
-            if (song.youtube_id && ytPlayer && ytPlayer.cueVideoById) {
-                ytPlayer.cueVideoById(song.youtube_id);
-            }
+            playSongSource(song, true);
         }
     }
     closeSendMenu();
@@ -1902,12 +2047,901 @@ function updateCrateRecords() {
         .filter(id => playlistsMeta[id])
         .map(id => {
             const meta = playlistsMeta[id];
-            return `<div class="crate-record" data-crate-playlist="${id}" style="--r-color: ${meta.color};" onclick="selectPlaylistFromCrate('${id}')" title="${meta.name}"></div>`;
+            const colorAttr = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#888';
+            const idJs = JSON.stringify(String(id));
+            return `<div class="crate-record" data-crate-playlist="${escapeHtml(id)}" style="--r-color: ${colorAttr};" onclick="selectPlaylistFromCrate(${escapeHtml(idJs)})" title="${escapeHtml(meta.name)}"></div>`;
         }).join('');
 }
 
 
-// Auto-initialize: load YouTube API on page load (standalone app, no tabs)
+// ============================================================
+// SETTINGS — MUSIC SOURCE MANAGEMENT
+// ============================================================
+
+let musicSource = localStorage.getItem('musicSource') || 'youtube';
+let ytPlayerReal = null; // Stores reference to actual YT player
+let mp3PlayerProxy = null; // HTML5 Audio player wrapper
+
+function showSettingsModal() {
+    document.getElementById('settingsModal').classList.add('active');
+    // Sync active button
+    document.querySelectorAll('#settingsSourceOptions .settings-source-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.source === musicSource);
+    });
+    // Check Spotify status
+    checkSpotifyStatus();
+}
+
+function hideSettingsModal() {
+    document.getElementById('settingsModal').classList.remove('active');
+}
+
+function setMusicSource(source) {
+    musicSource = source;
+    localStorage.setItem('musicSource', source);
+    // Update active button
+    document.querySelectorAll('#settingsSourceOptions .settings-source-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.source === source);
+    });
+    // Update add song form hints
+    updateAddSongFormForSource();
+}
+
+function updateAddSongFormForSource() {
+    const label = document.getElementById('addSongSourceLabel');
+    const input = document.getElementById('addSongYoutube');
+    if (!label || !input) return;
+
+    if (musicSource === 'mp3') {
+        label.textContent = 'MP3 URL';
+        input.placeholder = 'https://example.com/song.mp3';
+    } else if (musicSource === 'spotify') {
+        label.textContent = 'Spotify URL';
+        input.placeholder = 'https://open.spotify.com/track/...';
+    } else {
+        label.textContent = 'YouTube URL or ID';
+        input.placeholder = 'https://youtube.com/watch?v=... or video ID';
+    }
+}
+
+// ============================================================
+// MP3 AUDIO PLAYER (HTML5 Audio wrapper mimicking YT API)
+// ============================================================
+
+function createMp3Player() {
+    const audio = new Audio();
+    audio.preload = 'auto';
+
+    mp3PlayerProxy = {
+        _audio: audio,
+        _state: -1,
+        loadVideoById: function(url) {
+            this._state = 3;
+            this._audio.src = url;
+            this._audio.play().catch(() => {});
+        },
+        cueVideoById: function(url) {
+            this._state = 5;
+            this._audio.src = url;
+            this._audio.load();
+        },
+        playVideo: function() {
+            this._audio.play().catch(() => {});
+        },
+        pauseVideo: function() {
+            this._audio.pause();
+        },
+        seekTo: function(seconds) {
+            this._audio.currentTime = seconds;
+        },
+        setVolume: function(vol) {
+            this._audio.volume = Math.min(1, Math.max(0, vol / 100));
+        },
+        getVolume: function() { return Math.round(this._audio.volume * 100); },
+        isMuted: function() { return this._audio.muted; },
+        mute: function() { this._audio.muted = true; },
+        unMute: function() { this._audio.muted = false; },
+        getPlayerState: function() { return this._state; },
+        getCurrentTime: function() { return this._audio.currentTime || 0; },
+        getDuration: function() { return this._audio.duration || 0; },
+        setPlaybackRate: function(rate) { this._audio.playbackRate = rate; },
+        getPlaybackRate: function() { return this._audio.playbackRate; }
+    };
+
+    audio.addEventListener('playing', () => {
+        mp3PlayerProxy._state = 1;
+        if (ytPlayer === mp3PlayerProxy) onPlayerStateChange({ data: 1 });
+    });
+    audio.addEventListener('pause', () => {
+        if (!audio.ended) {
+            mp3PlayerProxy._state = 2;
+            if (ytPlayer === mp3PlayerProxy) onPlayerStateChange({ data: 2 });
+        }
+    });
+    audio.addEventListener('ended', () => {
+        mp3PlayerProxy._state = 0;
+        if (ytPlayer === mp3PlayerProxy) onPlayerStateChange({ data: 0 });
+    });
+    audio.addEventListener('waiting', () => {
+        mp3PlayerProxy._state = 3;
+    });
+
+    return mp3PlayerProxy;
+}
+
+// Switch active player based on song source
+function activatePlayerForSong(song) {
+    if (song && song.spotify_id && !song.youtube_id && !song.mp3_url && spotifyPlayerProxy && spotifyDeviceId) {
+        // Spotify source (Premium playback)
+        if (ytPlayer !== spotifyPlayerProxy) {
+            if (ytPlayer === ytPlayerReal && ytPlayerReal) { try { ytPlayerReal.pauseVideo(); } catch(e) {} }
+            if (mp3PlayerProxy && mp3PlayerProxy._audio) { try { mp3PlayerProxy._audio.pause(); } catch(e) {} }
+        }
+        ytPlayer = spotifyPlayerProxy;
+    } else if (song && song.mp3_url && !song.youtube_id) {
+        // MP3 source
+        if (!mp3PlayerProxy) createMp3Player();
+        if (ytPlayer !== mp3PlayerProxy) {
+            if (ytPlayer === ytPlayerReal && ytPlayerReal) { try { ytPlayerReal.pauseVideo(); } catch(e) {} }
+            if (spotifyPlayerProxy) { try { spotifyPlayerProxy.pauseVideo(); } catch(e) {} }
+        }
+        ytPlayer = mp3PlayerProxy;
+    } else {
+        // YouTube source (default)
+        if (mp3PlayerProxy && mp3PlayerProxy._audio) { try { mp3PlayerProxy._audio.pause(); } catch(e) {} }
+        if (spotifyPlayerProxy) { try { spotifyPlayerProxy.pauseVideo(); } catch(e) {} }
+        if (ytPlayerReal) ytPlayer = ytPlayerReal;
+    }
+}
+
+// Get playback source URL/ID from a song
+function getPlaybackSource(song) {
+    if (!song) return '';
+    // Spotify Premium playback
+    if (song.spotify_id && !song.youtube_id && !song.mp3_url && spotifyPlayerProxy && spotifyDeviceId) {
+        return song.spotify_id;
+    }
+    return song.youtube_id || song.mp3_url || '';
+}
+
+// Unified play/cue function
+function playSongSource(song, cueOnly) {
+    const source = getPlaybackSource(song);
+    if (!source) return;
+    activatePlayerForSong(song);
+    if (cueOnly) {
+        if (ytPlayer && ytPlayer.cueVideoById) ytPlayer.cueVideoById(source);
+    } else {
+        if (ytPlayer && ytPlayer.loadVideoById) ytPlayer.loadVideoById(source);
+    }
+}
+
+function isPlayerReady() {
+    if (ytPlayer === mp3PlayerProxy) return true;
+    if (ytPlayer === spotifyPlayerProxy) return !!spotifyDeviceId;
+    return ytPlayerReady;
+}
+
+// ============================================================
+// SPOTIFY WEB PLAYBACK SDK + CONNECTION
+// ============================================================
+
+let spotifyPlayerProxy = null;
+let spotifyDeviceId = null;
+let spotifyConnected = false;
+let spotifyPremium = false;
+let spotifyImportData = null; // Holds fetched playlist data for import
+
+// Called by the Spotify SDK script when it loads
+window.onSpotifyWebPlaybackSDKReady = function() {
+    // Only init if user is connected and premium
+    if (spotifyConnected && spotifyPremium) {
+        initSpotifyPlayer();
+    }
+};
+
+async function initSpotifyPlayer() {
+    const tokenResp = await fetch('spotify.php?action=token');
+    const tokenData = await tokenResp.json();
+    if (!tokenData.access_token) return;
+
+    const player = new Spotify.Player({
+        name: 'Music Player',
+        getOAuthToken: cb => {
+            fetch('spotify.php?action=token')
+                .then(r => r.json())
+                .then(d => cb(d.access_token))
+                .catch(() => cb(''));
+        },
+        volume: (typeof currentVolume !== 'undefined' ? currentVolume : 100) / 100
+    });
+
+    player.addListener('ready', ({ device_id }) => {
+        spotifyDeviceId = device_id;
+    });
+
+    player.addListener('not_ready', () => {
+        spotifyDeviceId = null;
+    });
+
+    player.addListener('player_state_changed', state => {
+        if (!state || !spotifyPlayerProxy) return;
+        spotifyPlayerProxy._currentTime = (state.position || 0) / 1000;
+        spotifyPlayerProxy._duration = (state.duration || 0) / 1000;
+
+        if (!state.paused) {
+            spotifyPlayerProxy._state = 1;
+            if (ytPlayer === spotifyPlayerProxy) onPlayerStateChange({ data: 1 });
+        } else if (state.position === 0 && state.track_window?.current_track === null) {
+            spotifyPlayerProxy._state = 0;
+            if (ytPlayer === spotifyPlayerProxy) onPlayerStateChange({ data: 0 });
+        } else {
+            spotifyPlayerProxy._state = 2;
+            if (ytPlayer === spotifyPlayerProxy) onPlayerStateChange({ data: 2 });
+        }
+    });
+
+    player.connect();
+
+    spotifyPlayerProxy = {
+        _player: player,
+        _state: -1,
+        _currentTime: 0,
+        _duration: 0,
+        loadVideoById: async function(spotifyId) {
+            const uri = spotifyId.startsWith('spotify:') ? spotifyId : 'spotify:track:' + spotifyId;
+            const t = await getSpotifyToken();
+            if (!t || !spotifyDeviceId) return;
+            fetch('https://api.spotify.com/v1/me/player/play?device_id=' + spotifyDeviceId, {
+                method: 'PUT',
+                headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uris: [uri] })
+            });
+        },
+        cueVideoById: function() { this._state = 5; },
+        playVideo: function() { this._player.resume(); },
+        pauseVideo: function() { this._player.pause(); },
+        seekTo: function(sec) { this._player.seek(sec * 1000); },
+        setVolume: function(v) { this._player.setVolume(v / 100); },
+        getVolume: function() { return typeof currentVolume !== 'undefined' ? currentVolume : 100; },
+        getPlayerState: function() { return this._state; },
+        getCurrentTime: function() { return this._currentTime; },
+        getDuration: function() { return this._duration; },
+        setPlaybackRate: function() {},
+        getPlaybackRate: function() { return 1; }
+    };
+
+    // Start progress polling for Spotify (since it doesn't push time updates as frequently)
+    setInterval(() => {
+        if (ytPlayer === spotifyPlayerProxy && spotifyPlayerProxy._state === 1) {
+            player.getCurrentState().then(state => {
+                if (state) {
+                    spotifyPlayerProxy._currentTime = state.position / 1000;
+                    spotifyPlayerProxy._duration = state.duration / 1000;
+                }
+            });
+        }
+    }, 200);
+}
+
+async function getSpotifyToken() {
+    try {
+        const r = await fetch('spotify.php?action=token');
+        const d = await r.json();
+        return d.access_token || null;
+    } catch(e) { return null; }
+}
+
+// Check Spotify connection status on settings open
+async function checkSpotifyStatus() {
+    try {
+        const resp = await fetch('spotify.php?action=status');
+        const data = await resp.json();
+
+        const notConfigured = document.getElementById('spotifyNotConfigured');
+        const notConnected = document.getElementById('spotifyNotConnected');
+        const connected = document.getElementById('spotifyConnected');
+        if (!notConfigured || !notConnected || !connected) return;
+
+        if (!data.configured) {
+            notConfigured.style.display = '';
+            notConnected.style.display = 'none';
+            connected.style.display = 'none';
+        } else if (data.connected) {
+            spotifyConnected = true;
+            spotifyPremium = data.user?.premium || false;
+            notConfigured.style.display = 'none';
+            notConnected.style.display = 'none';
+            connected.style.display = '';
+
+            const info = document.getElementById('spotifyUserInfo');
+            const avatarUrl = safeUrl(data.user?.image);
+            const avatar = avatarUrl ? `<img class="spotify-user-avatar" src="${escapeHtml(avatarUrl)}" alt="">` : '<div class="spotify-user-avatar"></div>';
+            const badge = spotifyPremium ? '<span class="spotify-user-badge">PREMIUM</span>' : '';
+            info.innerHTML = `${avatar}<span class="spotify-user-name">${escapeHtml(data.user?.name || 'Connected')}</span>${badge}`;
+
+            // Init Web Playback SDK if premium and SDK loaded
+            if (spotifyPremium && window.Spotify && !spotifyPlayerProxy) {
+                initSpotifyPlayer();
+            }
+        } else {
+            notConfigured.style.display = 'none';
+            notConnected.style.display = '';
+            connected.style.display = 'none';
+        }
+    } catch(e) {}
+}
+
+function connectSpotify() {
+    fetch('spotify.php?action=login')
+        .then(r => r.json())
+        .then(data => {
+            if (data.authUrl) {
+                window.location.href = data.authUrl;
+            } else if (data.error) {
+                alert(data.error);
+            }
+        });
+}
+
+function disconnectSpotify() {
+    fetch('spotify.php?action=logout')
+        .then(() => {
+            spotifyConnected = false;
+            spotifyPremium = false;
+            spotifyDeviceId = null;
+            if (spotifyPlayerProxy?._player) {
+                try { spotifyPlayerProxy._player.disconnect(); } catch(e) {}
+            }
+            spotifyPlayerProxy = null;
+            checkSpotifyStatus();
+        });
+}
+
+// Import modal
+function showSpotifyImportModal() {
+    spotifyImportData = null;
+    document.getElementById('spotifyImportUrl').value = '';
+    document.getElementById('spotifyImportPreview').style.display = 'none';
+    document.getElementById('spotifyImportLoading').style.display = 'none';
+    document.getElementById('spotifyImportModal').classList.add('active');
+
+    // Load user playlists if connected
+    if (spotifyConnected) {
+        const container = document.getElementById('spotifyUserPlaylists');
+        const list = document.getElementById('spotifyPlaylistsList');
+        container.style.display = '';
+        list.innerHTML = '<p class="settings-hint" style="text-align:center">Loading playlists...</p>';
+
+        fetch('spotify.php?action=playlists')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success || !data.playlists?.length) {
+                    list.innerHTML = '<p class="settings-hint">No playlists found</p>';
+                    return;
+                }
+                list.innerHTML = data.playlists.map((pl, i) => {
+                    const img = safeUrl(pl.image);
+                    return `
+                    <button class="spotify-playlist-item" data-pl-idx="${i}">
+                        ${img ? `<img class="spotify-playlist-img" src="${escapeHtml(img)}" alt="">` : '<div class="spotify-playlist-img"></div>'}
+                        <div class="spotify-playlist-info">
+                            <div class="spotify-playlist-name">${escapeHtml(pl.name)}</div>
+                            <div class="spotify-playlist-meta">${Number(pl.tracks) || 0} tracks &middot; ${escapeHtml(pl.owner)}</div>
+                        </div>
+                    </button>
+                `;
+                }).join('');
+                list.querySelectorAll('.spotify-playlist-item').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const idx = parseInt(btn.dataset.plIdx, 10);
+                        const pl = data.playlists[idx];
+                        if (pl) fetchSpotifyPlaylistById(pl.id, pl.name);
+                    });
+                });
+            })
+            .catch(() => {
+                list.innerHTML = '<p class="settings-hint">Could not load playlists</p>';
+            });
+    } else {
+        document.getElementById('spotifyUserPlaylists').style.display = 'none';
+    }
+}
+
+function hideSpotifyImportModal() {
+    document.getElementById('spotifyImportModal').classList.remove('active');
+    spotifyImportData = null;
+}
+
+async function fetchSpotifyPlaylistUrl() {
+    const url = document.getElementById('spotifyImportUrl').value.trim();
+    if (!url) return;
+    showImportLoading();
+    try {
+        const resp = await fetch('spotify.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'import_url', url })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showImportPreview(data);
+        } else {
+            alert(data.error || 'Could not fetch playlist');
+            hideImportLoading();
+        }
+    } catch(e) {
+        alert('Network error');
+        hideImportLoading();
+    }
+}
+
+async function fetchSpotifyPlaylistById(playlistId, name) {
+    showImportLoading();
+    try {
+        const resp = await fetch('spotify.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'playlist_tracks', playlist_id: playlistId })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showImportPreview({ name: name, songs: data.songs, total: data.songs.length });
+        } else {
+            alert(data.error || 'Could not fetch tracks');
+            hideImportLoading();
+        }
+    } catch(e) {
+        alert('Network error');
+        hideImportLoading();
+    }
+}
+
+function showImportLoading() {
+    document.getElementById('spotifyImportLoading').style.display = '';
+    document.getElementById('spotifyImportPreview').style.display = 'none';
+}
+
+function hideImportLoading() {
+    document.getElementById('spotifyImportLoading').style.display = 'none';
+}
+
+function showImportPreview(data) {
+    hideImportLoading();
+    spotifyImportData = data.songs || [];
+
+    const info = document.getElementById('spotifyImportInfo');
+    info.innerHTML = `<div><strong>${escapeHtml(data.name || 'Playlist')}</strong><br><span style="font-size:0.75rem;color:var(--app-text-dim)">${Number(data.total) || 0} tracks</span></div>`;
+
+    const tracks = document.getElementById('spotifyImportTracks');
+    tracks.innerHTML = spotifyImportData.slice(0, 50).map((s, i) =>
+        `<div class="spotify-import-track"><span class="spotify-import-track-title">${escapeHtml(s.title)}</span> &mdash; ${escapeHtml(s.artist)}</div>`
+    ).join('') + (spotifyImportData.length > 50 ? `<div class="spotify-import-track" style="opacity:0.5">+ ${spotifyImportData.length - 50} more...</div>` : '');
+
+    document.getElementById('spotifyImportPreview').style.display = '';
+}
+
+async function importSpotifyPlaylist() {
+    if (!spotifyImportData || spotifyImportData.length === 0) return;
+
+    // Add each song to the current playlist
+    for (const s of spotifyImportData) {
+        const song = {
+            title: s.title,
+            artist: s.artist,
+            album: s.album || '',
+            cover: s.cover || '',
+            youtube_id: '',
+            mp3_url: '',
+            spotify_id: s.spotify_id || ''
+        };
+
+        await fetch('save-music.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'add', song })
+        });
+
+        songsData.push(song);
+    }
+
+    currentSongIndex = songsData.length - spotifyImportData.length;
+    if (shuffleMode !== 'off') buildShuffleQueue();
+    rebuildSongList();
+    updateTrackCount();
+
+    // Display the first imported song
+    const firstSong = songsData[currentSongIndex];
+    if (firstSong) {
+        updateSongDisplay(firstSong);
+        playSongSource(firstSong, true);
+    }
+
+    hideSpotifyImportModal();
+}
+
+// ============================================================
+// SPOTIFY METADATA FETCH
+// ============================================================
+
+function extractSpotifyId(input) {
+    if (!input) return '';
+    input = input.trim();
+    const match = input.match(/open\.spotify\.com\/track\/([a-zA-Z0-9]+)/);
+    if (match) return match[1];
+    if (/^[a-zA-Z0-9]{22}$/.test(input)) return input;
+    return '';
+}
+
+async function fetchSpotifyInfo(input) {
+    const spotifyId = extractSpotifyId(input);
+    if (!spotifyId) return;
+
+    const spotifyUrl = `https://open.spotify.com/track/${spotifyId}`;
+    const coverInput = document.getElementById('addSongCover');
+    const titleInput = document.getElementById('addSongTitle');
+
+    try {
+        const resp = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(spotifyUrl)}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        if (data.thumbnail_url && coverInput) {
+            coverInput.value = coverInput.value || data.thumbnail_url;
+        }
+        if (data.title && titleInput) {
+            titleInput.value = titleInput.value || data.title;
+        }
+    } catch(e) {
+        // oEmbed failed — user fills in manually
+    }
+}
+
+// ============================================================
+// NATIVE PLAYER PROXY (for React Native WebView)
+// ============================================================
+// When running inside a React Native WebView, YouTube IFrame API
+// cannot reliably play inside a nested iframe. Instead, we create
+// a proxy ytPlayer that forwards commands to React Native, which
+// uses react-native-youtube-iframe for actual playback.
+function setupNativePlayerProxy() {
+    // Define YT namespace so existing code doesn't break
+    window.YT = {
+        PlayerState: {
+            UNSTARTED: -1,
+            ENDED: 0,
+            PLAYING: 1,
+            PAUSED: 2,
+            BUFFERING: 3,
+            CUED: 5
+        }
+    };
+
+    ytPlayer = {
+        _state: -1,
+        _currentTime: 0,
+        _duration: 0,
+        _volume: 100,
+        loadVideoById: function(id) {
+            this._state = 3; // BUFFERING
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'ytCommand', command: 'loadVideo', youtubeId: id
+            }));
+        },
+        cueVideoById: function(id) {
+            this._state = 5; // CUED
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'ytCommand', command: 'cueVideo', youtubeId: id
+            }));
+        },
+        playVideo: function() {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'ytCommand', command: 'play'
+            }));
+        },
+        pauseVideo: function() {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'ytCommand', command: 'pause'
+            }));
+        },
+        seekTo: function(seconds) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'ytCommand', command: 'seekTo', seconds: seconds
+            }));
+        },
+        setVolume: function(vol) {
+            this._volume = vol;
+        },
+        getVolume: function() { return this._volume; },
+        isMuted: function() { return this._volume === 0; },
+        mute: function() { this._volume = 0; },
+        unMute: function() { this._volume = 100; },
+        getPlayerState: function() { return this._state; },
+        getCurrentTime: function() { return this._currentTime; },
+        getDuration: function() { return this._duration; },
+        setPlaybackRate: function() {},
+        getPlaybackRate: function() { return 1; }
+    };
+
+    ytPlayerReady = true;
+    ytPlayerReal = ytPlayer;
+
+    // Cue initial song
+    var currentSong = songsData[currentSongIndex];
+    if (currentSong) {
+        playSongSource(currentSong, true);
+    }
+}
+
+// Auto-initialize
 document.addEventListener('DOMContentLoaded', () => {
-    loadYouTubeAPI();
+    if (window.ReactNativeWebView) {
+        setupNativePlayerProxy();
+    } else {
+        loadYouTubeAPI();
+    }
 });
+
+// ============================================================
+// REACT NATIVE WEBVIEW BRIDGE
+// ============================================================
+(function() {
+    if (!window.ReactNativeWebView) return;
+
+    // Listen for messages from React Native. injectJavaScript dispatches a
+    // synthetic MessageEvent on `window`, so e.source === window and origin
+    // is empty. Drop anything else (e.g. an embedded iframe trying to drive
+    // the player).
+    window.addEventListener('message', function(e) {
+        if (e.source !== window) return;
+        if (e.origin && e.origin !== window.location.origin) return;
+        try {
+            var msg = JSON.parse(e.data);
+            if (!msg || typeof msg !== 'object') return;
+            if (msg.type === 'selectPlaylist') {
+                if (typeof msg.playlistId === 'string') selectPlaylistFromCrate(msg.playlistId);
+            } else if (msg.type === 'switchSong') {
+                if (typeof msg.index === 'number') switchSong(msg.index);
+            } else if (msg.type === 'togglePlay') {
+                toggleMusic();
+            } else if (msg.type === 'nextSong') {
+                nextSong();
+            } else if (msg.type === 'prevSong') {
+                prevSong();
+            } else if (msg.type === 'ytStateUpdate') {
+                // State update from native YouTube player
+                if (ytPlayer) {
+                    ytPlayer._state = typeof msg.state === 'number' ? msg.state : -1;
+                    ytPlayer._currentTime = typeof msg.currentTime === 'number' ? msg.currentTime : 0;
+                    ytPlayer._duration = typeof msg.duration === 'number' ? msg.duration : 0;
+                    if (typeof onPlayerStateChange === 'function') {
+                        onPlayerStateChange({ data: ytPlayer._state });
+                    }
+                }
+            }
+        } catch(err) {}
+    });
+
+    // Override showPlaylistPicker to navigate back to RN collection
+    window.showPlaylistPicker = function() {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'navigateBack' }));
+    };
+
+    // Post state updates back to RN every second
+    setInterval(function() {
+        try {
+            var song = currentRadioSong || songsData[currentSongIndex] || null;
+            var playing = false;
+            var curTime = 0;
+            var dur = 0;
+            if (ytPlayer) {
+                if (ytPlayer.getPlayerState) playing = ytPlayer.getPlayerState() === 1;
+                if (ytPlayer.getCurrentTime) curTime = ytPlayer.getCurrentTime() || 0;
+                if (ytPlayer.getDuration) dur = ytPlayer.getDuration() || 0;
+            }
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'stateUpdate',
+                song: song,
+                isPlaying: playing,
+                currentTime: curTime,
+                duration: dur,
+                playlistId: activePlaylistId,
+                loopMode: loopMode,
+                shuffleMode: shuffleMode
+            }));
+        } catch(err) {}
+    }, 1000);
+})();
+
+// ============================================================
+// APP MODE — MOBILE DRAWER & TOUCH INTERACTIONS
+// ============================================================
+(function() {
+    const isApp = new URLSearchParams(window.location.search).has('app') || !!window.ReactNativeWebView;
+    if (!isApp) return;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Sync app loop/shuffle button visuals
+        const appLoopBtn = document.getElementById('appLoopBtn');
+        const appShuffleBtn = document.getElementById('appShuffleBtn');
+
+        function syncAppLoopBtn() {
+            if (!appLoopBtn) return;
+            appLoopBtn.classList.toggle('active', loopMode !== 'off');
+            // Show "1" indicator for single-song loop
+            const svg = appLoopBtn.querySelector('svg');
+            if (loopMode === 'single') {
+                appLoopBtn.dataset.mode = '1';
+            } else {
+                delete appLoopBtn.dataset.mode;
+            }
+        }
+
+        function syncAppShuffleBtn() {
+            if (!appShuffleBtn) return;
+            appShuffleBtn.classList.toggle('active', shuffleMode !== 'off');
+            if (shuffleMode === 'smart') {
+                appShuffleBtn.dataset.mode = 'smart';
+            } else {
+                delete appShuffleBtn.dataset.mode;
+            }
+        }
+
+        // Monkey-patch toggleLoopMode / toggleShuffle to sync app buttons
+        const origToggleLoop = window.toggleLoopMode;
+        window.toggleLoopMode = function() {
+            origToggleLoop();
+            syncAppLoopBtn();
+        };
+        const origToggleShuffle = window.toggleShuffle;
+        window.toggleShuffle = function() {
+            origToggleShuffle();
+            syncAppShuffleBtn();
+        };
+
+        // Initial sync
+        syncAppLoopBtn();
+        syncAppShuffleBtn();
+
+        const sidebar = document.getElementById('musicSidebar');
+        const headerArea = sidebar?.querySelector('.sidebar-header-area');
+        if (!sidebar || !headerArea) return;
+
+        // Create backdrop overlay for drawer
+        const backdrop = document.createElement('div');
+        backdrop.className = 'app-drawer-backdrop';
+        const musicMain = document.querySelector('.music-main');
+        if (musicMain) musicMain.appendChild(backdrop);
+
+        function openDrawer() {
+            sidebar.classList.add('app-drawer-open');
+            backdrop.classList.add('visible');
+        }
+        function closeDrawer() {
+            sidebar.classList.remove('app-drawer-open');
+            backdrop.classList.remove('visible');
+        }
+
+        // Tap backdrop to close
+        backdrop.addEventListener('click', closeDrawer);
+
+        // Toggle drawer on header tap
+        headerArea.addEventListener('click', function(e) {
+            // Don't toggle if they tapped the add or edit button
+            if (e.target.closest('.add-song-btn') || e.target.closest('.app-edit-playlist-btn')) return;
+            if (sidebar.classList.contains('app-drawer-open')) {
+                closeDrawer();
+            } else {
+                openDrawer();
+            }
+        });
+
+        // Close drawer when a song is tapped
+        const songList = document.getElementById('songList');
+        if (songList) {
+            songList.addEventListener('click', function(e) {
+                const songItem = e.target.closest('.song-list-item');
+                if (songItem && sidebar.classList.contains('app-drawer-open')) {
+                    // Delay closing so the user sees the selection
+                    setTimeout(closeDrawer, 300);
+                }
+            });
+        }
+
+        // Swipe down to close drawer
+        let touchStartY = 0;
+        let touchStartTime = 0;
+        sidebar.addEventListener('touchstart', function(e) {
+            touchStartY = e.touches[0].clientY;
+            touchStartTime = Date.now();
+        }, { passive: true });
+
+        sidebar.addEventListener('touchend', function(e) {
+            const deltaY = e.changedTouches[0].clientY - touchStartY;
+            const deltaTime = Date.now() - touchStartTime;
+            // Swipe down fast enough = close
+            if (deltaY > 50 && deltaTime < 300 && sidebar.classList.contains('app-drawer-open')) {
+                closeDrawer();
+            }
+            // Swipe up fast enough = open
+            if (deltaY < -50 && deltaTime < 300 && !sidebar.classList.contains('app-drawer-open')) {
+                openDrawer();
+            }
+        }, { passive: true });
+
+        // Progress bar touch support
+        const progressBar = document.getElementById('sleeveProgressBar');
+        if (progressBar) {
+            let isDraggingProgress = false;
+
+            function seekFromTouch(e) {
+                if (!ytPlayer || !ytPlayer.getDuration) return;
+                const rect = progressBar.getBoundingClientRect();
+                const touch = e.touches ? e.touches[0] : e.changedTouches[0];
+                const pct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+                const seekTo = pct * ytPlayer.getDuration();
+                ytPlayer.seekTo(seekTo, true);
+                updateSleeveProgress();
+            }
+
+            progressBar.addEventListener('touchstart', function(e) {
+                isDraggingProgress = true;
+                seekFromTouch(e);
+                e.preventDefault();
+            }, { passive: false });
+
+            progressBar.addEventListener('touchmove', function(e) {
+                if (isDraggingProgress) {
+                    seekFromTouch(e);
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
+            progressBar.addEventListener('touchend', function() {
+                isDraggingProgress = false;
+            }, { passive: true });
+        }
+
+        // Swipe on album art / lyrics area for prev/next song
+        const vinylSleeve = document.getElementById('vinylSleeve');
+        if (vinylSleeve) {
+            let swipeStartX = 0;
+            let swipeStartY = 0;
+            let swipeStartTime = 0;
+
+            vinylSleeve.addEventListener('touchstart', function(e) {
+                swipeStartX = e.touches[0].clientX;
+                swipeStartY = e.touches[0].clientY;
+                swipeStartTime = Date.now();
+            }, { passive: true });
+
+            vinylSleeve.addEventListener('touchend', function(e) {
+                const deltaX = e.changedTouches[0].clientX - swipeStartX;
+                const deltaY = e.changedTouches[0].clientY - swipeStartY;
+                const deltaTime = Date.now() - swipeStartTime;
+
+                // Horizontal swipe: must be more horizontal than vertical, >60px, <400ms
+                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 60 && deltaTime < 400) {
+                    if (deltaX < 0) {
+                        nextSong();
+                    } else {
+                        prevSong();
+                    }
+                }
+            }, { passive: true });
+        }
+
+        // Auto-scroll active song into view in the drawer
+        const origSwitchSong = window.switchSong;
+        if (origSwitchSong) {
+            // After song changes, scroll it into view if drawer is open
+            const observer = new MutationObserver(function() {
+                const activeSong = sidebar.querySelector('.song-list-item.active');
+                if (activeSong && sidebar.classList.contains('app-drawer-open')) {
+                    activeSong.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            });
+            observer.observe(document.getElementById('songList'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+        }
+    });
+})();

@@ -4,6 +4,19 @@ header('Content-Type: application/json');
 $input = json_decode(file_get_contents('php://input'), true);
 $action = $input['action'] ?? '';
 
+// Reject any URL that isn't plain http(s). Blocks javascript:, data:, file:,
+// blob:, vbscript:, etc. — these are XSS / SSRF / exfil sinks once a song
+// field is rendered into <img src> / <audio src>. Empty string is allowed.
+function sanitizeUrl($value) {
+    if ($value === null || $value === '') return '';
+    $str = trim((string)$value);
+    if ($str === '') return '';
+    // Allow http(s) absolute URLs and root-relative paths only.
+    if (preg_match('#^https?://[^\s<>"\']+$#i', $str)) return $str;
+    if (preg_match('#^/[^\s<>"\']*$#', $str)) return $str;
+    return '';
+}
+
 $filePath = __DIR__ . '/data/music.json';
 $music = file_exists($filePath) ? json_decode(file_get_contents($filePath), true) : [
     'activePlaylist' => 'favorites',
@@ -58,8 +71,10 @@ if ($action === 'switch') {
             'title' => $song['title'] ?? '',
             'artist' => $song['artist'] ?? '',
             'album' => $song['album'] ?? '',
-            'cover' => $song['cover'] ?? '',
-            'youtube_id' => $song['youtube_id'] ?? ''
+            'cover' => sanitizeUrl($song['cover'] ?? ''),
+            'youtube_id' => $song['youtube_id'] ?? '',
+            'mp3_url' => sanitizeUrl($song['mp3_url'] ?? ''),
+            'spotify_id' => $song['spotify_id'] ?? ''
         ];
         $newIndex = count($music['playlists'][$activePlaylist]['songs']) - 1;
         $music['playlists'][$activePlaylist]['currentIndex'] = $newIndex;
@@ -186,6 +201,14 @@ if ($action === 'switch') {
     } else {
         echo json_encode(['success' => false, 'error' => 'Invalid playlist']);
     }
+} elseif ($action === 'getAll') {
+    // Return all data in one call (for mobile app initial load)
+    echo json_encode([
+        'success' => true,
+        'activePlaylist' => $music['activePlaylist'] ?? $defaultPlaylist,
+        'recentlyPlayed' => $music['recentlyPlayed'] ?? [],
+        'playlists' => $music['playlists'] ?? []
+    ]);
 } else {
     echo json_encode(['success' => false, 'error' => 'Invalid action']);
 }
