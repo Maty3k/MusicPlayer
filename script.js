@@ -229,6 +229,8 @@ async function switchSong(index) {
     });
 
     // Animate the record change
+    // Play vinyl crackle before song change
+    await playCrackleSound();
     await animateRecordChange(song);
 
     // Reset progress bar for new song
@@ -726,6 +728,8 @@ async function playRadioSong(song) {
     document.querySelectorAll('.song-list-item:not(.radio-song-item)').forEach(item => item.classList.remove('active'));
 
     // Animate the record change
+    // Play vinyl crackle before song change
+    await playCrackleSound();
     await animateRecordChange(song);
 
     // Reset progress bar
@@ -3002,4 +3006,1341 @@ document.addEventListener('DOMContentLoaded', () => {
             observer.observe(document.getElementById('songList'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
         }
     });
+})();
+
+// ==== Phase C: crackle SFX ====
+
+// ===== Vinyl crackle sound effect =====
+let crackleEnabled = false;
+let crackleAudioCtx = null;
+
+function toggleCrackle() {
+    const btn = document.getElementById('crackleBtn');
+    const label = document.getElementById('crackleLabel');
+    if (!btn || !label) return;
+    crackleEnabled = !crackleEnabled;
+    btn.dataset.crackle = crackleEnabled ? 'on' : 'off';
+    label.textContent = crackleEnabled ? 'crackle on' : 'crackle';
+}
+
+function playCrackleSound() {
+    if (!crackleEnabled) return Promise.resolve();
+    return new Promise(resolve => {
+        try {
+            if (!crackleAudioCtx) crackleAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = crackleAudioCtx;
+            const duration = 1.5;
+            const sampleRate = ctx.sampleRate;
+            const bufferSize = sampleRate * duration;
+            const buffer = ctx.createBuffer(1, bufferSize, sampleRate);
+            const data = buffer.getChannelData(0);
+
+            // Generate vinyl crackle noise
+            for (let i = 0; i < bufferSize; i++) {
+                // Base vinyl hiss
+                data[i] = (Math.random() * 2 - 1) * 0.015;
+                // Random pops and clicks
+                if (Math.random() < 0.003) {
+                    data[i] += (Math.random() * 2 - 1) * 0.3;
+                }
+                // Subtle crackle
+                if (Math.random() < 0.01) {
+                    data[i] += (Math.random() * 2 - 1) * 0.08;
+                }
+            }
+
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+
+            // Low-pass filter for warmth
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 3000;
+
+            // Fade envelope
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0, ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.8, ctx.currentTime + duration - 0.4);
+            gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
+
+            source.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+            source.start();
+            source.onended = resolve;
+            setTimeout(resolve, duration * 1000 + 100);
+        } catch (e) {
+            resolve();
+        }
+    });
+}
+
+// ==== Phase C: scan importer ====
+
+// ============================================================
+// SONG SCANNER (folder-scan local import)
+// Identifies album covers (Gemini via scan-cover.php) and reads ID3 tags
+// (jsmediatags) from local audio, then matches each to a YouTube video
+// (search-youtube.php) so it can be added like any other song.
+// ============================================================
+
+let scanResults = [];
+
+function showScanModal() {
+    document.getElementById('scanModal').classList.add('active');
+    resetScanModal();
+}
+
+function hideScanModal() {
+    document.getElementById('scanModal').classList.remove('active');
+    scanResults = [];
+}
+
+function resetScanModal() {
+    document.getElementById('scanStep1').style.display = '';
+    document.getElementById('scanStep2').style.display = 'none';
+    document.getElementById('scanStep3').style.display = 'none';
+    document.getElementById('scanFolderInput').value = '';
+    document.getElementById('scanFilesInput').value = '';
+    scanResults = [];
+}
+
+function setScanProgress(label, detail, percent) {
+    document.getElementById('scanProgressLabel').textContent = label;
+    document.getElementById('scanProgressDetail').textContent = detail;
+    document.getElementById('scanProgressFill').style.width = percent + '%';
+}
+
+async function handleScanFiles(fileList) {
+    const files = Array.from(fileList);
+    const images = files.filter(f => f.type.startsWith('image/'));
+    const audioFiles = files.filter(f => /\.(mp3|flac|m4a|ogg|wav|aac|wma)$/i.test(f.name));
+
+    if (images.length === 0 && audioFiles.length === 0) {
+        alert('No image or audio files found in the selected folder.');
+        return;
+    }
+
+    // Switch to progress step
+    document.getElementById('scanStep1').style.display = 'none';
+    document.getElementById('scanStep2').style.display = '';
+    scanResults = [];
+
+    const totalItems = images.length + audioFiles.length;
+    let processed = 0;
+
+    // Process images via Gemini
+    for (const img of images) {
+        setScanProgress(
+            'Identifying album covers...',
+            `Processing ${img.name}`,
+            Math.round((processed / totalItems) * 100)
+        );
+
+        try {
+            const base64 = await fileToBase64(img);
+            const resp = await fetch('scan-cover.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64, mimeType: img.type })
+            });
+            const data = await resp.json();
+
+            if (data.success && data.artist) {
+                const songs = data.songs && data.songs.length > 0 ? data.songs : [data.album || 'Unknown'];
+                for (const song of songs) {
+                    scanResults.push({
+                        artist: data.artist,
+                        album: data.album || '',
+                        title: song,
+                        source: 'cover',
+                        coverFile: img,
+                        coverPreview: URL.createObjectURL(img),
+                        youtube: null
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn('Scan cover error:', e);
+        }
+
+        processed++;
+        // Rate limit between Gemini calls
+        if (images.indexOf(img) < images.length - 1) {
+            await new Promise(r => setTimeout(r, 500));
+        }
+    }
+
+    // Process audio files
+    for (const audio of audioFiles) {
+        setScanProgress(
+            'Reading audio files...',
+            `Processing ${audio.name}`,
+            Math.round((processed / totalItems) * 100)
+        );
+
+        try {
+            const info = await readTagsFromFile(audio);
+            scanResults.push({
+                artist: info.artist,
+                album: info.album || '',
+                title: info.title,
+                source: 'audio',
+                coverPreview: info.coverUrl || null,
+                youtube: null
+            });
+        } catch (e) {
+            // Fallback to filename parsing
+            const parsed = cleanFilename(audio.name);
+            scanResults.push({
+                artist: parsed.artist,
+                album: '',
+                title: parsed.title,
+                source: 'audio',
+                coverPreview: null,
+                youtube: null
+            });
+        }
+
+        processed++;
+    }
+
+    // Now search YouTube for each result
+    for (let i = 0; i < scanResults.length; i++) {
+        const r = scanResults[i];
+        setScanProgress(
+            'Searching YouTube...',
+            `"${r.artist} - ${r.title}"`,
+            Math.round(((totalItems + i) / (totalItems + scanResults.length)) * 100)
+        );
+
+        try {
+            const query = `${r.artist} ${r.title} official audio`;
+            const resp = await fetch('search-youtube.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            });
+            const data = await resp.json();
+
+            if (data.success && data.results && data.results.length > 0) {
+                r.youtube = data.results[0];
+                r.youtubeOptions = data.results;
+            }
+        } catch (e) {
+            console.warn('YouTube search error:', e);
+        }
+
+        // Small delay between YouTube searches
+        if (i < scanResults.length - 1) {
+            await new Promise(r => setTimeout(r, 300));
+        }
+    }
+
+    setScanProgress('Done!', '', 100);
+    showScanResults();
+}
+
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            // Strip data URL prefix to get raw base64
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+function readTagsFromFile(file) {
+    return new Promise((resolve, reject) => {
+        if (typeof jsmediatags === 'undefined') {
+            reject(new Error('jsmediatags not loaded'));
+            return;
+        }
+        jsmediatags.read(file, {
+            onSuccess: (tag) => {
+                const t = tag.tags;
+                let coverUrl = null;
+                if (t.picture) {
+                    const { data, format } = t.picture;
+                    const bytes = new Uint8Array(data);
+                    const blob = new Blob([bytes], { type: format });
+                    coverUrl = URL.createObjectURL(blob);
+                }
+                resolve({
+                    title: t.title || cleanFilename(file.name).title,
+                    artist: t.artist || cleanFilename(file.name).artist,
+                    album: t.album || '',
+                    coverUrl
+                });
+            },
+            onError: () => {
+                reject(new Error('Could not read tags'));
+            }
+        });
+    });
+}
+
+function cleanFilename(filename) {
+    // Remove extension
+    let name = filename.replace(/\.[^.]+$/, '');
+    // Remove track numbers like "01 ", "01. ", "1 - "
+    name = name.replace(/^\d+[\s.\-_]+/, '');
+    // Try "Artist - Title" format
+    if (name.includes(' - ')) {
+        const parts = name.split(' - ');
+        return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() };
+    }
+    return { artist: '', title: name.trim() };
+}
+
+function showScanResults() {
+    document.getElementById('scanStep2').style.display = 'none';
+    document.getElementById('scanStep3').style.display = '';
+
+    const withYoutube = scanResults.filter(r => r.youtube);
+    document.getElementById('scanResultsCount').textContent =
+        `${withYoutube.length} of ${scanResults.length} songs matched`;
+
+    const list = document.getElementById('scanResultsList');
+    list.innerHTML = '';
+
+    scanResults.forEach((r, i) => {
+        const hasMatch = !!r.youtube;
+        const div = document.createElement('div');
+        div.className = 'scan-result-item' + (hasMatch ? '' : ' no-match');
+
+        const thumb = r.coverPreview || (r.youtube ? r.youtube.thumbnail : '');
+        // coverPreview is a locally-created blob: object URL; safeUrl() only allows
+        // http(s) and would strip it, so pass blob: URLs through unchanged.
+        const safeThumb = thumb && thumb.startsWith('blob:') ? thumb : safeUrl(thumb);
+        const ytTitle = r.youtube ? r.youtube.title : 'No YouTube match found';
+        const ytChannel = r.youtube ? r.youtube.channel : '';
+
+        div.innerHTML = `
+            <label class="scan-result-check">
+                <input type="checkbox" data-index="${i}" ${hasMatch ? 'checked' : (hasMatch ? '' : 'disabled')} onchange="updateScanAddCount()">
+            </label>
+            <div class="scan-result-cover">
+                ${thumb ? `<img src="${safeThumb}" alt="">` : '<div class="scan-result-no-cover">&#9834;</div>'}
+            </div>
+            <div class="scan-result-info">
+                <div class="scan-result-title">${escapeHtml(r.title)}</div>
+                <div class="scan-result-artist">${escapeHtml(r.artist)}${r.album ? ' &middot; ' + escapeHtml(r.album) : ''}</div>
+                <div class="scan-result-source">${r.source === 'cover' ? 'Album cover' : 'Audio file'}</div>
+            </div>
+            <div class="scan-result-youtube">
+                <div class="scan-result-yt-title">${escapeHtml(ytTitle)}</div>
+                ${ytChannel ? `<div class="scan-result-yt-channel">${escapeHtml(ytChannel)}</div>` : ''}
+                ${r.youtubeOptions && r.youtubeOptions.length > 1 ? `
+                    <select class="scan-result-yt-select" onchange="changeScanYoutube(${i}, this.value)">
+                        ${r.youtubeOptions.map((opt, j) => `<option value="${j}"${j === 0 ? ' selected' : ''}>${escapeHtml(opt.title)}</option>`).join('')}
+                    </select>
+                ` : ''}
+            </div>
+        `;
+        list.appendChild(div);
+    });
+
+    updateScanAddCount();
+}
+
+function changeScanYoutube(index, optIndex) {
+    const r = scanResults[index];
+    if (r.youtubeOptions && r.youtubeOptions[optIndex]) {
+        r.youtube = r.youtubeOptions[optIndex];
+    }
+}
+
+function toggleScanSelectAll(checked) {
+    document.querySelectorAll('#scanResultsList input[type="checkbox"]:not(:disabled)').forEach(cb => {
+        cb.checked = checked;
+    });
+    updateScanAddCount();
+}
+
+function updateScanAddCount() {
+    const checked = document.querySelectorAll('#scanResultsList input[type="checkbox"]:checked').length;
+    document.getElementById('scanAddBtn').textContent = `Add ${checked} Song${checked !== 1 ? 's' : ''}`;
+    document.getElementById('scanAddBtn').disabled = checked === 0;
+}
+
+async function scanAddSelected() {
+    const checkboxes = document.querySelectorAll('#scanResultsList input[type="checkbox"]:checked');
+    const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
+
+    if (indices.length === 0) return;
+
+    const btn = document.getElementById('scanAddBtn');
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    for (const i of indices) {
+        const r = scanResults[i];
+        if (!r.youtube) continue;
+
+        const song = {
+            title: r.title,
+            artist: r.artist,
+            album: r.album,
+            cover: r.youtube.thumbnail || '',
+            youtube_id: r.youtube.videoId
+        };
+
+        try {
+            const resp = await fetch('save-music.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add', song })
+            });
+            const result = await resp.json();
+
+            if (result.success) {
+                songsData.push(song);
+            }
+        } catch (e) {
+            console.warn('Error adding song:', e);
+        }
+    }
+
+    // Update UI
+    if (shuffleMode !== 'off') buildShuffleQueue();
+    rebuildSongList();
+    updateTrackCount();
+    hideScanModal();
+}
+
+// ==== Phase C: vinyl GIF maker ====
+
+// ==========================================
+// Vinyl GIF Maker
+// ==========================================
+(function() {
+    'use strict';
+
+    const QUALITY_PRESETS = {
+        small:  { size: 320, frames: 24, fps: 24, gifQuality: 12 },
+        medium: { size: 460, frames: 36, fps: 30, gifQuality: 10 },
+        large:  { size: 560, frames: 48, fps: 30, gifQuality: 8  }
+    };
+
+    const state = {
+        sourceTab: 'youtube',
+        coverImage: null,        // HTMLImageElement (square-cropped source for the label)
+        ytVariants: [],          // [{url, label}]
+        searchResults: [],       // [{videoId, title, channel, thumbnail, image}]
+        selectedVariantUrl: null,
+        style: 'classic',
+        coloredColor: '#d4476b',
+        caption: '',
+        quality: 'medium',
+        speed: 1.0,
+        showHole: true,
+        previewRAF: 0,
+        previewAngle: 0,
+        isGenerating: false,
+        cropper: {
+            srcImg: null,
+            zoom: 1,
+            offsetX: 0,
+            offsetY: 0,
+            dragging: false,
+            dragStartX: 0,
+            dragStartY: 0,
+            offsetStartX: 0,
+            offsetStartY: 0
+        }
+    };
+
+    function $(id) { return document.getElementById(id); }
+
+    function loadImageFromUrl(url) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('Image load failed: ' + url));
+            img.src = url;
+        });
+    }
+
+    function extractYoutubeId(input) {
+        if (!input) return null;
+        input = input.trim();
+        // Plain ID (11 chars, letters/numbers/-/_)
+        if (/^[A-Za-z0-9_-]{11}$/.test(input)) return input;
+        // URLs
+        const patterns = [
+            /[?&]v=([A-Za-z0-9_-]{11})/,
+            /youtu\.be\/([A-Za-z0-9_-]{11})/,
+            /youtube\.com\/embed\/([A-Za-z0-9_-]{11})/,
+            /youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/,
+            /youtube\.com\/v\/([A-Za-z0-9_-]{11})/
+        ];
+        for (const p of patterns) {
+            const m = input.match(p);
+            if (m) return m[1];
+        }
+        return null;
+    }
+
+    // --- Modal open/close ---
+    window.openVinylGifModal = function() {
+        const modal = $('vinylGifModal');
+        if (!modal) return;
+        modal.classList.add('active');
+        // Reset progress/result visual state on open
+        $('vgmProgress').classList.remove('active');
+        hideResult();
+        // If we already have a cover image from a previous session, keep it; otherwise prompt empty
+        if (state.coverImage) {
+            $('vgmPreviewEmpty').style.display = 'none';
+            $('vgmPreviewCanvas').parentElement.classList.add('ready');
+            $('vgmGenerateBtn').disabled = false;
+            startPreviewLoop();
+        }
+    };
+
+    function hideResult() {
+        const img = $('vgmResultImg');
+        if (img && img.src) {
+            try { URL.revokeObjectURL(img.src); } catch (_) {}
+        }
+        if (img) {
+            img.removeAttribute('src');
+            img.style.display = 'none';
+        }
+        $('vgmPreviewCanvas').style.display = '';
+        $('vgmResultActions').style.display = 'none';
+        $('vgmResultMeta').style.display = 'none';
+    }
+
+    window.vgmMakeAnother = function() {
+        hideResult();
+        if (state.coverImage) startPreviewLoop();
+    };
+
+    window.closeVinylGifModal = function() {
+        const modal = $('vinylGifModal');
+        if (!modal) return;
+        modal.classList.remove('active');
+        stopPreviewLoop();
+    };
+
+    // --- Source tabs ---
+    window.vgmSwitchSourceTab = function(tab) {
+        state.sourceTab = tab;
+        document.querySelectorAll('#vinylGifModal .vgm-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.sourceTab === tab);
+        });
+        document.querySelectorAll('#vinylGifModal .vgm-source-panel').forEach(p => {
+            p.style.display = p.dataset.sourcePanel === tab ? '' : 'none';
+        });
+    };
+
+    // --- Search iTunes for album covers ---
+    window.vgmSearchYoutube = async function() {
+        const q = ($('vgmSearchQuery').value || '').trim();
+        if (!q) return;
+        const wrap = $('vgmSearchResults');
+        wrap.innerHTML = '<div style="opacity:0.6;font-size:0.8rem;padding:8px">Searching…</div>';
+        wrap.classList.add('active');
+        try {
+            const url = 'https://itunes.apple.com/search?' + new URLSearchParams({
+                term: q, media: 'music', entity: 'song', limit: '20'
+            });
+            const res = await fetch(url);
+            const data = await res.json();
+            const items = (data.results || []).map(r => ({
+                title:    r.trackName    || '',
+                artist:   r.artistName   || '',
+                album:    r.collectionName || '',
+                // iTunes returns 100x100; bump to 600x600 by URL replacement
+                thumbnail: (r.artworkUrl100 || '').replace('100x100bb', '600x600bb')
+            })).filter(r => r.thumbnail);
+            // De-dupe by thumbnail URL (same album for multiple tracks)
+            const seen = new Set();
+            const unique = items.filter(it => {
+                if (seen.has(it.thumbnail)) return false;
+                seen.add(it.thumbnail);
+                return true;
+            }).slice(0, 12);
+            if (unique.length === 0) {
+                wrap.innerHTML = '<div style="opacity:0.6;font-size:0.8rem;padding:8px">No results.</div>';
+                return;
+            }
+            const loaded = await Promise.all(unique.map(async r => {
+                try {
+                    const img = await loadImageFromUrl(r.thumbnail);
+                    return { ...r, image: img };
+                } catch (e) { return null; }
+            }));
+            state.searchResults = loaded.filter(Boolean);
+            renderSearchResults();
+        } catch (e) {
+            wrap.innerHTML = '<div style="opacity:0.6;font-size:0.8rem;padding:8px;color:#ff8888">Search failed.</div>';
+        }
+    };
+
+    function renderSearchResults() {
+        const wrap = $('vgmSearchResults');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        (state.searchResults || []).forEach((r, i) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'vgm-thumb-variant';
+            btn.title = (r.artist ? r.artist + ' — ' : '') + (r.album || r.title || '');
+            btn.onclick = () => selectSearchResult(i);
+            const img = document.createElement('img');
+            img.src = safeUrl(r.thumbnail);
+            img.alt = r.album || r.title;
+            btn.appendChild(img);
+            const lbl = document.createElement('span');
+            lbl.className = 'vgm-thumb-variant-label';
+            const display = r.artist || r.album || r.title || '';
+            const short = display.length > 20 ? display.slice(0, 20) + '…' : display;
+            lbl.textContent = short;
+            btn.appendChild(lbl);
+            wrap.appendChild(btn);
+        });
+        wrap.classList.add('active');
+    }
+
+    function selectSearchResult(index) {
+        const r = (state.searchResults || [])[index];
+        if (!r || !r.image) return;
+        document.querySelectorAll('#vgmSearchResults .vgm-thumb-variant').forEach((b, i) => {
+            b.classList.toggle('active', i === index);
+        });
+        state.coverImage = makeSquareFromImage(r.image);
+        markCoverReady();
+    }
+
+    // --- YouTube thumbnail loading ---
+    window.vgmLoadYoutubeThumb = async function() {
+        const url = $('vgmYoutubeUrl').value;
+        const id = extractYoutubeId(url);
+        if (!id) {
+            alert('Could not find a YouTube video ID in that URL.');
+            return;
+        }
+        const variantUrls = [
+            { url: `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`, label: 'HD' },
+            { url: `https://i.ytimg.com/vi/${id}/hq1.jpg`,            label: '25%' },
+            { url: `https://i.ytimg.com/vi/${id}/hq2.jpg`,            label: '50%' },
+            { url: `https://i.ytimg.com/vi/${id}/hq3.jpg`,            label: '75%' },
+            { url: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,      label: 'Cover' },
+            { url: `https://i.ytimg.com/vi/${id}/sddefault.jpg`,      label: 'SD' }
+        ];
+        // Filter out missing ones by probing in parallel
+        const probed = await Promise.all(variantUrls.map(async v => {
+            try {
+                const img = await loadImageFromUrl(v.url);
+                // YouTube's "missing" placeholder is 120x90 grey thumb — filter narrow ones
+                if (img.naturalWidth < 200) return null;
+                return { ...v, image: img };
+            } catch (e) { return null; }
+        }));
+        state.ytVariants = probed.filter(Boolean);
+        renderThumbVariants();
+        if (state.ytVariants.length === 0) {
+            alert('No thumbnails available for that video.');
+            return;
+        }
+        // Auto-select first
+        selectYoutubeVariant(0);
+    };
+
+    function renderThumbVariants() {
+        const wrap = $('vgmThumbVariants');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        state.ytVariants.forEach((v, i) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'vgm-thumb-variant';
+            btn.onclick = () => selectYoutubeVariant(i);
+            const img = document.createElement('img');
+            img.src = safeUrl(v.url);
+            img.alt = v.label;
+            btn.appendChild(img);
+            const lbl = document.createElement('span');
+            lbl.className = 'vgm-thumb-variant-label';
+            lbl.textContent = v.label;
+            btn.appendChild(lbl);
+            wrap.appendChild(btn);
+        });
+        wrap.classList.add('active');
+    }
+
+    function selectYoutubeVariant(index) {
+        const v = state.ytVariants[index];
+        if (!v) return;
+        state.selectedVariantUrl = v.url;
+        document.querySelectorAll('#vgmThumbVariants .vgm-thumb-variant').forEach((b, i) => {
+            b.classList.toggle('active', i === index);
+        });
+        // Crop the variant to square (center-crop) for the vinyl label
+        state.coverImage = makeSquareFromImage(v.image);
+        markCoverReady();
+    };
+
+    function makeSquareFromImage(img) {
+        const size = Math.min(img.naturalWidth, img.naturalHeight);
+        const sx = (img.naturalWidth - size) / 2;
+        const sy = (img.naturalHeight - size) / 2;
+        const c = document.createElement('canvas');
+        c.width = size;
+        c.height = size;
+        c.getContext('2d').drawImage(img, sx, sy, size, size, 0, 0, size, size);
+        // Return as an image-like canvas (drawImage accepts canvases too)
+        return c;
+    }
+
+    // --- Upload + cropper ---
+    window.vgmHandleUpload = async function(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            try {
+                const img = await loadImageFromUrl(ev.target.result);
+                state.cropper.srcImg = img;
+                state.cropper.zoom = 1;
+                state.cropper.offsetX = 0;
+                state.cropper.offsetY = 0;
+                $('vgmCropper').style.display = '';
+                $('vgmCropZoom').value = 1;
+                drawCropper();
+            } catch (err) {
+                alert('Failed to load image.');
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    function drawCropper() {
+        const c = $('vgmCropperCanvas');
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, c.width, c.height);
+        const img = state.cropper.srcImg;
+        if (!img) return;
+        // Fit the image to canvas at zoom=1 (so smaller dimension covers canvas), then apply zoom + offset
+        const baseScale = Math.max(c.width / img.naturalWidth, c.height / img.naturalHeight);
+        const scale = baseScale * state.cropper.zoom;
+        const drawW = img.naturalWidth * scale;
+        const drawH = img.naturalHeight * scale;
+        const cx = (c.width - drawW) / 2 + state.cropper.offsetX;
+        const cy = (c.height - drawH) / 2 + state.cropper.offsetY;
+        ctx.drawImage(img, cx, cy, drawW, drawH);
+    }
+
+    function bindCropperEvents() {
+        const c = $('vgmCropperCanvas');
+        if (!c || c._vgmBound) return;
+        c._vgmBound = true;
+        c.addEventListener('pointerdown', (e) => {
+            if (!state.cropper.srcImg) return;
+            state.cropper.dragging = true;
+            state.cropper.dragStartX = e.clientX;
+            state.cropper.dragStartY = e.clientY;
+            state.cropper.offsetStartX = state.cropper.offsetX;
+            state.cropper.offsetStartY = state.cropper.offsetY;
+            c.setPointerCapture(e.pointerId);
+        });
+        c.addEventListener('pointermove', (e) => {
+            if (!state.cropper.dragging) return;
+            state.cropper.offsetX = state.cropper.offsetStartX + (e.clientX - state.cropper.dragStartX);
+            state.cropper.offsetY = state.cropper.offsetStartY + (e.clientY - state.cropper.dragStartY);
+            drawCropper();
+        });
+        c.addEventListener('pointerup', (e) => {
+            state.cropper.dragging = false;
+            try { c.releasePointerCapture(e.pointerId); } catch (_) {}
+        });
+        const zoom = $('vgmCropZoom');
+        if (zoom) {
+            zoom.addEventListener('input', () => {
+                state.cropper.zoom = parseFloat(zoom.value);
+                drawCropper();
+            });
+        }
+    }
+
+    window.vgmApplyCrop = function() {
+        const c = $('vgmCropperCanvas');
+        if (!c || !state.cropper.srcImg) return;
+        // Copy the visible cropper canvas as the cover image (it's already square)
+        const out = document.createElement('canvas');
+        out.width = c.width;
+        out.height = c.height;
+        out.getContext('2d').drawImage(c, 0, 0);
+        state.coverImage = out;
+        markCoverReady();
+    };
+
+    function markCoverReady() {
+        $('vgmPreviewEmpty').style.display = 'none';
+        $('vgmPreviewCanvas').parentElement.classList.add('ready');
+        $('vgmGenerateBtn').disabled = false;
+        state.previewAngle = 0;
+        startPreviewLoop();
+    }
+
+    // --- Style + color selection ---
+    window.vgmSelectStyle = function(style) {
+        state.style = style;
+        document.querySelectorAll('#vgmStyleGrid .vgm-style-chip').forEach(chip => {
+            chip.classList.toggle('active', chip.dataset.style === style);
+        });
+        // Show color picker for styles that use a vinyl color
+        const showColor = (style === 'colored' || style === 'translucent');
+        $('vgmColorRow').style.display = showColor ? '' : 'none';
+        renderPreviewFrame();
+    };
+
+    function bindColorSwatches() {
+        const clearActive = () => {
+            document.querySelectorAll('#vgmColorSwatches .vgm-color-swatch').forEach(s => s.classList.remove('active'));
+            const wheel = document.querySelector('#vgmColorSwatches .vgm-color-wheel');
+            if (wheel) wheel.classList.remove('active');
+        };
+        document.querySelectorAll('#vgmColorSwatches .vgm-color-swatch').forEach(sw => {
+            sw.addEventListener('click', () => {
+                clearActive();
+                sw.classList.add('active');
+                state.coloredColor = sw.dataset.color;
+                const picker = $('vgmColorPicker');
+                if (picker) picker.value = sw.dataset.color;
+                renderPreviewFrame();
+            });
+        });
+        const picker = $('vgmColorPicker');
+        if (picker) {
+            picker.addEventListener('input', () => {
+                clearActive();
+                const wheel = document.querySelector('#vgmColorSwatches .vgm-color-wheel');
+                if (wheel) wheel.classList.add('active');
+                state.coloredColor = picker.value;
+                renderPreviewFrame();
+            });
+        }
+    }
+
+    window.vgmSelectQuality = function(q) {
+        state.quality = q;
+        document.querySelectorAll('#vinylGifModal .vgm-quality-chip').forEach(chip => {
+            chip.classList.toggle('active', chip.dataset.quality === q);
+        });
+    };
+
+    window.vgmRedrawPreview = function() {
+        state.caption = $('vgmCaption').value || '';
+        renderPreviewFrame();
+    };
+
+    window.vgmSetShowHole = function(on) {
+        state.showHole = !!on;
+        renderPreviewFrame();
+    };
+
+    // ----------------------------------------
+    // Canvas vinyl rendering
+    // ----------------------------------------
+    // Draws a single frame of the vinyl onto a square canvas (size x size).
+    // Caption (if present) occupies the bottom ~10% of the canvas.
+    // opts: { ctx, size, angle, style, coloredColor, coverImage, caption, transparentBg }
+    // transparentBg: when true, fills the background with a magenta chroma-key
+    // (#FE00FE) instead of the dark vignette, so the GIF encoder can mark those
+    // pixels transparent. The vinyl is a black circle so it never conflicts.
+    function drawVinylFrame(opts) {
+        const { ctx, size, angle, style, coloredColor, coverImage, caption, transparentBg, showHole } = opts;
+
+        if (transparentBg) {
+            ctx.fillStyle = '#FE00FE';
+            ctx.fillRect(0, 0, size, size);
+        } else {
+            // Background — radial vignette to match the live preview backdrop
+            const bg = ctx.createRadialGradient(size / 2, size / 2, size * 0.1, size / 2, size / 2, size * 0.75);
+            bg.addColorStop(0, '#1f1812');
+            bg.addColorStop(1, '#0d0a07');
+            ctx.fillStyle = bg;
+            ctx.fillRect(0, 0, size, size);
+        }
+
+        // Vinyl positioned slightly above center to leave bottom strip for caption space
+        const cx = size / 2;
+        const cy = caption ? size * 0.46 : size * 0.50;
+        const vinylR = size * (caption ? 0.40 : 0.43);
+        const labelR = vinylR * 0.36;
+        const holeR  = vinylR * 0.03;
+
+        // Soft shadow under vinyl — skipped in transparent mode so we don't leave
+        // a chroma-key-tinted halo around the disc in the exported GIF.
+        if (!transparentBg) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy + size * 0.012, vinylR * 1.02, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.filter = 'blur(' + (size * 0.02) + 'px)';
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Draw the vinyl body based on style
+        if (style === 'picture') {
+            drawPictureDiscBody(ctx, cx, cy, vinylR, angle, coverImage);
+        } else if (style === 'aura' && coverImage) {
+            // Album-tinted body: a heavily blurred + darkened copy of the cover
+            // fills the disc instead of solid black, giving each vinyl a unique
+            // color cast that matches the album art.
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, vinylR, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.filter = 'blur(' + (vinylR * 0.18) + 'px) saturate(1.5) brightness(0.55)';
+            const d = vinylR * 2;
+            ctx.drawImage(coverImage, cx - vinylR, cy - vinylR, d, d);
+            ctx.filter = 'none';
+            // Inner vignette to keep depth toward the rim
+            const v = ctx.createRadialGradient(cx, cy, vinylR * 0.35, cx, cy, vinylR);
+            v.addColorStop(0, 'rgba(0,0,0,0)');
+            v.addColorStop(1, 'rgba(0,0,0,0.55)');
+            ctx.fillStyle = v;
+            ctx.fillRect(cx - vinylR, cy - vinylR, d, d);
+            ctx.restore();
+            // Grooves on top, slightly stronger so they read against the colors
+            drawGrooves(ctx, cx, cy, vinylR, labelR, 'aura');
+            drawVinylShine(ctx, cx, cy, vinylR, angle, style);
+        } else {
+            // Solid disc background color
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, vinylR, 0, Math.PI * 2);
+            if (style === 'colored') {
+                const g = ctx.createRadialGradient(cx, cy, vinylR * 0.3, cx, cy, vinylR);
+                g.addColorStop(0, lighten(coloredColor, 0.05));
+                g.addColorStop(1, darken(coloredColor, 0.4));
+                ctx.fillStyle = g;
+            } else if (style === 'gold') {
+                ctx.fillStyle = '#080604';
+            } else if (style === 'translucent') {
+                ctx.fillStyle = hexToRgba(coloredColor, 0.55);
+            } else { // classic
+                const g = ctx.createRadialGradient(cx, cy, vinylR * 0.3, cx, cy, vinylR);
+                g.addColorStop(0, '#161210');
+                g.addColorStop(1, '#040302');
+                ctx.fillStyle = g;
+            }
+            ctx.fill();
+            ctx.restore();
+
+            // Grooves
+            drawGrooves(ctx, cx, cy, vinylR, labelR, style);
+
+            // Light shine across the whole disc (rotating with the vinyl)
+            drawVinylShine(ctx, cx, cy, vinylR, angle, style);
+        }
+
+        // Label (cover) — rotates with vinyl
+        if (coverImage) {
+            drawLabel(ctx, cx, cy, labelR, angle, coverImage, style);
+        } else {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, labelR, 0, Math.PI * 2);
+            ctx.fillStyle = '#d4a574';
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Center hole (optional — toggled by showHole)
+        if (showHole !== false) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, holeR, 0, Math.PI * 2);
+            ctx.fillStyle = '#000';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(cx, cy, holeR * 1.6, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Outer rim highlight
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, vinylR, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+
+        // Caption
+        if (caption) {
+            drawCaption(ctx, size, caption);
+        }
+    }
+
+    function drawGrooves(ctx, cx, cy, outerR, innerR, style) {
+        ctx.save();
+        const grooveCount = 90;
+        const step = (outerR - innerR) / grooveCount;
+        for (let i = 0; i < grooveCount; i++) {
+            const r = innerR + i * step;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            const alpha = 0.05 + (i % 7 === 0 ? 0.08 : 0);
+            if (style === 'gold') {
+                ctx.strokeStyle = `rgba(212, 165, 116, ${alpha * 0.6})`;
+            } else if (style === 'translucent') {
+                ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.5})`;
+            } else if (style === 'colored') {
+                ctx.strokeStyle = `rgba(0,0,0,${alpha * 1.2})`;
+            } else if (style === 'aura') {
+                // alternate dark + bright grooves so they read on the colored body
+                ctx.strokeStyle = (i % 2 === 0)
+                    ? `rgba(0,0,0,${alpha * 1.6})`
+                    : `rgba(255,255,255,${alpha * 0.7})`;
+            } else { // classic
+                ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+            }
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    function drawVinylShine(ctx, cx, cy, r, angle, style) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+        // Wedge-shaped highlight
+        const grad = ctx.createLinearGradient(-r, 0, r, 0);
+        grad.addColorStop(0, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.45, 'rgba(255,255,255,0.08)');
+        grad.addColorStop(0.5, 'rgba(255,255,255,0.16)');
+        grad.addColorStop(0.55, 'rgba(255,255,255,0.08)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.globalCompositeOperation = 'screen';
+        ctx.fill();
+        ctx.restore();
+    }
+
+    function drawLabel(ctx, cx, cy, labelR, angle, coverImage, style) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+        // For 'gold' style, draw a gold ring behind the label
+        if (style === 'gold') {
+            const ringR = labelR * 1.18;
+            const g = ctx.createRadialGradient(0, 0, labelR, 0, 0, ringR);
+            g.addColorStop(0, '#f5d896');
+            g.addColorStop(1, '#a87a3a');
+            ctx.beginPath();
+            ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+            ctx.fillStyle = g;
+            ctx.fill();
+        }
+        // Clip to circle and draw cover
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, labelR, 0, Math.PI * 2);
+        ctx.clip();
+        const size = labelR * 2;
+        ctx.drawImage(coverImage, -labelR, -labelR, size, size);
+        ctx.restore();
+        // Subtle label border
+        ctx.beginPath();
+        ctx.arc(0, 0, labelR, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Cache the composite "radial-blur" picture disc image keyed by (cover, radius)
+    // so we don't rebuild it on every frame of a sync.
+    let pictureDiscCache = { coverRef: null, r: 0, canvas: null };
+
+    function buildPictureDiscComposite(coverImage, r) {
+        const size = r * 2;
+        // Heavy-blur base layer (outer halo)
+        const base = document.createElement('canvas');
+        base.width = size; base.height = size;
+        const bctx = base.getContext('2d');
+        bctx.filter = 'blur(' + (r * 0.07) + 'px)';
+        bctx.drawImage(coverImage, 0, 0, size, size);
+        bctx.filter = 'none';
+
+        // Sharp-ish layer, masked to fade out toward the rim
+        const sharp = document.createElement('canvas');
+        sharp.width = size; sharp.height = size;
+        const sctx = sharp.getContext('2d');
+        sctx.filter = 'blur(' + (r * 0.012) + 'px)';
+        sctx.drawImage(coverImage, 0, 0, size, size);
+        sctx.filter = 'none';
+        sctx.globalCompositeOperation = 'destination-in';
+        const mask = sctx.createRadialGradient(r, r, 0, r, r, r);
+        mask.addColorStop(0,    'rgba(0,0,0,1)');
+        mask.addColorStop(0.45, 'rgba(0,0,0,0.95)');
+        mask.addColorStop(0.7,  'rgba(0,0,0,0.45)');
+        mask.addColorStop(0.9,  'rgba(0,0,0,0.1)');
+        mask.addColorStop(1,    'rgba(0,0,0,0)');
+        sctx.fillStyle = mask;
+        sctx.fillRect(0, 0, size, size);
+
+        // Composite sharp on top of blurred
+        bctx.drawImage(sharp, 0, 0);
+        return base;
+    }
+
+    function drawPictureDiscBody(ctx, cx, cy, r, angle, coverImage) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+        const size = r * 2;
+        if (coverImage) {
+            // Build (or reuse) the radial-blur composite
+            if (pictureDiscCache.coverRef !== coverImage || pictureDiscCache.r !== r) {
+                pictureDiscCache = {
+                    coverRef: coverImage,
+                    r: r,
+                    canvas: buildPictureDiscComposite(coverImage, r)
+                };
+            }
+            ctx.drawImage(pictureDiscCache.canvas, -r, -r);
+        } else {
+            ctx.fillStyle = '#d4a574';
+            ctx.fillRect(-r, -r, size, size);
+        }
+        ctx.restore();
+        // Groove ridges (subtle, on top)
+        ctx.save();
+        const grooveCount = 70;
+        for (let i = 0; i < grooveCount; i++) {
+            const rr = r * (0.18 + (i / grooveCount) * 0.82);
+            ctx.beginPath();
+            ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(0,0,0,${i % 6 === 0 ? 0.18 : 0.07})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    function drawCaption(ctx, size, caption) {
+        const textY = size * 0.94;
+        ctx.save();
+        ctx.fillStyle = '#f2e8d8';
+        const fontSize = Math.max(14, Math.round(size * 0.048));
+        ctx.font = `600 ${fontSize}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // Trim if too long
+        const maxWidth = size * 0.9;
+        let text = caption;
+        while (ctx.measureText(text).width > maxWidth && text.length > 1) {
+            text = text.slice(0, -1);
+        }
+        if (text !== caption) text = text.slice(0, -1) + '…';
+        ctx.fillText(text, size / 2, textY);
+        ctx.restore();
+    }
+
+    // --- Color helpers ---
+    function hexToRgb(hex) {
+        const m = hex.replace('#','').match(/.{1,2}/g);
+        if (!m || m.length < 3) return { r: 0, g: 0, b: 0 };
+        return { r: parseInt(m[0], 16), g: parseInt(m[1], 16), b: parseInt(m[2], 16) };
+    }
+    function hexToRgba(hex, a) {
+        const { r, g, b } = hexToRgb(hex);
+        return `rgba(${r},${g},${b},${a})`;
+    }
+    function lighten(hex, amt) {
+        const { r, g, b } = hexToRgb(hex);
+        const ll = (c) => Math.min(255, Math.round(c + (255 - c) * amt));
+        return `rgb(${ll(r)},${ll(g)},${ll(b)})`;
+    }
+    function darken(hex, amt) {
+        const { r, g, b } = hexToRgb(hex);
+        const dd = (c) => Math.max(0, Math.round(c * (1 - amt)));
+        return `rgb(${dd(r)},${dd(g)},${dd(b)})`;
+    }
+
+    // --- Preview loop ---
+    function renderPreviewFrame() {
+        const c = $('vgmPreviewCanvas');
+        if (!c) return;
+        const ctx = c.getContext('2d');
+        // Square canvas matching stage width for crispness
+        const stage = c.parentElement;
+        const stageW = Math.max(280, stage.clientWidth || 420);
+        if (c.width !== stageW || c.height !== stageW) {
+            c.width = stageW;
+            c.height = stageW;
+        }
+        ctx.clearRect(0, 0, c.width, c.height);
+        drawVinylFrame({
+            ctx,
+            size: stageW,
+            angle: state.previewAngle,
+            style: state.style,
+            coloredColor: state.coloredColor,
+            coverImage: state.coverImage,
+            caption: $('vgmCaption').value || '',
+            showHole: state.showHole
+        });
+    }
+
+    function startPreviewLoop() {
+        stopPreviewLoop();
+        let last = performance.now();
+        const tick = (now) => {
+            if (!$('vinylGifModal').classList.contains('active')) {
+                state.previewRAF = 0;
+                return;
+            }
+            const dt = (now - last) / 1000;
+            last = now;
+            // Base: 2.5s per rotation at 1.0x speed (chill, hypnotic). Slider scales from there.
+            state.previewAngle += dt * (Math.PI * 2 / 2.5) * state.speed;
+            if (state.previewAngle > Math.PI * 2) state.previewAngle -= Math.PI * 2;
+            renderPreviewFrame();
+            state.previewRAF = requestAnimationFrame(tick);
+        };
+        state.previewRAF = requestAnimationFrame(tick);
+    }
+
+    function stopPreviewLoop() {
+        if (state.previewRAF) {
+            cancelAnimationFrame(state.previewRAF);
+            state.previewRAF = 0;
+        }
+    }
+
+    // --- GIF generation ---
+    window.vgmGenerateGif = async function() {
+        if (state.isGenerating || !state.coverImage) return;
+        if (typeof GIF === 'undefined') {
+            alert('GIF encoder not loaded yet — try again in a moment.');
+            return;
+        }
+        state.isGenerating = true;
+        $('vgmGenerateBtn').disabled = true;
+        hideResult();
+        stopPreviewLoop();
+        $('vgmProgress').classList.add('active');
+        $('vgmProgressFill').style.width = '0%';
+        $('vgmProgressText').textContent = 'Rendering frames…';
+
+        const preset = QUALITY_PRESETS[state.quality];
+        const size = preset.size;
+
+        const frameCanvas = document.createElement('canvas');
+        frameCanvas.width = size;
+        frameCanvas.height = size;
+        const frameCtx = frameCanvas.getContext('2d');
+
+        const gif = new GIF({
+            workers: 2,
+            quality: preset.gifQuality,
+            width: size,
+            height: size,
+            workerScript: 'vendor/gif.js/gif.worker.js',
+            // Magenta chroma key — drawVinylFrame fills the background with #FE00FE
+            // and the encoder marks that exact color as transparent in the output.
+            transparent: 0xFE00FE,
+            background: '#FE00FE'
+        });
+
+        // Frame delay derived from a 2.5s base revolution to match the preview.
+        // Faster slider speed = shorter delay = quicker spin in the exported GIF.
+        const baseRevolutionMs = 2500;
+        const baseDelay = baseRevolutionMs / preset.frames;
+        const frameDelay = Math.max(20, Math.round(baseDelay / state.speed));
+        for (let i = 0; i < preset.frames; i++) {
+            const angle = (i / preset.frames) * Math.PI * 2;
+            drawVinylFrame({
+                ctx: frameCtx,
+                size,
+                angle,
+                style: state.style,
+                coloredColor: state.coloredColor,
+                coverImage: state.coverImage,
+                caption: state.caption,
+                transparentBg: true,
+                showHole: state.showHole
+            });
+            gif.addFrame(frameCtx, { copy: true, delay: frameDelay });
+            // Yield occasionally so UI updates
+            if (i % 4 === 3) await new Promise(r => setTimeout(r, 0));
+            $('vgmProgressFill').style.width = ((i + 1) / preset.frames * 40) + '%';
+        }
+
+        $('vgmProgressText').textContent = 'Encoding…';
+        gif.on('progress', (p) => {
+            $('vgmProgressFill').style.width = (40 + p * 60) + '%';
+            $('vgmProgressText').textContent = 'Encoding ' + Math.round(p * 100) + '%';
+        });
+        gif.on('finished', (blob) => {
+            const url = URL.createObjectURL(blob);
+            $('vgmProgress').classList.remove('active');
+            const sizeKb = Math.round(blob.size / 1024);
+
+            // Swap live canvas with the rendered GIF in the same preview slot
+            $('vgmPreviewCanvas').style.display = 'none';
+            const resultImg = $('vgmResultImg');
+            resultImg.src = url;
+            resultImg.style.display = '';
+
+            // Show meta + actions below the stage
+            const meta = $('vgmResultMeta');
+            meta.textContent = `${size}px · ${preset.frames} frames · ${sizeKb} KB`;
+            meta.style.display = '';
+            const dl = $('vgmDownloadLink');
+            dl.href = url;
+            const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+            dl.download = `vinyl-${stamp}.gif`;
+            $('vgmResultActions').style.display = 'flex';
+
+            state.isGenerating = false;
+            $('vgmGenerateBtn').disabled = false;
+        });
+        gif.render();
+    };
+
+    // --- Bind events that need DOM ready ---
+    function init() {
+        if (!$('vinylGifModal')) return;
+        bindCropperEvents();
+        bindColorSwatches();
+        $('vgmCaption').addEventListener('input', () => { state.caption = $('vgmCaption').value || ''; });
+        const speed = $('vgmSpeed');
+        if (speed) {
+            speed.addEventListener('input', () => {
+                state.speed = parseFloat(speed.value) || 1.0;
+                $('vgmSpeedValue').textContent = state.speed.toFixed(1) + '×';
+            });
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();

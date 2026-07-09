@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=<?= filemtime('styles.css') ?>">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js" defer></script>
 </head>
 <body>
 <?php
@@ -198,6 +199,27 @@ $current = $songs[$currentIndex] ?? [];
                             </div>
                             <div class="loop-btn-label" id="shuffleLabel">shuffle on</div>
                         </div>
+                        <div class="loop-btn make-gif-btn" id="makeGifBtn" onclick="openVinylGifModal()" title="Make a spinning vinyl GIF">
+                            <div class="loop-btn-icon" id="makeGifIcon">
+                                <svg class="loop-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="9"/>
+                                    <circle cx="12" cy="12" r="3.5"/>
+                                    <circle cx="12" cy="12" r="0.8" fill="currentColor"/>
+                                    <path d="M12 3 A9 9 0 0 1 21 12" stroke-width="2.4"/>
+                                </svg>
+                            </div>
+                            <div class="loop-btn-label" id="makeGifLabel">make gif</div>
+                        </div>
+                        <div class="loop-btn crackle-btn" id="crackleBtn" data-crackle="off" onclick="toggleCrackle()">
+                            <div class="loop-btn-icon" id="crackleIcon">
+                                <svg class="loop-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <circle cx="12" cy="12" r="6"/>
+                                    <circle cx="12" cy="12" r="2"/>
+                                </svg>
+                            </div>
+                            <div class="loop-btn-label" id="crackleLabel">crackle</div>
+                        </div>
                     </div>
                 </div>
 
@@ -360,6 +382,11 @@ $current = $songs[$currentIndex] ?? [];
                 <div class="sidebar-header-row">
                     <div class="music-sidebar-title" id="playlistTitle"><?= htmlspecialchars($activePlaylist['name'] ?? 'My Records') ?></div>
                     <button class="add-song-btn settings-gear-btn" onclick="showSettingsModal()" title="Settings &amp; Spotify">&#9881;</button>
+                        <button class="scan-songs-btn" onclick="showScanModal()" title="Scan for songs">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                            </svg>
+                        </button>
                     <button class="add-song-btn" onclick="showAddSongModal()" title="Add a song">+</button>
                 </div>
                 <div class="sidebar-track-count"><?= count($songs) ?> tracks</div>
@@ -610,6 +637,86 @@ $current = $songs[$currentIndex] ?? [];
         </div>
     </div>
 
+    <!-- Song Scanner Modal (reuses .add-song-modal shell; scan-specific inner steps) -->
+    <div class="add-song-modal scan-modal" id="scanModal">
+        <div class="add-song-modal-backdrop" onclick="hideScanModal()"></div>
+        <div class="add-song-modal-panel">
+            <button class="add-song-modal-close" onclick="hideScanModal()">&times;</button>
+            <div class="add-song-modal-header">
+                <div class="add-song-modal-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    </svg>
+                </div>
+                <h2 class="add-song-modal-title">Song Scanner</h2>
+            </div>
+
+            <!-- Step 1: Folder Picker -->
+            <div class="scan-step" id="scanStep1">
+                <p class="scan-step-desc">Select a folder with album cover images or audio files to identify and add songs.</p>
+                <button class="scan-folder-btn" onclick="document.getElementById('scanFolderInput').click()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span>Choose Folder</span>
+                </button>
+                <input type="file" id="scanFolderInput" webkitdirectory multiple style="display:none" onchange="handleScanFiles(this.files)">
+                <div class="scan-or-divider">or drop files</div>
+                <button class="scan-files-btn" onclick="document.getElementById('scanFilesInput').click()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" stroke="currentColor"/><polyline points="13 2 13 9 20 9" stroke="currentColor"/>
+                    </svg>
+                    <span>Select Files</span>
+                </button>
+                <input type="file" id="scanFilesInput" multiple accept="image/*,audio/*" style="display:none" onchange="handleScanFiles(this.files)">
+                <div class="scan-or-divider">or snap a cover</div>
+                <div class="scan-capture-row">
+                    <button class="scan-capture-btn" onclick="document.getElementById('scanCameraInput').click()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        <span>Camera</span>
+                    </button>
+                    <button class="scan-capture-btn" onclick="document.getElementById('scanGalleryInput').click()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                        <span>Gallery</span>
+                    </button>
+                </div>
+                <input type="file" id="scanCameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleScanFiles(this.files)">
+                <input type="file" id="scanGalleryInput" accept="image/*" multiple style="display:none" onchange="handleScanFiles(this.files)">
+            </div>
+
+            <!-- Step 2: Progress -->
+            <div class="scan-step" id="scanStep2" style="display:none">
+                <div class="scan-progress-label" id="scanProgressLabel">Scanning files...</div>
+                <div class="scan-progress-bar">
+                    <div class="scan-progress-fill" id="scanProgressFill"></div>
+                </div>
+                <div class="scan-progress-detail" id="scanProgressDetail"></div>
+            </div>
+
+            <!-- Step 3: Results -->
+            <div class="scan-step" id="scanStep3" style="display:none">
+                <div class="scan-results-header">
+                    <span class="scan-results-count" id="scanResultsCount">0 songs found</span>
+                    <label class="scan-select-all">
+                        <input type="checkbox" id="scanSelectAll" checked onchange="toggleScanSelectAll(this.checked)">
+                        Select all
+                    </label>
+                </div>
+                <div class="scan-results-list" id="scanResultsList"></div>
+                <div class="add-song-modal-buttons">
+                    <button type="button" class="add-song-btn-cancel" onclick="resetScanModal()">Scan Again</button>
+                    <button type="button" class="add-song-btn-save" id="scanAddBtn" onclick="scanAddSelected()">Add Selected</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Settings Modal (playback source + Spotify) -->
     <div class="add-song-modal" id="settingsModal">
         <div class="add-song-modal-backdrop" onclick="hideSettingsModal()"></div>
@@ -693,6 +800,192 @@ $current = $songs[$currentIndex] ?? [];
         </div>
     </div>
 
+    <!-- Vinyl GIF Maker modal -->
+    <div class="vgm-modal" id="vinylGifModal">
+        <div class="vgm-backdrop" onclick="closeVinylGifModal()"></div>
+        <div class="vgm-panel">
+            <button class="vgm-close" onclick="closeVinylGifModal()" title="Close">&times;</button>
+            <div class="vgm-header">
+                <div class="vgm-header-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <circle cx="12" cy="12" r="4"/>
+                        <circle cx="12" cy="12" r="1" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="vgm-header-text">
+                    <h2>Vinyl GIF Maker</h2>
+                    <p>Spin a cover into a shareable GIF</p>
+                </div>
+            </div>
+
+            <div class="vgm-body">
+                <!-- Left: Preview -->
+                <div class="vgm-preview-side">
+                    <div class="vgm-preview-stage">
+                        <canvas id="vgmPreviewCanvas" width="480" height="480"></canvas>
+                        <img id="vgmResultImg" class="vgm-result-img" alt="Generated vinyl GIF" style="display:none">
+                        <div class="vgm-preview-empty" id="vgmPreviewEmpty">
+                            <div class="vgm-preview-empty-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="9"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </div>
+                            <p>Load a cover to start</p>
+                        </div>
+                    </div>
+                    <div class="vgm-progress" id="vgmProgress">
+                        <div class="vgm-progress-bar"><div class="vgm-progress-fill" id="vgmProgressFill"></div></div>
+                        <div class="vgm-progress-text" id="vgmProgressText">Encoding 0%</div>
+                    </div>
+                    <div class="vgm-result-meta" id="vgmResultMeta" style="display:none"></div>
+                    <div class="vgm-result-actions" id="vgmResultActions" style="display:none">
+                        <a class="vgm-btn vgm-btn-primary" id="vgmDownloadLink" download>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            Download GIF
+                        </a>
+                        <button class="vgm-btn vgm-btn-ghost" onclick="vgmMakeAnother()">Make another</button>
+                    </div>
+                </div>
+
+                <!-- Right: Controls -->
+                <div class="vgm-controls-side">
+                    <!-- Source Tabs -->
+                    <div class="vgm-section">
+                        <div class="vgm-section-title">Cover Source</div>
+                        <div class="vgm-tab-toggle">
+                            <button class="vgm-tab active" data-source-tab="youtube" onclick="vgmSwitchSourceTab('youtube')">URL</button>
+                            <button class="vgm-tab" data-source-tab="search"  onclick="vgmSwitchSourceTab('search')">Search</button>
+                            <button class="vgm-tab" data-source-tab="upload"  onclick="vgmSwitchSourceTab('upload')">Upload</button>
+                        </div>
+
+                        <div class="vgm-source-panel" data-source-panel="youtube">
+                            <div class="vgm-input-row">
+                                <input type="text" id="vgmYoutubeUrl" placeholder="Paste YouTube URL or video ID" autocomplete="off">
+                                <button class="vgm-btn vgm-btn-secondary" onclick="vgmLoadYoutubeThumb()">Load</button>
+                            </div>
+                            <div class="vgm-thumb-variants" id="vgmThumbVariants"></div>
+                        </div>
+
+                        <div class="vgm-source-panel" data-source-panel="search" style="display:none">
+                            <div class="vgm-input-row">
+                                <input type="text" id="vgmSearchQuery" placeholder="Search album / artist (iTunes)…" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault(); vgmSearchYoutube();}">
+                                <button class="vgm-btn vgm-btn-secondary" onclick="vgmSearchYoutube()">Search</button>
+                            </div>
+                            <div class="vgm-thumb-variants" id="vgmSearchResults"></div>
+                        </div>
+
+                        <div class="vgm-source-panel" data-source-panel="upload" style="display:none">
+                            <label class="vgm-upload-drop" id="vgmUploadDrop">
+                                <input type="file" id="vgmUploadInput" accept="image/*" style="display:none" onchange="vgmHandleUpload(event)">
+                                <span class="vgm-upload-icon">&#8682;</span>
+                                <span class="vgm-upload-text">Click to upload an image</span>
+                            </label>
+                            <div class="vgm-cropper" id="vgmCropper" style="display:none">
+                                <div class="vgm-cropper-stage">
+                                    <canvas id="vgmCropperCanvas" width="280" height="280"></canvas>
+                                    <div class="vgm-cropper-overlay" id="vgmCropperOverlay"></div>
+                                </div>
+                                <div class="vgm-cropper-controls">
+                                    <label class="vgm-slider-label">Zoom</label>
+                                    <input type="range" id="vgmCropZoom" min="1" max="3" step="0.01" value="1">
+                                    <button class="vgm-btn vgm-btn-secondary vgm-btn-small" onclick="vgmApplyCrop()">Use this crop</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vinyl Style -->
+                    <div class="vgm-section">
+                        <div class="vgm-section-title">Vinyl Style</div>
+                        <div class="vgm-style-grid" id="vgmStyleGrid">
+                            <button class="vgm-style-chip active" data-style="classic" onclick="vgmSelectStyle('classic')"><span class="vgm-chip-swatch vgm-swatch-classic"></span><span>Classic</span></button>
+                            <button class="vgm-style-chip" data-style="colored" onclick="vgmSelectStyle('colored')"><span class="vgm-chip-swatch vgm-swatch-colored"></span><span>Colored</span></button>
+                            <button class="vgm-style-chip" data-style="picture" onclick="vgmSelectStyle('picture')"><span class="vgm-chip-swatch vgm-swatch-picture"></span><span>Picture Disc</span></button>
+                            <button class="vgm-style-chip" data-style="gold" onclick="vgmSelectStyle('gold')"><span class="vgm-chip-swatch vgm-swatch-gold"></span><span>Gold Label</span></button>
+                            <button class="vgm-style-chip" data-style="translucent" onclick="vgmSelectStyle('translucent')"><span class="vgm-chip-swatch vgm-swatch-translucent"></span><span>Translucent</span></button>
+                            <button class="vgm-style-chip" data-style="aura" onclick="vgmSelectStyle('aura')"><span class="vgm-chip-swatch vgm-swatch-aura"></span><span>Aura</span></button>
+                        </div>
+                        <label class="vgm-toggle-row" title="Toggle the small hole at the center of the vinyl">
+                            <input type="checkbox" id="vgmShowHole" checked onchange="vgmSetShowHole(this.checked)">
+                            <span class="vgm-toggle-switch"></span>
+                            <span class="vgm-toggle-label">Center hole</span>
+                        </label>
+                        <div class="vgm-color-row" id="vgmColorRow" style="display:none">
+                            <span class="vgm-color-row-label">Vinyl color</span>
+                            <div class="vgm-color-swatches" id="vgmColorSwatches">
+                                <button class="vgm-color-swatch active" data-color="#d4476b" style="background:#d4476b"></button>
+                                <button class="vgm-color-swatch" data-color="#e8a838" style="background:#e8a838"></button>
+                                <button class="vgm-color-swatch" data-color="#5cba5c" style="background:#5cba5c"></button>
+                                <button class="vgm-color-swatch" data-color="#7eb8da" style="background:#7eb8da"></button>
+                                <button class="vgm-color-swatch" data-color="#9b7ed9" style="background:#9b7ed9"></button>
+                                <button class="vgm-color-swatch" data-color="#f0f0f0" style="background:#f0f0f0"></button>
+                                <label class="vgm-color-wheel" title="Custom color">
+                                    <input type="color" id="vgmColorPicker" value="#d4476b">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Caption -->
+                    <div class="vgm-section">
+                        <div class="vgm-section-title">Caption (optional)</div>
+                        <input type="text" id="vgmCaption" class="vgm-text-input" placeholder="e.g. Late Night Mix" maxlength="60" oninput="vgmRedrawPreview()">
+                    </div>
+
+                    <!-- Spin Speed -->
+                    <div class="vgm-section">
+                        <div class="vgm-section-title">
+                            <span>Spin Speed</span>
+                            <span class="vgm-speed-value" id="vgmSpeedValue">1.0&times;</span>
+                        </div>
+                        <div class="vgm-speed-row">
+                            <span class="vgm-speed-tick">0.5&times;</span>
+                            <input type="range" id="vgmSpeed" class="vgm-speed-slider" min="0.5" max="2.5" step="0.1" value="1">
+                            <span class="vgm-speed-tick">2.5&times;</span>
+                        </div>
+                    </div>
+
+                    <!-- Quality -->
+                    <div class="vgm-section">
+                        <div class="vgm-section-title">Quality</div>
+                        <div class="vgm-quality-grid">
+                            <button class="vgm-quality-chip" data-quality="small" onclick="vgmSelectQuality('small')">
+                                <span class="vgm-quality-name">Small</span>
+                                <span class="vgm-quality-meta">320 &middot; 24 fr</span>
+                            </button>
+                            <button class="vgm-quality-chip active" data-quality="medium" onclick="vgmSelectQuality('medium')">
+                                <span class="vgm-quality-name">Medium</span>
+                                <span class="vgm-quality-meta">460 &middot; 36 fr</span>
+                            </button>
+                            <button class="vgm-quality-chip" data-quality="large" onclick="vgmSelectQuality('large')">
+                                <span class="vgm-quality-name">Large</span>
+                                <span class="vgm-quality-meta">560 &middot; 48 fr</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="vgm-actions">
+                        <button class="vgm-btn vgm-btn-ghost" onclick="closeVinylGifModal()">Cancel</button>
+                        <button class="vgm-btn vgm-btn-primary" id="vgmGenerateBtn" onclick="vgmGenerateGif()" disabled>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            Generate GIF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- PHP-injected data for JavaScript -->
     <script>
         let activePlaylistId = '<?= $activePlaylistId ?>';
@@ -716,6 +1009,8 @@ $current = $songs[$currentIndex] ?? [];
         ?>;
         let recentlyPlayed = <?= json_encode($music['recentlyPlayed'] ?? array_keys($playlists)) ?>;
     </script>
+    <!-- gif.js encoder for the Vinyl GIF Maker (client-side GIF encoding + worker) -->
+    <script src="vendor/gif.js/gif.js?v=<?= filemtime('vendor/gif.js/gif.js') ?>" defer></script>
     <script src="script.js?v=<?= filemtime('script.js') ?>"></script>
     <!-- Spotify Web Playback SDK (Premium streaming). Loaded after script.js so
          window.onSpotifyWebPlaybackSDKReady is defined before the SDK fires it. -->
