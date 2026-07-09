@@ -29,7 +29,15 @@ class EmailVerificationController extends Controller
             return redirect()->route('player');
         }
 
-        $request->user()->sendEmailVerificationNotification();
+        try {
+            $request->user()->sendEmailVerificationNotification();
+        } catch (\Throwable $e) {
+            // Surface mail-transport problems (Resend restrictions, bad key)
+            // as a message on the verify page instead of a 500.
+            report($e);
+
+            return back()->with('status', 'verification-link-failed');
+        }
 
         return back()->with('status', 'verification-link-sent');
     }
