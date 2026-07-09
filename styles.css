@@ -6156,3 +6156,129 @@ body {
     .vgm-body { grid-template-columns: 1fr; }
     .vgm-preview-stage { aspect-ratio: 1 / 1; max-width: 360px; margin: 0 auto; }
 }
+
+/* ==== Phase C: records conveyor + source filter ==== */
+/* =================================================
+   Records conveyor — 2 horizontal scrolling rows
+   Layered onto MP's crate view (replaces .records-display grid).
+   ================================================= */
+.records-conveyor {
+    position: relative;
+    width: 100%;
+    max-width: min(1100px, 92vw);
+    margin: 0 auto;
+    /* Edge fade so cards fade in/out at the sides */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, black 6%, black 94%, transparent 100%);
+            mask-image: linear-gradient(90deg, transparent 0, black 6%, black 94%, transparent 100%);
+}
+.conveyor-rows {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(18px, 1.8vw, 28px);
+}
+.conveyor-row {
+    overflow: hidden;
+    padding: 24px 0 18px;   /* vertical breathing room for hover-lift */
+}
+.conveyor-track {
+    display: flex;
+    gap: clamp(18px, 2vw, 28px);
+    width: max-content;
+    will-change: transform;
+}
+.conveyor-track > .record-card { flex-shrink: 0; }
+
+/* Auto-scrolling conveyor marquee. Animate -50% because the cards are rendered twice. */
+@keyframes conveyor-forward {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+@keyframes conveyor-reverse {
+    from { transform: translateX(-50%); }
+    to   { transform: translateX(0); }
+}
+.conveyor-row[data-row="1"] .conveyor-track {
+    animation: conveyor-forward 55s linear infinite;
+}
+.conveyor-row[data-row="2"] .conveyor-track {
+    animation: conveyor-reverse 65s linear infinite;
+}
+.records-conveyor:hover .conveyor-track {
+    animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+    .conveyor-row[data-row="1"] .conveyor-track,
+    .conveyor-row[data-row="2"] .conveyor-track { animation: none; }
+}
+
+/* =================================================
+   Toolbar above the conveyor: source filter (+ optional inline stats)
+   ================================================= */
+.collection-toolbar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin: 0 auto 14px;
+}
+.collection-stats-inline {
+    display: inline-flex;
+    gap: 6px;
+}
+.collection-stats-inline .stat-chip {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: rgba(212, 165, 116, 0.55);
+    padding: 5px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(212, 165, 116, 0.12);
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* =================================================
+   Source filter (Spotify / Local toggle)
+   ================================================= */
+.source-filter {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(212, 165, 116, 0.15);
+    border-radius: 999px;
+    margin: 0 auto 18px;
+    align-self: center;
+}
+.source-filter-btn {
+    background: none;
+    border: none;
+    padding: 6px 16px;
+    color: rgba(212, 165, 116, 0.55);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    font-family: inherit;
+}
+.source-filter-btn:hover {
+    color: #f2e8d8;
+}
+.source-filter-btn.active {
+    background: linear-gradient(180deg, rgba(212, 165, 116, 0.22), rgba(212, 165, 116, 0.1));
+    color: #f2e8d8;
+}
+/* Spotify-only highlight */
+.source-filter-btn[data-source-filter="spotify"].active {
+    background: linear-gradient(180deg, rgba(29, 185, 84, 0.25), rgba(29, 185, 84, 0.12));
+    color: #1db954;
+}
+
+/* Filtering rules — applied via data-active-source on the room-center */
+.room-center[data-active-source="user"]    .record-card[data-source="spotify"] { display: none; }
+.room-center[data-active-source="spotify"] .record-card[data-source="user"]    { display: none; }

@@ -224,86 +224,118 @@ $current = $songs[$currentIndex] ?? [];
                 </div>
 
                 <!-- Center - Records -->
-                <div class="room-center">
+                <div class="room-center" id="roomCenter">
                     <div class="greeting-text">
                         <h1>My Collection</h1>
                         <p>pick something to play</p>
                     </div>
 
-                    <div class="records-display">
-                        <?php
-                        $totalTracks = 0;
-                        $usedCovers = [];
-                        foreach ($playlists as $playlistId => $playlist):
-                            $playlistSongs = $playlist['songs'] ?? [];
-                            $songCount = count($playlistSongs);
-                            $totalTracks += $songCount;
-                            $playlistColor = nt_safe_css_color($playlist['color'] ?? '#d4a574');
+                    <?php
+                    // ---- Conveyor precompute: gather one render-record per playlist ----
+                    // NOTE: keeps $totalTracks / $usedCovers so MP's <div class="collection-stats">
+                    // block that follows (tracks / playlists / vibes) still works unchanged.
+                    $totalTracks = 0;
+                    $usedCovers = [];
+                    $cards = [];
+                    foreach ($playlists as $playlistId => $playlist) {
+                        $playlistSongs = $playlist['songs'] ?? [];
+                        $songCount = count($playlistSongs);
+                        $totalTracks += $songCount;
+                        $playlistColor = $playlist['color'] ?? '#d4a574';
 
-                            // Find cover for this playlist
-                            $coverUrl = '';
-                            $coverSong = null;
-                            $coverSongIdx = $playlist['coverSongIndex'] ?? null;
-                            if ($coverSongIdx !== null && isset($playlistSongs[$coverSongIdx]) && !empty($playlistSongs[$coverSongIdx]['cover'])) {
-                                $coverUrl = $playlistSongs[$coverSongIdx]['cover'];
-                                $coverSong = $playlistSongs[$coverSongIdx];
-                            } else {
-                                foreach ($playlistSongs as $song) {
-                                    $songCover = $song['cover'] ?? '';
-                                    if ($songCover && !in_array($songCover, $usedCovers)) {
-                                        $coverUrl = $songCover;
-                                        $coverSong = $song;
-                                        $usedCovers[] = $songCover;
-                                        break;
-                                    }
-                                }
-                                if (!$coverUrl && !empty($playlistSongs[0]['cover'])) {
-                                    $coverUrl = $playlistSongs[0]['cover'];
-                                    $coverSong = $playlistSongs[0];
+                        // Find cover for this playlist
+                        $coverUrl = '';
+                        $coverSong = null;
+                        $coverSongIdx = $playlist['coverSongIndex'] ?? null;
+                        if ($coverSongIdx !== null && isset($playlistSongs[$coverSongIdx]) && !empty($playlistSongs[$coverSongIdx]['cover'])) {
+                            $coverUrl = $playlistSongs[$coverSongIdx]['cover'];
+                            $coverSong = $playlistSongs[$coverSongIdx];
+                        } else {
+                            foreach ($playlistSongs as $song) {
+                                $songCover = $song['cover'] ?? '';
+                                if ($songCover && !in_array($songCover, $usedCovers)) {
+                                    $coverUrl = $songCover;
+                                    $coverSong = $song;
+                                    $usedCovers[] = $songCover;
+                                    break;
                                 }
                             }
-                            $firstSong = $coverSong ?? $playlistSongs[0] ?? null;
+                            if (!$coverUrl && !empty($playlistSongs[0]['cover'])) {
+                                $coverUrl = $playlistSongs[0]['cover'];
+                                $coverSong = $playlistSongs[0];
+                            }
+                        }
+                        $cards[] = [
+                            'id'        => $playlistId,
+                            'playlist'  => $playlist,
+                            'songCount' => $songCount,
+                            'color'     => $playlistColor,
+                            'coverUrl'  => $coverUrl,
+                            'firstSong' => $coverSong ?? $playlistSongs[0] ?? null,
+                        ];
+                    }
+
+                    // Interleave into two rows so they stay balanced even with odd totals.
+                    $row1 = $row2 = [];
+                    foreach ($cards as $i => $c) {
+                        if ($i % 2 === 0) $row1[] = $c;
+                        else              $row2[] = $c;
+                    }
+
+                    $renderCard = function ($c) use ($activePlaylistId) {
+                        $playlistId = $c['id'];
+                        $playlist   = $c['playlist'];
+                        $songCount  = $c['songCount'];
+                        // Validate before it is interpolated raw into style="" attributes below.
+                        $color      = nt_safe_css_color($c['color'] ?? '#d4a574');
+                        $coverUrl   = $c['coverUrl'];
+                        $firstSong  = $c['firstSong'];
+                        // Card source for the Local/Spotify filter: an explicit
+                        // 'source' field wins; otherwise a playlist is Spotify only
+                        // if it has songs and every one carries a spotify_id (which
+                        // survives YouTube resolution — that only ADDS youtube_id).
+                        $plSongs = $playlist['songs'] ?? [];
+                        if (($playlist['source'] ?? '') === 'spotify') {
+                            $source = 'spotify';
+                        } elseif (!empty($plSongs) && count(array_filter($plSongs, fn($s) => !empty($s['spotify_id']))) === count($plSongs)) {
+                            $source = 'spotify';
+                        } else {
+                            $source = 'user';
+                        }
                         ?>
                         <div class="record-card<?= $playlistId === $activePlaylistId ? ' now-playing' : '' ?>"
                              data-playlist="<?= htmlspecialchars($playlistId) ?>"
-                             style="--card-color: <?= $playlistColor ?>"
+                             data-source="<?= $source ?>"
+                             style="--card-color: <?= $color ?>"
                              onclick="selectPlaylistFromCrate('<?= htmlspecialchars($playlistId) ?>')">
                             <div class="record-card-vinyl">
                                 <div class="vinyl-peek">
                                     <div class="vinyl-grooves"></div>
                                     <div class="vinyl-shine"></div>
                                     <div class="vinyl-label">
-                                        <?php if ($coverUrl): ?>
-                                        <img src="<?= htmlspecialchars($coverUrl) ?>" alt="">
-                                        <?php endif; ?>
+                                        <?php if ($coverUrl): ?><img src="<?= htmlspecialchars($coverUrl) ?>" alt=""><?php endif; ?>
                                     </div>
                                     <div class="vinyl-hole"></div>
                                 </div>
                             </div>
                             <div class="record-card-cover">
-                                <div class="cover-art" style="background: linear-gradient(135deg, <?= $playlistColor ?> 0%, <?= $playlistColor ?>99 100%);">
-                                    <?php if ($coverUrl): ?>
-                                    <img src="<?= htmlspecialchars($coverUrl) ?>" alt="" class="cover-main">
-                                    <?php endif; ?>
+                                <div class="cover-art" style="background: linear-gradient(135deg, <?= $color ?> 0%, <?= $color ?>99 100%);">
+                                    <?php if ($coverUrl): ?><img src="<?= htmlspecialchars($coverUrl) ?>" alt="" class="cover-main"><?php endif; ?>
                                     <div class="cover-overlay"></div>
                                     <div class="cover-texture"></div>
                                 </div>
-                                <div class="cover-badge" style="background: <?= $playlistColor ?>;">
-                                    <?= $songCount ?>
-                                </div>
+                                <div class="cover-badge" style="background: <?= $color ?>;"><?= $songCount ?></div>
                                 <div class="cover-info">
                                     <div class="cover-title"><?= htmlspecialchars($playlist['name']) ?></div>
                                     <div class="cover-preview">
                                         <?php if ($firstSong): ?>
-                                        <span class="preview-track"><?= htmlspecialchars(substr($firstSong['title'], 0, 18)) ?><?= strlen($firstSong['title']) > 18 ? '...' : '' ?></span>
+                                            <span class="preview-track"><?= htmlspecialchars(substr($firstSong['title'], 0, 18)) ?><?= strlen($firstSong['title']) > 18 ? '...' : '' ?></span>
                                         <?php endif; ?>
                                     </div>
                                 </div>
                                 <div class="cover-glow"></div>
                             </div>
-                            <div class="play-hint">
-                                <span>&#9654;</span>
-                            </div>
+                            <div class="play-hint"><span>&#9654;</span></div>
                             <button class="playlist-edit-btn" onclick="event.stopPropagation(); showPlaylistEditModal('<?= htmlspecialchars($playlistId) ?>')" title="Edit playlist">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
                                     <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
@@ -311,7 +343,31 @@ $current = $songs[$currentIndex] ?? [];
                             </button>
                             <div class="card-reflection"></div>
                         </div>
-                        <?php endforeach; ?>
+                        <?php
+                    };
+                    ?>
+                    <div class="collection-toolbar">
+                        <div class="source-filter" id="sourceFilter">
+                            <button class="source-filter-btn active" data-source-filter="all"     onclick="setSourceFilter('all')">All</button>
+                            <button class="source-filter-btn"        data-source-filter="user"    onclick="setSourceFilter('user')">Local</button>
+                            <button class="source-filter-btn"        data-source-filter="spotify" onclick="setSourceFilter('spotify')">Spotify</button>
+                        </div>
+                    </div>
+                    <div class="records-conveyor" id="recordsConveyor">
+                        <div class="conveyor-rows">
+                            <div class="conveyor-row" data-row="1">
+                                <div class="conveyor-track">
+                                    <?php foreach ($row1 as $c) $renderCard($c); ?>
+                                    <?php foreach ($row1 as $c) $renderCard($c); /* duplicate for seamless marquee loop */ ?>
+                                </div>
+                            </div>
+                            <div class="conveyor-row" data-row="2">
+                                <div class="conveyor-track">
+                                    <?php foreach ($row2 as $c) $renderCard($c); ?>
+                                    <?php foreach ($row2 as $c) $renderCard($c); /* duplicate */ ?>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="collection-stats">

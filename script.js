@@ -4344,3 +4344,33 @@ async function scanAddSelected() {
         init();
     }
 })();
+
+// ==== Phase C: records conveyor + source filter ====
+// ==========================================
+// Source filter (local vs spotify playlists)
+// Toggles data-active-source on the crate room-center; CSS hides the
+// non-matching record-cards. Persists the choice in localStorage.
+// ==========================================
+window.setSourceFilter = function(value) {
+    const valid = ['all', 'user', 'spotify'];
+    if (!valid.includes(value)) value = 'all';
+    // MP's .room-center has no id; target it directly (scoped to the crate view).
+    const room = document.getElementById('roomCenter')
+        || document.querySelector('#vinylCrateView .room-center')
+        || document.querySelector('.room-center');
+    if (room) room.setAttribute('data-active-source', value);
+    document.querySelectorAll('#sourceFilter .source-filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.sourceFilter === value);
+    });
+    try { localStorage.setItem('music_source_filter', value); } catch (_) {}
+};
+
+(function initSourceFilter() {
+    function apply() {
+        if (!document.getElementById('sourceFilter')) return;
+        const saved = (localStorage.getItem('music_source_filter') || 'all');
+        window.setSourceFilter(saved);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+    else apply();
+})();
