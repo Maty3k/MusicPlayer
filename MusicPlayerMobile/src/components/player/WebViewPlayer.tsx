@@ -9,12 +9,17 @@ import React, {
 import { StyleSheet, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import YoutubeIframe from 'react-native-youtube-iframe';
-import { BASE_URL } from '../../api/client';
+import { BASE_URL, API_TOKEN } from '../../api/client';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { useMusicStore } from '../../store/useMusicStore';
 
-// No viewport override — the PHP ?app mode now sets a proper mobile viewport
-const INJECTED_JS_BEFORE_LOAD = 'true;';
+// No viewport override — the PHP ?app mode now sets a proper mobile viewport.
+// Expose the shared API token to the page BEFORE its scripts run so script.js's
+// fetch shim can authenticate save-music.php / spotify.php calls over the LAN.
+// JSON.stringify keeps the value a safe JS string literal.
+const INJECTED_JS_BEFORE_LOAD = API_TOKEN
+  ? `window.__MP_API_TOKEN__ = ${JSON.stringify(API_TOKEN)}; true;`
+  : 'true;';
 
 export interface WebViewPlayerHandle {
   togglePlay: () => void;

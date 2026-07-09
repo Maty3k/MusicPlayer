@@ -1,0 +1,25 @@
+<?php
+// Copy this file to `config.php` and fill in your own values.
+// `config.php` is gitignored and must never be committed — it holds secrets.
+//
+//   client_id / client_secret  https://developer.spotify.com/dashboard
+//                              (create an app; these are its credentials)
+//   redirect_uri               the callback URL registered for that Spotify
+//                              app. For this standalone player it points at
+//                              spotify.php?action=callback on whatever host
+//                              you serve the player from.
+//   api_token                  shared secret that lets the companion mobile
+//                              app (which reaches the server over the LAN,
+//                              not 127.0.0.1) write to save-music.php /
+//                              spotify.php. Generate a random one, e.g.
+//                              `php -r "echo bin2hex(random_bytes(24));"`,
+//                              and ship the same value to the phone via the
+//                              app's EXPO_PUBLIC_API_TOKEN build variable.
+//                              Leave '' to keep the app loopback-only (the
+//                              desktop browser still works with no token).
+return [
+    'client_id'     => 'YOUR_SPOTIFY_CLIENT_ID',
+    'client_secret' => 'YOUR_SPOTIFY_CLIENT_SECRET',
+    'redirect_uri'  => 'http://localhost:8090/spotify.php?action=callback',
+    'api_token'     => '',
+];

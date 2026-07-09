@@ -2,3 +2,13 @@
 .idea/
 *.swp
 *.swo
+
+# Secrets & local config — never commit (see config.php.example)
+config.php
+spotify-config.php
+
+# Runtime state written by the backend
+data/spotify-tokens.json
+data/*.lock
+data/*.tmp.*
+data/.ratelimit-*.json

@@ -11,6 +11,7 @@
 </head>
 <body>
 <?php
+require_once __DIR__ . '/sanitize.php';
 $musicPath = __DIR__ . '/data/music.json';
 $music = file_exists($musicPath) ? json_decode(file_get_contents($musicPath), true) : [];
 $playlists = $music['playlists'] ?? [];
@@ -145,7 +146,7 @@ $current = $songs[$currentIndex] ?? [];
                                 <div class="turntable-platter">
                                     <div class="mini-strobe-dots"></div>
                                     <div class="platter-vinyl" id="platterVinyl">
-                                        <div class="platter-label" id="platterLabel" style="--label-color: <?= htmlspecialchars($activePlaylist['color'] ?? '#d4a574') ?>">
+                                        <div class="platter-label" id="platterLabel" style="--label-color: <?= nt_safe_css_color($activePlaylist['color'] ?? '#d4a574') ?>">
                                             <?php if (!empty($current['cover'])): ?>
                                             <img src="<?= htmlspecialchars($current['cover']) ?>" alt="">
                                             <?php endif; ?>
@@ -215,7 +216,7 @@ $current = $songs[$currentIndex] ?? [];
                             $playlistSongs = $playlist['songs'] ?? [];
                             $songCount = count($playlistSongs);
                             $totalTracks += $songCount;
-                            $playlistColor = $playlist['color'] ?? '#d4a574';
+                            $playlistColor = nt_safe_css_color($playlist['color'] ?? '#d4a574');
 
                             // Find cover for this playlist
                             $coverUrl = '';
@@ -322,7 +323,7 @@ $current = $songs[$currentIndex] ?? [];
                                 foreach ($recentlyPlayed as $crateId):
                                     if (!isset($playlists[$crateId])) continue;
                                     $cratePlaylist = $playlists[$crateId];
-                                    $crateColor = $cratePlaylist['color'] ?? '#d4a574';
+                                    $crateColor = nt_safe_css_color($cratePlaylist['color'] ?? '#d4a574');
                                     $crateName = $cratePlaylist['name'] ?? $crateId;
                                 ?>
                                 <div class="crate-record" data-crate-playlist="<?= htmlspecialchars($crateId) ?>" style="--r-color: <?= htmlspecialchars($crateColor) ?>;" onclick="selectPlaylistFromCrate('<?= htmlspecialchars($crateId) ?>')" title="<?= htmlspecialchars($crateName) ?>"></div>
@@ -625,7 +626,7 @@ $current = $songs[$currentIndex] ?? [];
                         $covers[] = ['index' => $idx, 'url' => $c, 'title' => $s['title'] ?? ''];
                     }
                 }
-                $meta[$id] = ['name' => $pl['name'] ?? $id, 'color' => $pl['color'] ?? '#d4a574', 'songCount' => count($pl['songs'] ?? []), 'coverSongIndex' => $pl['coverSongIndex'] ?? null, 'covers' => $covers];
+                $meta[$id] = ['name' => $pl['name'] ?? $id, 'color' => nt_safe_css_color($pl['color'] ?? '#d4a574'), 'songCount' => count($pl['songs'] ?? []), 'coverSongIndex' => $pl['coverSongIndex'] ?? null, 'covers' => $covers];
             }
             echo json_encode((object)$meta);
         ?>;

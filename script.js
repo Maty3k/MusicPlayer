@@ -1,3 +1,28 @@
+// When this page runs inside the native mobile shell, the WebView reaches the
+// PHP backend over the LAN (not 127.0.0.1), so the loopback allowance in
+// auth-guard.php doesn't apply. The shell injects window.__MP_API_TOKEN__
+// before load; this shim attaches it as X-Api-Token on our own backend calls
+// so save-music.php / spotify.php accept them. On the desktop the global is
+// undefined, no header is added, and requests pass by loopback IP.
+(function () {
+    const token = typeof window !== 'undefined' ? window.__MP_API_TOKEN__ : null;
+    if (!token || typeof window.fetch !== 'function') return;
+    const ORIGIN_ENDPOINTS = /(^|\/)(save-music|spotify|search-youtube|youtube-extract|scan-cover)\.php(\?|$)/;
+    const origFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+        const url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (ORIGIN_ENDPOINTS.test(url)) {
+            init = init || {};
+            const headers = new Headers(
+                init.headers || (typeof input !== 'string' && input ? input.headers : undefined) || {}
+            );
+            headers.set('X-Api-Token', token);
+            init.headers = headers;
+        }
+        return origFetch(input, init);
+    };
+})();
+
 // Lazy-load YouTube IFrame API
 let ytApiLoaded = false;
 function loadYouTubeAPI() {

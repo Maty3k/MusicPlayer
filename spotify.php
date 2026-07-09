@@ -1,7 +1,13 @@
 <?php
 session_start();
 
-$config = require __DIR__ . '/spotify-config.php';
+require_once __DIR__ . '/auth-guard.php';
+require_once __DIR__ . '/rate-limit.php';
+
+// Spotify credentials + api_token live in config.php (gitignored). Degrade
+// gracefully if it's missing so `status` can report configured:false instead
+// of a 500.
+$config = mp_config();
 $tokenFile = __DIR__ . '/data/spotify-tokens.json';
 
 $action = $_GET['action'] ?? '';
@@ -181,8 +187,10 @@ function fetchPlaylistTracks($playlistId, $token) {
 // ============================================================
 if ($action === 'login') {
     header('Content-Type: application/json');
+    mp_require_auth();
+    nt_rate_limit('spotify_login', 20, 200);
     if (empty($config['client_id']) || empty($config['redirect_uri'])) {
-        echo json_encode(['error' => 'Fill in spotify-config.php first']);
+        echo json_encode(['error' => 'Fill in config.php first']);
         exit;
     }
     $state = bin2hex(random_bytes(16));
@@ -241,10 +249,15 @@ if ($action === 'callback') {
 // JSON API ROUTES (everything below returns JSON)
 // ============================================================
 header('Content-Type: application/json');
+// All routes below either mutate token state (logout) or spend the owner's
+// Spotify token on outbound calls (token/status/playlists/import) — gate them
+// to loopback / token-bearing clients so a LAN peer can't drive the account.
+mp_require_auth();
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
 // ROUTE: TOKEN — return access token for Web Playback SDK
 if ($action === 'token') {
+    nt_rate_limit('spotify_token', 120, 5000);
     if (!requireSameOrigin()) {
         http_response_code(403);
         echo json_encode(['error' => 'Forbidden']);
@@ -262,6 +275,7 @@ if ($action === 'token') {
 
 // ROUTE: STATUS — check connection + user info
 if ($action === 'status') {
+    nt_rate_limit('spotify_status', 60, 1000);
     if (empty($config['client_id'])) {
         echo json_encode(['configured' => false, 'connected' => false]);
         exit;
@@ -297,6 +311,7 @@ if ($action === 'logout') {
 
 // ROUTE: PLAYLISTS — get user's playlists (OAuth required)
 if ($action === 'playlists') {
+    nt_rate_limit('spotify_playlists', 30, 300);
     $token = getValidToken($config, $tokenFile);
     if (!$token) {
         echo json_encode(['success' => false, 'error' => 'Not connected']);
@@ -325,6 +340,7 @@ if ($action === 'playlists') {
 
 // ROUTE: IMPORT_URL — import from public playlist URL (no OAuth needed)
 if ($action === 'import_url') {
+    nt_rate_limit('spotify_import', 20, 200);
     $url = $input['url'] ?? '';
     $playlistId = extractPlaylistId($url);
     if (!$playlistId) {
@@ -354,6 +370,7 @@ if ($action === 'import_url') {
 
 // ROUTE: PLAYLIST_TRACKS — get tracks from a specific playlist
 if ($action === 'playlist_tracks') {
+    nt_rate_limit('spotify_tracks', 30, 300);
     $playlistId = $input['playlist_id'] ?? '';
     if (!$playlistId) {
         echo json_encode(['success' => false, 'error' => 'No playlist ID']);
