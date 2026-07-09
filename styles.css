@@ -2961,6 +2961,206 @@ body {
     box-shadow: 0 4px 16px rgba(212, 165, 116, 0.2);
 }
 
+/* ============================================================
+   Settings + Spotify UI (settings modal, source picker,
+   connection panel, import modal). Reuses .add-song-modal shell.
+   ============================================================ */
+:root { --app-text-dim: rgba(242, 232, 216, 0.55); }
+
+/* Gear button shares .add-song-btn base; tweak glyph size only */
+.settings-gear-btn { font-size: 0.95rem; }
+
+/* Source picker */
+.settings-source-options {
+    display: flex;
+    gap: 8px;
+}
+.settings-source-btn {
+    flex: 1;
+    padding: 9px 6px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(212, 165, 116, 0.2);
+    border-radius: 8px;
+    color: rgba(242, 232, 216, 0.7);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.settings-source-btn:hover { border-color: rgba(212, 165, 116, 0.45); }
+.settings-source-btn.active {
+    background: linear-gradient(135deg, rgba(212, 165, 116, 0.28), rgba(212, 165, 116, 0.15));
+    border-color: #d4a574;
+    color: #f2e8d8;
+}
+
+.settings-hint {
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--app-text-dim);
+    margin: 8px 0 0;
+}
+.settings-hint code {
+    font-family: inherit;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(212, 165, 116, 0.2);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: #d4a574;
+}
+
+.settings-spotify-group { margin-top: 20px; }
+.spotify-state { margin-top: 4px; }
+
+/* Connect button — Spotify green */
+.spotify-connect-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #1db954, #159c44);
+    border: none;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.spotify-connect-btn:hover { filter: brightness(1.08); box-shadow: 0 4px 16px rgba(29, 185, 84, 0.35); }
+.spotify-glyph { font-size: 1rem; }
+
+/* Connected user chip */
+.spotify-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.spotify-user-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(29, 185, 84, 0.25);
+    flex-shrink: 0;
+}
+.spotify-user-name {
+    font-size: 0.9rem;
+    color: #f2e8d8;
+    font-weight: 500;
+}
+.spotify-user-badge {
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(29, 185, 84, 0.2);
+    color: #1db954;
+    border: 1px solid rgba(29, 185, 84, 0.4);
+}
+.spotify-connected-actions { display: flex; gap: 10px; }
+
+/* Import modal */
+.spotify-import-url-row { display: flex; gap: 8px; }
+.spotify-import-url-row input {
+    flex: 1;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(212, 165, 116, 0.2);
+    border-radius: 8px;
+    color: #f2e8d8;
+    font-size: 0.9rem;
+    outline: none;
+    box-sizing: border-box;
+}
+.spotify-import-url-row input:focus { border-color: rgba(212, 165, 116, 0.5); }
+.spotify-import-url-row .add-song-btn-save { white-space: nowrap; }
+
+.spotify-playlists-list {
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.spotify-playlist-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(212, 165, 116, 0.15);
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+}
+.spotify-playlist-item:hover {
+    background: rgba(212, 165, 116, 0.1);
+    border-color: rgba(212, 165, 116, 0.4);
+}
+.spotify-playlist-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: rgba(29, 185, 84, 0.2);
+    flex-shrink: 0;
+}
+.spotify-playlist-info { min-width: 0; }
+.spotify-playlist-name {
+    font-size: 0.85rem;
+    color: #f2e8d8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.spotify-playlist-meta {
+    font-size: 0.7rem;
+    color: var(--app-text-dim);
+}
+
+.spotify-import-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 20px;
+    color: var(--app-text-dim);
+    font-size: 0.85rem;
+}
+.spotify-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(29, 185, 84, 0.25);
+    border-top-color: #1db954;
+    border-radius: 50%;
+    animation: spotify-spin 0.7s linear infinite;
+}
+@keyframes spotify-spin { to { transform: rotate(360deg); } }
+
+.spotify-import-info { margin-bottom: 12px; color: #f2e8d8; }
+.spotify-import-tracks {
+    max-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.spotify-import-track {
+    font-size: 0.78rem;
+    color: rgba(242, 232, 216, 0.75);
+    padding: 5px 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.spotify-import-track-title { color: #f2e8d8; font-weight: 500; }
+
 .music-main {
     flex: 1;
     display: flex;

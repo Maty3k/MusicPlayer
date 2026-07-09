@@ -7,7 +7,7 @@
 (function () {
     const token = typeof window !== 'undefined' ? window.__MP_API_TOKEN__ : null;
     if (!token || typeof window.fetch !== 'function') return;
-    const ORIGIN_ENDPOINTS = /(^|\/)(save-music|spotify|search-youtube|youtube-extract|scan-cover)\.php(\?|$)/;
+    const ORIGIN_ENDPOINTS = /(^|\/)(save-music|spotify(?:-[a-z]+)?|search-youtube|youtube-extract|scan-cover)\.php(\?|$)/;
     const origFetch = window.fetch.bind(window);
     window.fetch = function (input, init) {
         const url = typeof input === 'string' ? input : (input && input.url) || '';
@@ -2230,8 +2230,15 @@ function getPlaybackSource(song) {
 }
 
 // Unified play/cue function
-function playSongSource(song, cueOnly) {
-    const source = getPlaybackSource(song);
+async function playSongSource(song, cueOnly) {
+    let source = getPlaybackSource(song);
+    // Spotify-only track that can't stream via Premium (user isn't premium, or
+    // no active device): resolve a matching YouTube video on demand so it still
+    // plays. Premium+connected users keep native Spotify playback.
+    if (!source && song && song.spotify_id && !song.youtube_id && !song.mp3_url
+        && song.title && !(spotifyPremium && spotifyConnected)) {
+        source = await resolveYoutubeIdForSong(song);
+    }
     if (!source) return;
     activatePlayerForSong(song);
     if (cueOnly) {
@@ -2239,6 +2246,32 @@ function playSongSource(song, cueOnly) {
     } else {
         if (ytPlayer && ytPlayer.loadVideoById) ytPlayer.loadVideoById(source);
     }
+}
+
+// Resolve a Spotify-only track to a YouTube video id. The server scrapes YT
+// search, caches by spotify_id, and writes youtube_id back onto the song in
+// music.json; we also set it in memory so the next play is instant.
+async function resolveYoutubeIdForSong(song) {
+    try {
+        const idx = (typeof songsData !== 'undefined') ? songsData.indexOf(song) : -1;
+        const resp = await fetch('spotify-resolve.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                spotify_id: song.spotify_id || '',
+                title: song.title || '',
+                artist: song.artist || '',
+                playlist_key: (typeof activePlaylistId !== 'undefined') ? activePlaylistId : '',
+                song_index: idx
+            })
+        });
+        const data = await resp.json();
+        if (data.success && data.youtube_id) {
+            song.youtube_id = data.youtube_id;
+            return data.youtube_id;
+        }
+    } catch (e) {}
+    return '';
 }
 
 function isPlayerReady() {

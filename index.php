@@ -359,6 +359,7 @@ $current = $songs[$currentIndex] ?? [];
             <div class="sidebar-header-area">
                 <div class="sidebar-header-row">
                     <div class="music-sidebar-title" id="playlistTitle"><?= htmlspecialchars($activePlaylist['name'] ?? 'My Records') ?></div>
+                    <button class="add-song-btn settings-gear-btn" onclick="showSettingsModal()" title="Settings &amp; Spotify">&#9881;</button>
                     <button class="add-song-btn" onclick="showAddSongModal()" title="Add a song">+</button>
                 </div>
                 <div class="sidebar-track-count"><?= count($songs) ?> tracks</div>
@@ -542,7 +543,7 @@ $current = $songs[$currentIndex] ?? [];
             </div>
             <form id="addSongForm" onsubmit="addSongToPlaylist(event)">
                 <div class="add-song-form-group">
-                    <label for="addSongYoutube">YouTube URL or ID</label>
+                    <label for="addSongYoutube" id="addSongSourceLabel">YouTube URL or ID</label>
                     <input type="text" id="addSongYoutube" placeholder="https://youtube.com/watch?v=... or video ID" required>
                 </div>
                 <div class="add-song-form-group">
@@ -609,6 +610,89 @@ $current = $songs[$currentIndex] ?? [];
         </div>
     </div>
 
+    <!-- Settings Modal (playback source + Spotify) -->
+    <div class="add-song-modal" id="settingsModal">
+        <div class="add-song-modal-backdrop" onclick="hideSettingsModal()"></div>
+        <div class="add-song-modal-panel">
+            <button class="add-song-modal-close" onclick="hideSettingsModal()">&times;</button>
+            <div class="add-song-modal-header">
+                <div class="add-song-modal-icon">&#9881;</div>
+                <h2 class="add-song-modal-title">Settings</h2>
+            </div>
+
+            <div class="add-song-form-group">
+                <label>Add-song source</label>
+                <div class="settings-source-options" id="settingsSourceOptions">
+                    <button type="button" class="settings-source-btn active" data-source="youtube" onclick="setMusicSource('youtube')">YouTube</button>
+                    <button type="button" class="settings-source-btn" data-source="mp3" onclick="setMusicSource('mp3')">MP3 URL</button>
+                    <button type="button" class="settings-source-btn" data-source="spotify" onclick="setMusicSource('spotify')">Spotify</button>
+                </div>
+                <p class="settings-hint">Sets what the Add Song box expects. Spotify tracks stream via the Web Playback SDK (Premium) or a matched YouTube video.</p>
+            </div>
+
+            <div class="add-song-form-group settings-spotify-group">
+                <label>Spotify</label>
+                <div id="spotifyNotConfigured" class="spotify-state" style="display:none">
+                    <p class="settings-hint">Not configured. Copy <code>config.php.example</code> &rarr; <code>config.php</code> and add your Spotify app's Client ID/Secret and redirect URI.</p>
+                </div>
+                <div id="spotifyNotConnected" class="spotify-state" style="display:none">
+                    <button type="button" class="spotify-connect-btn" onclick="connectSpotify()">
+                        <span class="spotify-glyph">&#9835;</span> Connect Spotify
+                    </button>
+                </div>
+                <div id="spotifyConnected" class="spotify-state" style="display:none">
+                    <div class="spotify-user" id="spotifyUserInfo"></div>
+                    <div class="spotify-connected-actions">
+                        <button type="button" class="add-song-btn-save" onclick="showSpotifyImportModal()">Import playlist</button>
+                        <button type="button" class="add-song-btn-cancel" onclick="disconnectSpotify()">Disconnect</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="add-song-modal-buttons">
+                <button type="button" class="add-song-btn-cancel" onclick="hideSettingsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spotify Import Modal -->
+    <div class="add-song-modal" id="spotifyImportModal">
+        <div class="add-song-modal-backdrop" onclick="hideSpotifyImportModal()"></div>
+        <div class="add-song-modal-panel">
+            <button class="add-song-modal-close" onclick="hideSpotifyImportModal()">&times;</button>
+            <div class="add-song-modal-header">
+                <div class="add-song-modal-icon">&#9835;</div>
+                <h2 class="add-song-modal-title">Import from Spotify</h2>
+            </div>
+
+            <div class="add-song-form-group">
+                <label for="spotifyImportUrl">Public playlist URL</label>
+                <div class="spotify-import-url-row">
+                    <input type="text" id="spotifyImportUrl" placeholder="https://open.spotify.com/playlist/...">
+                    <button type="button" class="add-song-btn-save" onclick="fetchSpotifyPlaylistUrl()">Fetch</button>
+                </div>
+            </div>
+
+            <div id="spotifyUserPlaylists" class="add-song-form-group" style="display:none">
+                <label>Your playlists</label>
+                <div class="spotify-playlists-list" id="spotifyPlaylistsList"></div>
+            </div>
+
+            <div id="spotifyImportLoading" class="spotify-import-loading" style="display:none">
+                <span class="spotify-spinner"></span> Loading tracks&hellip;
+            </div>
+
+            <div id="spotifyImportPreview" class="spotify-import-preview" style="display:none">
+                <div class="spotify-import-info" id="spotifyImportInfo"></div>
+                <div class="spotify-import-tracks" id="spotifyImportTracks"></div>
+                <div class="add-song-modal-buttons">
+                    <button type="button" class="add-song-btn-cancel" onclick="hideSpotifyImportModal()">Cancel</button>
+                    <button type="button" class="add-song-btn-save" onclick="importSpotifyPlaylist()">Add to current playlist</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- PHP-injected data for JavaScript -->
     <script>
         let activePlaylistId = '<?= $activePlaylistId ?>';
@@ -633,5 +717,8 @@ $current = $songs[$currentIndex] ?? [];
         let recentlyPlayed = <?= json_encode($music['recentlyPlayed'] ?? array_keys($playlists)) ?>;
     </script>
     <script src="script.js?v=<?= filemtime('script.js') ?>"></script>
+    <!-- Spotify Web Playback SDK (Premium streaming). Loaded after script.js so
+         window.onSpotifyWebPlaybackSDKReady is defined before the SDK fires it. -->
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
 </body>
 </html>

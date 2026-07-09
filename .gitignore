@@ -9,6 +9,7 @@ spotify-config.php
 
 # Runtime state written by the backend
 data/spotify-tokens.json
+data/spotify-youtube-cache.json
 data/*.lock
 data/*.tmp.*
 data/.ratelimit-*.json
