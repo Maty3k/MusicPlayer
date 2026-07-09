@@ -6,10 +6,21 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\ScanCoverController;
+use App\Http\Controllers\SetupCheckController;
 use App\Http\Controllers\SearchYoutubeController;
 use App\Http\Controllers\SpotifyController;
 use App\Http\Controllers\SpotifyResolveController;
 use Illuminate\Support\Facades\Route;
+
+// Public first-boot diagnostics (booleans only, no secrets) — reachable even
+// when auth is broken, which is exactly when it's needed. Sessions are
+// bypassed: with SESSION_DRIVER=database and a dead DB, the session
+// middleware itself would 500 this page before it could diagnose anything.
+Route::get('/setup-check', SetupCheckController::class)
+    ->withoutMiddleware([
+        \Illuminate\Session\Middleware\StartSession::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    ]);
 
 // ---- Guest auth ----
 Route::middleware('guest')->group(function () {
