@@ -20,6 +20,8 @@ Route::get('/setup-check', SetupCheckController::class)
     ->withoutMiddleware([
         \Illuminate\Session\Middleware\StartSession::class,
         \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        // L13's forgery middleware calls $request->session() even on GET.
+        \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
     ]);
 
 // ---- Guest auth ----
