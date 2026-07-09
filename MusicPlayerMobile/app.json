@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Music Player",
+    "slug": "musicplayermobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#1a1510",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "build.artisan.musicplayer"
+    },
+    "android": {
+      "package": "build.artisan.musicplayer",
+      "usesCleartextTraffic": true
+    },
+    "plugins": []
+  }
+}
