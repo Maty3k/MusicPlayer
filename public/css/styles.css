@@ -6282,3 +6282,217 @@ body {
 /* Filtering rules — applied via data-active-source on the room-center */
 .room-center[data-active-source="user"]    .record-card[data-source="spotify"] { display: none; }
 .room-center[data-active-source="spotify"] .record-card[data-source="user"]    { display: none; }
+
+/* ============================================================
+   Auth pages (login / register / verify-email) — Laravel port.
+   Vinyl aesthetic matching the modal design language
+   (.add-song-modal-panel gradient card, amber labels, and the
+   .add-song-btn-save / .add-song-btn-cancel button styles).
+   ============================================================ */
+body.auth-page {
+    background: #1a1510;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+}
+
+.auth-vinyl-decor {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.auth-vinyl-disc {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 720px;
+    height: 720px;
+    margin: -360px 0 0 -360px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at center,
+            #d4a574 0%, #d4a574 9%,
+            #14100c 9.5%, #14100c 100%),
+        #14100c;
+    box-shadow: 0 0 120px rgba(0, 0, 0, 0.8);
+    opacity: 0.35;
+    animation: authVinylSpin 90s linear infinite;
+}
+
+.auth-vinyl-disc::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: repeating-radial-gradient(circle at center,
+        rgba(212, 165, 116, 0.05) 0px,
+        rgba(212, 165, 116, 0.05) 2px,
+        transparent 2px,
+        transparent 8px);
+}
+
+.auth-vinyl-disc::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border-radius: 50%;
+    background: #1a1510;
+}
+
+@keyframes authVinylSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.auth-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    background: linear-gradient(180deg, #2c251d 0%, #1e1a14 100%);
+    border: 1px solid rgba(212, 165, 116, 0.25);
+    border-radius: 16px;
+    padding: 36px 32px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 22px;
+}
+
+.auth-brand-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at center, #d4a574 0%, #d4a574 28%, #14100c 32%, #14100c 100%);
+    color: #14100c;
+    font-size: 0.95rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.auth-brand-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: rgba(212, 165, 116, 0.8);
+}
+
+.auth-heading {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: #f2e8d8;
+    text-align: center;
+    letter-spacing: 0.5px;
+    margin: 0 0 6px;
+}
+
+.auth-sub {
+    font-size: 0.85rem;
+    color: rgba(242, 232, 216, 0.55);
+    text-align: center;
+    margin: 0 0 24px;
+    line-height: 1.5;
+}
+
+.auth-sub strong {
+    color: #d4a574;
+    font-weight: 600;
+}
+
+.auth-errors {
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: rgba(232, 93, 117, 0.08);
+    border: 1px solid rgba(232, 93, 117, 0.35);
+    border-radius: 8px;
+}
+
+.auth-error {
+    font-size: 0.8rem;
+    color: #e88a9b;
+    line-height: 1.5;
+}
+
+.auth-status {
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: rgba(92, 186, 92, 0.08);
+    border: 1px solid rgba(92, 186, 92, 0.35);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: #8fd08f;
+    line-height: 1.5;
+}
+
+.auth-remember {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0 20px;
+    font-size: 0.8rem;
+    color: rgba(242, 232, 216, 0.55);
+    cursor: pointer;
+    user-select: none;
+}
+
+.auth-remember input {
+    accent-color: #d4a574;
+}
+
+.auth-submit {
+    display: block;
+    width: 100%;
+    text-align: center;
+}
+
+.auth-submit-ghost {
+    display: block;
+    width: 100%;
+    text-align: center;
+}
+
+.auth-logout-form {
+    margin-top: 12px;
+}
+
+.auth-alt {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(212, 165, 116, 0.12);
+    text-align: center;
+    font-size: 0.8rem;
+    color: rgba(242, 232, 216, 0.45);
+}
+
+.auth-alt a {
+    color: #d4a574;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.auth-alt a:hover {
+    text-decoration: underline;
+}
+
+/* Account group in the Settings modal (Laravel session auth) */
+.settings-account-group .settings-hint {
+    margin-bottom: 10px;
+}

@@ -35,4 +35,19 @@ return [
         ],
     ],
 
+    // App-level Spotify credentials (per-user OAuth tokens live in the
+    // spotify_tokens table). Register APP_URL/spotify?action=callback as the
+    // redirect URI in the Spotify developer dashboard.
+    'spotify' => [
+        'client_id' => env('SPOTIFY_CLIENT_ID'),
+        'client_secret' => env('SPOTIFY_CLIENT_SECRET'),
+        'redirect_uri' => env('SPOTIFY_REDIRECT_URI'),
+    ],
+
+    // Google Gemini — album-cover identification in the Song Scanner.
+    // Optional: without it, cover-ID is skipped (audio-tag scanning still works).
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+    ],
+
 ];

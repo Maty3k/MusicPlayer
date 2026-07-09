@@ -1,23 +1,36 @@
-// When this page runs inside the native mobile shell, the WebView reaches the
-// PHP backend over the LAN (not 127.0.0.1), so the loopback allowance in
-// auth-guard.php doesn't apply. The shell injects window.__MP_API_TOKEN__
-// before load; this shim attaches it as X-Api-Token on our own backend calls
-// so save-music.php / spotify.php accept them. On the desktop the global is
-// undefined, no header is added, and requests pass by loopback IP.
+// Laravel session auth: the page carries a CSRF token in a <meta> tag. This
+// shim attaches it as X-CSRF-TOKEN on every POST-like request to our own
+// backend endpoints so the VerifyCsrfToken middleware accepts them. GET
+// requests need no token.
 (function () {
-    const token = typeof window !== 'undefined' ? window.__MP_API_TOKEN__ : null;
-    if (!token || typeof window.fetch !== 'function') return;
-    const ORIGIN_ENDPOINTS = /(^|\/)(save-music|spotify(?:-[a-z]+)?|search-youtube|youtube-extract|scan-cover)\.php(\?|$)/;
+    if (typeof window === 'undefined' || typeof window.fetch !== 'function') return;
+    let csrfToken = null;
+    function getCsrfToken() {
+        if (csrfToken === null && typeof document !== 'undefined') {
+            const meta = document.querySelector('meta[name=csrf-token]');
+            csrfToken = meta ? meta.content : '';
+        }
+        return csrfToken || '';
+    }
+    const ORIGIN_ENDPOINTS = /^\/(save-music|spotify|spotify-resolve|search-youtube|scan-cover)(\?|$)/;
     const origFetch = window.fetch.bind(window);
     window.fetch = function (input, init) {
         const url = typeof input === 'string' ? input : (input && input.url) || '';
-        if (ORIGIN_ENDPOINTS.test(url)) {
-            init = init || {};
-            const headers = new Headers(
-                init.headers || (typeof input !== 'string' && input ? input.headers : undefined) || {}
-            );
-            headers.set('X-Api-Token', token);
-            init.headers = headers;
+        const method = String(
+            (init && init.method) ||
+            (typeof input !== 'string' && input && input.method) ||
+            'GET'
+        ).toUpperCase();
+        if (method !== 'GET' && method !== 'HEAD' && ORIGIN_ENDPOINTS.test(url)) {
+            const token = getCsrfToken();
+            if (token) {
+                init = init || {};
+                const headers = new Headers(
+                    init.headers || (typeof input !== 'string' && input ? input.headers : undefined) || {}
+                );
+                headers.set('X-CSRF-TOKEN', token);
+                init.headers = headers;
+            }
         }
         return origFetch(input, init);
     };
@@ -59,9 +72,9 @@ function safeUrl(s) {
 
 // Music player controls
 // Song and playlist data from PHP
-// activePlaylistId is injected by PHP in index.php
-// songsData is injected by PHP in index.php
-// currentSongIndex is injected by PHP in index.php
+// activePlaylistId is injected by PHP in player.blade.php
+// songsData is injected by PHP in player.blade.php
+// currentSongIndex is injected by PHP in player.blade.php
 let isChangingSong = false;
 let isChangingPlaylist = false;
 
@@ -240,7 +253,7 @@ async function switchSong(index) {
     playSongSource(song, false);
 
     // Save to server
-    await fetch('save-music.php', {
+    await fetch('/save-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'switch', index: index })
@@ -286,7 +299,7 @@ async function selectPlaylistFromCrate(playlistId) {
     }
 
     // Fetch playlist from server
-    const response = await fetch('save-music.php', {
+    const response = await fetch('/save-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'switchPlaylist', playlist: playlistId })
@@ -793,7 +806,7 @@ async function saveRadioSong() {
         youtube_id: currentRadioSong.youtube_id
     };
 
-    const response = await fetch('save-music.php', {
+    const response = await fetch('/save-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'add', song })
@@ -1704,7 +1717,7 @@ async function addSongToPlaylist(e) {
         song = { title, artist, album, cover, youtube_id: youtubeId, mp3_url: '' };
     }
 
-    const response = await fetch('save-music.php', {
+    const response = await fetch('/save-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'add', song })
@@ -1726,7 +1739,7 @@ async function addSongToPlaylist(e) {
 async function deleteSong(index) {
     if (songsData.length <= 1) return; // don't delete the last song
 
-    const response = await fetch('save-music.php', {
+    const response = await fetch('/save-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', index })
@@ -1834,7 +1847,7 @@ async function savePlaylistEdit() {
 
     // Send rename if changed
     if (nameChanged) {
-        await fetch('save-music.php', {
+        await fetch('/save-music', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'rename', playlist: id, name })
@@ -1844,7 +1857,7 @@ async function savePlaylistEdit() {
 
     // Send recolor if changed
     if (colorChanged) {
-        await fetch('save-music.php', {
+        await fetch('/save-music', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'recolor', playlist: id, color: selectedEditColor })
@@ -1854,7 +1867,7 @@ async function savePlaylistEdit() {
 
     // Send cover change if changed
     if (coverChanged) {
-        await fetch('save-music.php', {
+        await fetch('/save-music', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'setCover', playlist: id, songIndex: selectedCoverIndex ?? -1 })
@@ -2010,7 +2023,7 @@ function showSendMenu(btn, songIndex) {
 }
 
 async function copySongTo(toPlaylist, songIndex) {
-    const response = await fetch('save-music.php', {
+    const response = await fetch('/save-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'copySong', fromPlaylist: activePlaylistId, toPlaylist, songIndex })
@@ -2035,7 +2048,7 @@ async function copySongTo(toPlaylist, songIndex) {
 }
 
 async function moveSongTo(toPlaylist, songIndex) {
-    const response = await fetch('save-music.php', {
+    const response = await fetch('/save-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'moveSong', fromPlaylist: activePlaylistId, toPlaylist, songIndex })
@@ -2258,7 +2271,7 @@ async function playSongSource(song, cueOnly) {
 async function resolveYoutubeIdForSong(song) {
     try {
         const idx = (typeof songsData !== 'undefined') ? songsData.indexOf(song) : -1;
-        const resp = await fetch('spotify-resolve.php', {
+        const resp = await fetch('/spotify-resolve', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2303,14 +2316,14 @@ window.onSpotifyWebPlaybackSDKReady = function() {
 };
 
 async function initSpotifyPlayer() {
-    const tokenResp = await fetch('spotify.php?action=token');
+    const tokenResp = await fetch('/spotify?action=token');
     const tokenData = await tokenResp.json();
     if (!tokenData.access_token) return;
 
     const player = new Spotify.Player({
         name: 'Music Player',
         getOAuthToken: cb => {
-            fetch('spotify.php?action=token')
+            fetch('/spotify?action=token')
                 .then(r => r.json())
                 .then(d => cb(d.access_token))
                 .catch(() => cb(''));
@@ -2388,7 +2401,7 @@ async function initSpotifyPlayer() {
 
 async function getSpotifyToken() {
     try {
-        const r = await fetch('spotify.php?action=token');
+        const r = await fetch('/spotify?action=token');
         const d = await r.json();
         return d.access_token || null;
     } catch(e) { return null; }
@@ -2397,7 +2410,7 @@ async function getSpotifyToken() {
 // Check Spotify connection status on settings open
 async function checkSpotifyStatus() {
     try {
-        const resp = await fetch('spotify.php?action=status');
+        const resp = await fetch('/spotify?action=status');
         const data = await resp.json();
 
         const notConfigured = document.getElementById('spotifyNotConfigured');
@@ -2435,7 +2448,7 @@ async function checkSpotifyStatus() {
 }
 
 function connectSpotify() {
-    fetch('spotify.php?action=login')
+    fetch('/spotify?action=login')
         .then(r => r.json())
         .then(data => {
             if (data.authUrl) {
@@ -2447,7 +2460,7 @@ function connectSpotify() {
 }
 
 function disconnectSpotify() {
-    fetch('spotify.php?action=logout')
+    fetch('/spotify?action=logout')
         .then(() => {
             spotifyConnected = false;
             spotifyPremium = false;
@@ -2475,7 +2488,7 @@ function showSpotifyImportModal() {
         container.style.display = '';
         list.innerHTML = '<p class="settings-hint" style="text-align:center">Loading playlists...</p>';
 
-        fetch('spotify.php?action=playlists')
+        fetch('/spotify?action=playlists')
             .then(r => r.json())
             .then(data => {
                 if (!data.success || !data.playlists?.length) {
@@ -2520,7 +2533,7 @@ async function fetchSpotifyPlaylistUrl() {
     if (!url) return;
     showImportLoading();
     try {
-        const resp = await fetch('spotify.php', {
+        const resp = await fetch('/spotify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'import_url', url })
@@ -2541,7 +2554,7 @@ async function fetchSpotifyPlaylistUrl() {
 async function fetchSpotifyPlaylistById(playlistId, name) {
     showImportLoading();
     try {
-        const resp = await fetch('spotify.php', {
+        const resp = await fetch('/spotify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'playlist_tracks', playlist_id: playlistId })
@@ -2598,7 +2611,7 @@ async function importSpotifyPlaylist() {
             spotify_id: s.spotify_id || ''
         };
 
-        await fetch('save-music.php', {
+        await fetch('/save-music', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'add', song })
@@ -3080,9 +3093,9 @@ function playCrackleSound() {
 
 // ============================================================
 // SONG SCANNER (folder-scan local import)
-// Identifies album covers (Gemini via scan-cover.php) and reads ID3 tags
+// Identifies album covers (Gemini via /scan-cover) and reads ID3 tags
 // (jsmediatags) from local audio, then matches each to a YouTube video
-// (search-youtube.php) so it can be added like any other song.
+// (/search-youtube) so it can be added like any other song.
 // ============================================================
 
 let scanResults = [];
@@ -3140,7 +3153,7 @@ async function handleScanFiles(fileList) {
 
         try {
             const base64 = await fileToBase64(img);
-            const resp = await fetch('scan-cover.php', {
+            const resp = await fetch('/scan-cover', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ image: base64, mimeType: img.type })
@@ -3217,7 +3230,7 @@ async function handleScanFiles(fileList) {
 
         try {
             const query = `${r.artist} ${r.title} official audio`;
-            const resp = await fetch('search-youtube.php', {
+            const resp = await fetch('/search-youtube', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query })
@@ -3392,7 +3405,7 @@ async function scanAddSelected() {
         };
 
         try {
-            const resp = await fetch('save-music.php', {
+            const resp = await fetch('/save-music', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'add', song })
