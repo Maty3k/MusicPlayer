@@ -444,10 +444,10 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
-    opacity: 0.9;
+    gap: 16px;
+    opacity: 0.92;
     transition: opacity 0.3s ease;
-    min-width: 200px;
+    min-width: 230px;
 }
 
 .room-left:hover {
@@ -455,15 +455,23 @@ body {
 }
 
 .mini-turntable {
-    width: 200px;
-    height: 150px;
+    width: 230px;
+    height: 168px;
     position: relative;
     cursor: pointer;
-    transition: transform 0.2s ease;
+    transition: transform 0.25s ease;
 }
 
 .mini-turntable:hover {
-    transform: scale(1.03);
+    transform: translateY(-3px);
+}
+
+.mini-turntable:hover .turntable-base {
+    border-color: rgba(212, 165, 116, 0.35);
+    box-shadow:
+        0 18px 45px rgba(0, 0, 0, 0.55),
+        0 0 24px rgba(212, 165, 116, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .mini-turntable:hover .turntable-led {
@@ -476,84 +484,52 @@ body {
     width: 100%;
     height: 100%;
     background:
-        repeating-linear-gradient(
-            90deg,
-            rgba(255,255,255,0.0) 0px,
-            rgba(200,180,150,0.03) 1px,
-            rgba(255,255,255,0.0) 2px,
-            rgba(200,180,150,0.02) 3px,
-            rgba(255,255,255,0.0) 4px
-        ),
-        radial-gradient(ellipse 90% 70% at 30% 20%, rgba(255,235,200,0.06) 0%, transparent 50%),
-        linear-gradient(145deg, #484440 0%, #3a3632 15%, #302c28 40%, #28241f 70%, #201c18 100%);
-    border-radius: 10px;
-    padding: 15px;
+        radial-gradient(ellipse 120% 90% at 25% 0%, rgba(255, 226, 183, 0.05) 0%, transparent 55%),
+        linear-gradient(160deg, #2e2822 0%, #241f19 45%, #1b1712 100%);
+    border: 1px solid rgba(212, 165, 116, 0.14);
+    border-radius: 18px;
+    padding: 16px;
     box-shadow:
-        0 15px 50px rgba(0,0,0,0.7),
-        0 5px 15px rgba(0,0,0,0.4),
-        inset 0 1px 0 rgba(255,255,255,0.15),
-        inset 1px 0 0 rgba(255,255,255,0.05),
-        inset -1px 0 0 rgba(255,255,255,0.03),
-        inset 0 -1px 0 rgba(0,0,0,0.4),
-        0 0 0 1px rgba(180,160,130,0.1),
-        0 0 0 2px rgba(0,0,0,0.4);
+        0 18px 45px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.07);
     position: relative;
     overflow: hidden;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-/* Top edge chamfer on mini turntable */
+/* Soft top sheen */
 .turntable-base::after {
     content: '';
     position: absolute;
     top: 0;
-    left: 0;
-    right: 0;
-    height: 1.5px;
+    left: 8%;
+    right: 8%;
+    height: 1px;
     background: linear-gradient(90deg,
-        rgba(255,240,210,0.0) 0%,
-        rgba(255,240,210,0.1) 15%,
-        rgba(255,240,210,0.2) 50%,
-        rgba(255,240,210,0.1) 85%,
-        rgba(255,240,210,0.0) 100%
+        transparent 0%,
+        rgba(255, 240, 210, 0.18) 50%,
+        transparent 100%
     );
-    border-radius: 10px 10px 0 0;
     pointer-events: none;
     z-index: 10;
 }
 
 .turntable-platter {
-    width: 110px;
-    height: 110px;
+    width: 126px;
+    height: 126px;
     background:
-        radial-gradient(circle,
-            transparent 0%, transparent 84%,
-            #4a4540 85%, #706860 85.8%, #908070 86.4%, #706860 87%,
-            #504840 87.8%, #605850 88.6%, #807060 89.4%, #605850 90.2%,
-            #504840 91%, #706860 92%, #908070 92.8%, #706860 93.6%,
-            #504840 94.5%, #706860 95.5%, #a09888 96.5%,
-            #706860 97.5%, #504840 98.5%, #3a3530 100%
-        ),
-        radial-gradient(ellipse 120% 80% at 35% 25%, rgba(255,235,200,0.08) 0%, transparent 45%),
-        conic-gradient(from 45deg,
-            rgba(255,240,210,0.03), rgba(255,240,210,0.0),
-            rgba(255,240,210,0.04), rgba(255,240,210,0.0),
-            rgba(255,240,210,0.02), rgba(255,240,210,0.0),
-            rgba(255,240,210,0.03)
-        ),
-        linear-gradient(145deg, #2a2520 0%, #1e1a16 40%, #161310 100%);
+        radial-gradient(ellipse 120% 80% at 35% 25%, rgba(255, 235, 200, 0.07) 0%, transparent 45%),
+        linear-gradient(145deg, #262019 0%, #1b1611 45%, #131009 100%);
     border-radius: 50%;
     position: absolute;
-    left: 15px;
+    left: 18px;
     top: 20px;
     box-shadow:
-        inset 0 0 25px rgba(0,0,0,0.85),
-        inset 0 2px 4px rgba(255,235,200,0.04),
-        0 0 0 1.5px #5a5045,
-        0 0 0 2.5px #3a3530,
-        0 0 0 3.5px #6a6055,
-        0 0 0 4.5px #3a3530,
-        0 0 0 5.5px #28231e,
-        0 4px 15px rgba(0,0,0,0.6);
+        inset 0 0 22px rgba(0, 0, 0, 0.8),
+        inset 0 1px 2px rgba(255, 235, 200, 0.05),
+        0 0 0 2px rgba(212, 165, 116, 0.18),
+        0 0 0 3px rgba(0, 0, 0, 0.5),
+        0 6px 18px rgba(0, 0, 0, 0.55);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -577,11 +553,11 @@ body {
 }
 
 .platter-vinyl {
-    width: 96px;
-    height: 96px;
+    width: 110px;
+    height: 110px;
     position: absolute;
-    top: 7px;
-    left: 7px;
+    top: 8px;
+    left: 8px;
     border-radius: 50%;
     background:
         radial-gradient(circle at center, #181818 0%, #181818 12%, transparent 12%),
@@ -615,20 +591,17 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 35px;
-    height: 35px;
+    width: 44px;
+    height: 44px;
     background: linear-gradient(135deg, var(--label-color, #d4a574) 0%, color-mix(in srgb, var(--label-color, #d4a574) 70%, #000) 100%);
     border-radius: 50%;
     overflow: hidden;
     box-shadow:
-        inset 0 0 12px rgba(0,0,0,0.4),
-        inset 0 1px 2px rgba(255,240,210,0.06),
-        0 0 0 1px #28201a,
-        0 0 0 2px #605040,
-        0 0 0 3px #908070,
-        0 0 0 3.5px #605040,
-        0 0 0 4.5px #3a3028,
-        0 0 4px 5px rgba(0,0,0,0.2);
+        inset 0 0 12px rgba(0, 0, 0, 0.4),
+        inset 0 1px 2px rgba(255, 240, 210, 0.06),
+        0 0 0 2px rgba(20, 15, 10, 0.9),
+        0 0 0 3px rgba(212, 165, 116, 0.25),
+        0 0 6px 4px rgba(0, 0, 0, 0.25);
     transition: background 0.3s ease;
 }
 
@@ -671,10 +644,10 @@ body {
 /* Mini tonearm base (warm chrome pivot) */
 .mini-tonearm-base {
     position: absolute;
-    right: 32px;
-    top: 12px;
-    width: 18px;
-    height: 18px;
+    right: 34px;
+    top: 14px;
+    width: 20px;
+    height: 20px;
     background:
         radial-gradient(ellipse 70% 50% at 28% 22%, rgba(255,245,225,0.35) 0%, transparent 45%),
         radial-gradient(circle at 35% 35%, #d0c8be 0%, #a09888 25%, #706860 50%, #484038 75%, #302820 100%);
@@ -708,12 +681,12 @@ body {
 /* Mini tonearm - S-curve style */
 .turntable-arm {
     position: absolute;
-    right: 40px;
-    top: 20px;
-    width: 40px;
+    right: 42px;
+    top: 26px;
+    width: 44px;
     height: 3px;
     background: linear-gradient(180deg, #c0b8ae 0%, #908878 40%, #706860 60%, #585048 100%);
-    transform: rotate(15deg);
+    transform: rotate(8deg);
     transform-origin: 100% center;
     border-radius: 2px;
     box-shadow:
@@ -724,7 +697,7 @@ body {
 }
 
 .turntable-arm.playing {
-    transform: rotate(-28deg);
+    transform: rotate(-26deg);
 }
 
 /* Front arm section (S-curve bend) */
@@ -1531,45 +1504,55 @@ body {
 .setup-stand {
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 12px;
 }
 
 .stand-shelf {
-    width: 200px;
-    height: 70px;
-    background: linear-gradient(180deg, #1a1a1a 0%, #0e0e0e 100%);
-    border-radius: 6px;
-    padding: 12px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+    width: 230px;
+    height: 78px;
+    background:
+        radial-gradient(ellipse 120% 90% at 25% 0%, rgba(255, 226, 183, 0.04) 0%, transparent 55%),
+        linear-gradient(160deg, #262019 0%, #1c1712 55%, #161210 100%);
+    border: 1px solid rgba(212, 165, 116, 0.14);
+    border-radius: 16px;
+    padding: 12px 14px;
+    box-shadow:
+        0 14px 35px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .amp-unit {
     width: 100%;
     height: 100%;
-    background: #0a0a0a;
-    border-radius: 4px;
-    padding: 8px;
+    background: none;
+    border-radius: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .amp-display {
     width: 100%;
-    height: 18px;
-    background: linear-gradient(180deg, #001a00 0%, #002200 100%);
-    border-radius: 3px;
-    box-shadow: inset 0 0 8px rgba(0,255,0,0.2);
+    height: 24px;
+    background: linear-gradient(180deg, #160d03 0%, #201305 100%);
+    border: 1px solid rgba(212, 165, 116, 0.15);
+    border-radius: 8px;
+    box-shadow: inset 0 0 10px rgba(255, 170, 80, 0.12);
     position: relative;
     overflow: hidden;
     display: flex;
     align-items: center;
-    padding: 0 4px;
+    padding: 0 8px;
 }
 
 .amp-display-text {
-    color: #00ff00;
+    color: #ffc97a;
     font-family: 'Courier New', monospace;
-    font-size: 8px;
+    font-size: 9px;
+    letter-spacing: 0.5px;
     white-space: nowrap;
-    text-shadow: 0 0 4px rgba(0,255,0,0.6);
+    text-shadow: 0 0 6px rgba(255, 180, 90, 0.55);
     display: inline-block;
 }
 
@@ -1586,27 +1569,35 @@ body {
 
 .amp-knobs {
     display: flex;
-    justify-content: space-around;
-    margin-top: 10px;
+    justify-content: space-evenly;
+    margin-top: 8px;
 }
 
 .amp-knobs span {
-    width: 16px;
-    height: 16px;
-    background: radial-gradient(circle at 30% 30%, #555, #222);
+    width: 20px;
+    height: 20px;
+    background:
+        radial-gradient(circle at 32% 28%, #4c443a, #241f19 70%);
+    border: 1px solid rgba(212, 165, 116, 0.18);
     border-radius: 50%;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 240, 210, 0.1);
     position: relative;
     cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
 }
 
 .amp-knobs span:hover {
-    background: radial-gradient(circle at 30% 30%, #777, #333);
+    border-color: rgba(212, 165, 116, 0.5);
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.5),
+        0 0 10px rgba(212, 165, 116, 0.2),
+        inset 0 1px 0 rgba(255, 240, 210, 0.12);
 }
 
 .amp-knobs span:active {
-    box-shadow: 0 1px 2px rgba(0,0,0,0.5);
-    transform: scale(0.92);
+    transform: scale(0.9);
 }
 
 .amp-knobs span::after {
@@ -1616,28 +1607,28 @@ body {
     left: 50%;
     transform: translateX(-50%);
     width: 2px;
-    height: 5px;
-    background: #888;
+    height: 6px;
+    background: #d4a574;
     border-radius: 1px;
 }
 
 /* Mini pitch slider */
 .mini-pitch-slider {
     position: absolute;
-    right: 12px;
-    top: 50%;
+    right: 14px;
+    top: 54%;
     transform: translateY(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
     z-index: 7;
     cursor: pointer;
 }
 
 .mini-pitch-track {
     width: 5px;
-    height: 55px;
+    height: 68px;
     background:
         linear-gradient(to right, rgba(0,0,0,0.3), transparent 30%, transparent 70%, rgba(0,0,0,0.3)),
         linear-gradient(to bottom, #161210 0%, #1e1a16 20%, #201c18 50%, #1e1a16 80%, #161210 100%);
@@ -1688,19 +1679,20 @@ body {
 }
 
 .mini-pitch-value {
-    font-size: 0.4rem;
+    font-size: 0.5rem;
     color: #e0b888;
     font-weight: 600;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.5px;
     text-align: center;
+    font-variant-numeric: tabular-nums;
 }
 
 .turntable-led {
     position: absolute;
-    bottom: 8px;
-    left: 15px;
-    width: 6px;
-    height: 6px;
+    bottom: 10px;
+    left: 18px;
+    width: 7px;
+    height: 7px;
     background: radial-gradient(circle at 35% 35%, #706860 0%, #484038 50%, #302820 100%);
     border-radius: 50%;
     box-shadow:
@@ -1729,11 +1721,18 @@ body {
     50% { box-shadow: 0 0 3px 1px #44ff44, 0 0 8px 3px rgba(0,255,0,0.7), 0 0 18px 5px rgba(0,255,0,0.4), 0 0 35px 10px rgba(0,255,0,0.15), 0 0 0 1px rgba(0,255,0,0.6), 0 0 0 1.5px rgba(0,80,0,0.4); }
 }
 
-/* Side Table with Coffee */
+/* Mode buttons: 2x2 grid under the deck, sized to match it */
 .side-table {
     position: relative;
-    width: 110px;
-    margin-top: 20px;
+    width: 230px;
+    margin-top: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.side-table .loop-btn {
+    margin: 0;   /* stacked-layout margins don't apply in the grid */
 }
 
 .loop-btn {
@@ -1742,35 +1741,40 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    padding: 12px 10px;
-    background: linear-gradient(145deg, #1e1812 0%, #15100b 100%);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 14px;
+    padding: 12px 8px 10px;
+    background:
+        radial-gradient(ellipse 130% 100% at 30% 0%, rgba(255, 226, 183, 0.03) 0%, transparent 60%),
+        linear-gradient(160deg, #241e17 0%, #191410 100%);
+    border: 1px solid rgba(212, 165, 116, 0.12);
+    border-radius: 16px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.25s ease;
 }
 
 .loop-btn:hover {
-    background: linear-gradient(145deg, #261e16 0%, #1a140e 100%);
-    border-color: rgba(255,255,255,0.1);
+    background:
+        radial-gradient(ellipse 130% 100% at 30% 0%, rgba(255, 226, 183, 0.05) 0%, transparent 60%),
+        linear-gradient(160deg, #2b241b 0%, #1e1813 100%);
+    border-color: rgba(212, 165, 116, 0.3);
+    transform: translateY(-2px);
 }
 
 .loop-btn-icon {
-    width: 42px;
-    height: 42px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(circle, #2a1f14 0%, #1a130c 100%);
-    border: 1px solid rgba(255,255,255,0.06);
+    background: radial-gradient(circle, #2a2015 0%, #191309 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    color: rgba(255,255,255,0.2);
+    color: rgba(255, 255, 255, 0.25);
 }
 
 .loop-svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), filter 0.4s ease;
 }
 
@@ -1783,11 +1787,11 @@ body {
 }
 
 .loop-btn-label {
-    font-size: 0.6rem;
+    font-size: 0.56rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: rgba(255,255,255,0.25);
+    letter-spacing: 1.2px;
+    color: rgba(255, 255, 255, 0.3);
     transition: color 0.3s ease;
     max-width: 100%;
     overflow: hidden;
