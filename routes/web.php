@@ -55,7 +55,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // User-owned audio uploads (offline-capable playback source) and the
     // authenticated route that serves them back with Range support.
-    Route::post('/upload-song', UploadSongController::class)->middleware('throttle:30,10');
+    // Batch-friendly: a dropped album/library imports one request per file.
+    Route::post('/upload-song', UploadSongController::class)->middleware('throttle:120,5');
     Route::get('/media/{filename}', MediaController::class)
         ->where('filename', '[A-Za-z0-9.\-]+');
 

@@ -27,6 +27,8 @@ class MusicController extends Controller
             'delete' => DB::transaction(fn () => $this->deleteSong($request, $user)),
             'rename' => DB::transaction(fn () => $this->renamePlaylist($request, $user)),
             'recolor' => DB::transaction(fn () => $this->recolorPlaylist($request, $user)),
+            'createPlaylist' => DB::transaction(fn () => $this->createPlaylist($request, $user)),
+            'deletePlaylist' => DB::transaction(fn () => $this->deletePlaylist($request, $user)),
             'moveSong' => DB::transaction(fn () => $this->moveSong($request, $user)),
             'copySong' => DB::transaction(fn () => $this->copySong($request, $user)),
             'setCover' => DB::transaction(fn () => $this->setCover($request, $user)),
@@ -183,6 +185,67 @@ class MusicController extends Controller
         }
 
         return ['success' => false, 'error' => 'Invalid playlist or color format'];
+    }
+
+    /** Create a new, empty user playlist with a generated slug. */
+    private function createPlaylist(Request $request, User $user): array
+    {
+        $name = trim($this->strInput($request, 'name'));
+        $color = $this->strInput($request, 'color');
+
+        if ($name === '' || mb_strlen($name) > 30) {
+            return ['success' => false, 'error' => 'Invalid playlist name'];
+        }
+        if (! preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+            $color = '#d4a574';
+        }
+
+        do {
+            $slug = 'pl-'.strtolower(\Illuminate\Support\Str::random(10));
+        } while ($user->playlists()->where('slug', $slug)->exists());
+
+        $playlist = $user->playlists()->create([
+            'slug' => $slug,
+            'name' => $name,
+            'color' => $color,
+            'current_index' => 0,
+            'source' => 'user',
+            'position' => ((int) ($user->playlists()->max('position') ?? -1)) + 1,
+        ]);
+
+        return ['success' => true, 'playlistId' => $slug, 'playlist' => $playlist->toFrontend()];
+    }
+
+    /** Delete a playlist (songs cascade); GC uploads; repoint active slug. */
+    private function deletePlaylist(Request $request, User $user): array
+    {
+        $slug = $this->strInput($request, 'playlist');
+        $playlist = $this->findPlaylist($user, $slug);
+
+        if ($playlist === null) {
+            return ['success' => false, 'error' => 'Invalid playlist'];
+        }
+
+        // Collect uploaded-file URLs before the song rows cascade away.
+        $urls = [];
+        foreach ($playlist->songs as $song) {
+            $urls[] = $song->mp3_url;
+            $urls[] = $song->cover;
+        }
+
+        $playlist->delete();
+        $this->deleteOrphanedUploads($user, $urls);
+
+        $remaining = $user->playlists()->orderBy('position')->value('slug');
+        if ($user->active_playlist_slug === $slug) {
+            $user->active_playlist_slug = $remaining;
+        }
+        $user->recently_played = array_values(array_filter(
+            $user->recently_played ?? [], fn ($id) => $id !== $slug
+        ));
+        $user->save();
+
+        return ['success' => true, 'activePlaylist' => $remaining ?? 'favorites'];
     }
 
     /** Move a song to the end of another playlist; fix source currentIndex. */

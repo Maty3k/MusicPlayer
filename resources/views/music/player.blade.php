@@ -374,6 +374,7 @@
                             <button class="source-filter-btn"        data-source-filter="user"    onclick="setSourceFilter('user')">Local</button>
                             <button class="source-filter-btn"        data-source-filter="spotify" onclick="setSourceFilter('spotify')">Spotify</button>
                         </div>
+                        <button class="new-playlist-btn" onclick="showPlaylistCreateModal()">+ New playlist</button>
                     </div>
                     <div class="records-conveyor" id="recordsConveyor">
                         <div class="conveyor-rows">
@@ -672,9 +673,10 @@
                             <polyline points="17 8 12 3 7 8"/>
                             <line x1="12" y1="3" x2="12" y2="15"/>
                         </svg>
-                        <span>Or upload an audio file</span>
+                        <span>Or upload audio files</span>
                     </button>
-                    <input type="file" id="addSongFile" accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.flac" style="display:none" onchange="handleAudioUpload(this.files[0])">
+                    <p class="upload-hint">Pick several to import them all — or just drop files anywhere on the page.</p>
+                    <input type="file" id="addSongFile" multiple accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.flac" style="display:none" onchange="handleAudioUpload(this.files)">
                     <div class="upload-progress" id="uploadProgress" style="display:none">
                         <div class="upload-progress-fill" id="uploadProgressFill"></div>
                     </div>
@@ -711,7 +713,7 @@
             <button class="add-song-modal-close" onclick="hidePlaylistEditModal()">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon">&#127912;</div>
-                <h2 class="add-song-modal-title">Edit Playlist</h2>
+                <h2 class="add-song-modal-title" id="playlistEditModalTitle">Edit Playlist</h2>
             </div>
             <input type="hidden" id="playlistEditId" value="">
             <div class="add-song-form-group">
@@ -733,13 +735,14 @@
                     <div class="color-swatch" data-color="#8b9dc3" style="background:#8b9dc3" onclick="selectPlaylistColor(this)"></div>
                 </div>
             </div>
-            <div class="add-song-form-group">
+            <div class="add-song-form-group" id="coverArtGroup">
                 <label>Cover Art</label>
                 <div class="cover-picker-grid" id="coverPickerGrid"></div>
             </div>
             <div class="add-song-modal-buttons">
+                <button type="button" class="playlist-delete-btn" id="playlistDeleteBtn" onclick="deleteCurrentPlaylist()">Delete</button>
                 <button type="button" class="add-song-btn-cancel" onclick="hidePlaylistEditModal()">Cancel</button>
-                <button type="button" class="add-song-btn-save" onclick="savePlaylistEdit()">Save Changes</button>
+                <button type="button" class="add-song-btn-save" id="playlistEditSaveBtn" onclick="savePlaylistEdit()">Save Changes</button>
             </div>
         </div>
     </div>

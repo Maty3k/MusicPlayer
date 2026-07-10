@@ -928,6 +928,12 @@ function onPlayerStateChange(event) {
     const led = document.getElementById('turntableLed');
     const eqVis = document.getElementById('playerEqVis');
 
+    // Keep the lock-screen play/pause button in sync
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState =
+            event.data === YT.PlayerState.PLAYING ? 'playing' : 'paused';
+    }
+
     var isApp = !!window.ReactNativeWebView;
 
     if (event.data === YT.PlayerState.PLAYING) {
@@ -1628,7 +1634,50 @@ function updateSongDisplay(song) {
     }
     // Amp display
     updateAmpDisplay();
+    // Lock-screen / notification metadata
+    updateMediaSession(song);
 }
+
+// ============================================================
+// MEDIA SESSION — lock-screen & notification controls
+// ============================================================
+
+function updateMediaSession(song) {
+    if (!('mediaSession' in navigator)) return;
+    if (!song || !song.title || song.title === 'No songs yet') {
+        navigator.mediaSession.metadata = null;
+        return;
+    }
+    const artwork = [];
+    const cover = safeUrl(song.cover);
+    if (cover) {
+        artwork.push({ src: new URL(cover, location.origin).href, sizes: '512x512' });
+    }
+    navigator.mediaSession.metadata = new MediaMetadata({
+        title: song.title || '',
+        artist: song.artist || '',
+        album: song.album || '',
+        artwork,
+    });
+}
+
+(function initMediaSessionHandlers() {
+    if (!('mediaSession' in navigator)) return;
+    const safe = (fn) => () => { try { fn(); } catch (e) {} };
+    try {
+        navigator.mediaSession.setActionHandler('play', safe(() => toggleMusic()));
+        navigator.mediaSession.setActionHandler('pause', safe(() => toggleMusic()));
+        navigator.mediaSession.setActionHandler('previoustrack', safe(() => prevSong()));
+        navigator.mediaSession.setActionHandler('nexttrack', safe(() => nextSong()));
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+            try {
+                if (ytPlayer && ytPlayer.seekTo && details.seekTime != null) {
+                    ytPlayer.seekTo(details.seekTime, true);
+                }
+            } catch (e) {}
+        });
+    } catch (e) { /* some handlers unsupported on some platforms */ }
+})();
 
 function buildSongListItem(song, index) {
     const itemCover = safeUrl(song.cover);
@@ -1801,10 +1850,17 @@ let editingPlaylistId = '';
 let selectedEditColor = '';
 let selectedCoverIndex = null; // null = auto, number = song index
 
+let creatingPlaylist = false;
+
 function showPlaylistEditModal(id) {
+    creatingPlaylist = false;
     editingPlaylistId = id;
     const meta = playlistsMeta[id];
     if (!meta) return;
+    document.getElementById('playlistEditModalTitle').textContent = 'Edit Playlist';
+    document.getElementById('playlistEditSaveBtn').textContent = 'Save Changes';
+    document.getElementById('coverArtGroup').style.display = '';
+    document.getElementById('playlistDeleteBtn').style.display = '';
     document.getElementById('playlistEditId').value = id;
     document.getElementById('playlistEditName').value = meta.name;
     selectedEditColor = meta.color;
@@ -1817,6 +1873,46 @@ function showPlaylistEditModal(id) {
     buildCoverPicker(id);
     document.getElementById('playlistEditModal').classList.add('active');
     document.getElementById('playlistEditName').focus();
+}
+
+// Same modal, create mode: no cover picker (no songs yet), no delete button.
+function showPlaylistCreateModal() {
+    creatingPlaylist = true;
+    editingPlaylistId = '';
+    document.getElementById('playlistEditModalTitle').textContent = 'New Playlist';
+    document.getElementById('playlistEditSaveBtn').textContent = 'Create';
+    document.getElementById('coverArtGroup').style.display = 'none';
+    document.getElementById('playlistDeleteBtn').style.display = 'none';
+    document.getElementById('playlistEditId').value = '';
+    document.getElementById('playlistEditName').value = '';
+    selectedEditColor = '#d4a574';
+    selectedCoverIndex = null;
+    document.querySelectorAll('#colorSwatchGrid .color-swatch').forEach(s => {
+        s.classList.toggle('selected', s.dataset.color === selectedEditColor);
+    });
+    document.getElementById('playlistEditModal').classList.add('active');
+    document.getElementById('playlistEditName').focus();
+}
+
+async function deleteCurrentPlaylist() {
+    const id = editingPlaylistId;
+    const meta = playlistsMeta[id];
+    if (!id || !meta) return;
+    const trackNote = meta.songCount > 0 ? ` and its ${meta.songCount} song${meta.songCount === 1 ? '' : 's'}` : '';
+    if (!confirm(`Delete "${meta.name}"${trackNote}? This cannot be undone.`)) return;
+
+    const response = await fetch('/save-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deletePlaylist', playlist: id })
+    });
+    const result = await response.json();
+    if (result.success) {
+        // Crate cards, conveyor rows, and recents all shift — let the server re-render.
+        location.reload();
+    } else {
+        alert(result.error || 'Could not delete playlist');
+    }
 }
 
 function buildCoverPicker(playlistId) {
@@ -1868,8 +1964,27 @@ function selectCoverSong(el) {
 }
 
 async function savePlaylistEdit() {
-    const id = editingPlaylistId;
     const name = document.getElementById('playlistEditName').value.trim();
+
+    if (creatingPlaylist) {
+        if (!name) return;
+        const response = await fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'createPlaylist', name, color: selectedEditColor })
+        });
+        const result = await response.json();
+        if (result.success) {
+            // New card needs to appear in both conveyor rows' server-rendered
+            // markup — a reload is the reliable path.
+            location.reload();
+        } else {
+            alert(result.error || 'Could not create playlist');
+        }
+        return;
+    }
+
+    const id = editingPlaylistId;
     if (!id || !name) return;
 
     const oldMeta = playlistsMeta[id];
@@ -4425,26 +4540,29 @@ window.setSourceFilter = function(value) {
 })();
 
 // ============================================================
-// AUDIO FILE UPLOAD (Add Song modal, MP3 source)
+// AUDIO FILE UPLOAD (single via Add Song modal, batch via multi-
+// select or drag-and-drop anywhere on the page)
 // ============================================================
 
-async function handleAudioUpload(file) {
-    if (!file) return;
-    const statusEl = document.getElementById('uploadStatus');
-    const progressEl = document.getElementById('uploadProgress');
-    const fillEl = document.getElementById('uploadProgressFill');
+const AUDIO_EXT_RE = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)$/i;
 
-    // Try ID3 tags first for autofill (jsmediatags is already on the page
-    // for the scanner); fall back to parsing the filename.
-    let tags = null;
-    try { tags = await readTagsFromFile(file); } catch (e) {
+function isAudioFile(file) {
+    return file && (file.type.startsWith('audio/') || AUDIO_EXT_RE.test(file.name));
+}
+
+/** Read ID3 tags, falling back to "Artist - Title" filename parsing. */
+async function tagsForAudioFile(file) {
+    try { return await readTagsFromFile(file); } catch (e) {
         const fromName = cleanFilename(file.name);
-        tags = { title: fromName.title, artist: fromName.artist, album: '', coverUrl: null };
+        return { title: fromName.title || file.name, artist: fromName.artist, album: '', coverUrl: null };
     }
+}
 
+/** POST one audio file (plus its embedded cover, if any) to /upload-song. */
+async function uploadAudioFile(file, tags, onProgress) {
     const form = new FormData();
     form.append('audio', file);
-    if (tags.coverUrl) {
+    if (tags && tags.coverUrl) {
         // The embedded ID3 picture is a blob URL — turn it back into a blob
         // and upload it alongside so the song keeps its cover art.
         try {
@@ -4456,18 +4574,15 @@ async function handleAudioUpload(file) {
         } catch (e) {}
     }
 
-    progressEl.style.display = '';
-    fillEl.style.width = '0%';
-    statusEl.textContent = 'Uploading ' + file.name + '…';
-    statusEl.classList.remove('upload-error');
-
     // XHR instead of fetch: upload progress events.
-    const result = await new Promise((resolve) => {
+    return new Promise((resolve) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/upload-song');
-        xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) fillEl.style.width = Math.round((e.loaded / e.total) * 100) + '%';
-        };
+        if (onProgress) {
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+            };
+        }
         xhr.onload = () => {
             try { resolve(JSON.parse(xhr.responseText)); }
             catch (e) { resolve({ success: false, error: 'Upload failed (' + xhr.status + ')' }); }
@@ -4475,6 +4590,33 @@ async function handleAudioUpload(file) {
         xhr.onerror = () => resolve({ success: false, error: 'Upload failed — network error' });
         xhr.send(form);
     });
+}
+
+/** Add Song modal file input: one file fills the form for review; a
+    multi-select goes straight to the batch importer. */
+async function handleAudioUpload(files) {
+    if (!files || files.length === 0) return;
+    if (files.length > 1) {
+        const list = [...files];
+        document.getElementById('addSongFile').value = '';
+        hideAddSongModal();
+        importAudioFiles(list);
+        return;
+    }
+
+    const file = files[0];
+    const statusEl = document.getElementById('uploadStatus');
+    const progressEl = document.getElementById('uploadProgress');
+    const fillEl = document.getElementById('uploadProgressFill');
+
+    const tags = await tagsForAudioFile(file);
+
+    progressEl.style.display = '';
+    fillEl.style.width = '0%';
+    statusEl.textContent = 'Uploading ' + file.name + '…';
+    statusEl.classList.remove('upload-error');
+
+    const result = await uploadAudioFile(file, tags, (pct) => { fillEl.style.width = pct + '%'; });
 
     progressEl.style.display = 'none';
     document.getElementById('addSongFile').value = '';
@@ -4497,6 +4639,159 @@ async function handleAudioUpload(file) {
     if (result.cover && !coverInput.value) coverInput.value = result.cover;
     statusEl.textContent = 'Uploaded — review the details and add it.';
 }
+
+// ---- Batch import (library / album / podcast folder) ----
+
+let importInProgress = false;
+
+async function importAudioFiles(files) {
+    const audio = [...files].filter(isAudioFile);
+    if (audio.length === 0) {
+        showImportToast('No audio files found — supported: mp3, m4a, aac, ogg, opus, wav, flac', true);
+        setTimeout(hideImportToast, 4000);
+        return;
+    }
+    if (importInProgress) {
+        showImportToast('An import is already running — one batch at a time.', true);
+        setTimeout(hideImportToast, 3000);
+        return;
+    }
+
+    importInProgress = true;
+    let added = 0, failed = 0;
+    // Ensure add-song mode is MP3-friendly on the backend side: the 'add'
+    // action doesn't care about musicSource, so no state to flip here.
+    for (let i = 0; i < audio.length; i++) {
+        const file = audio[i];
+        showImportToast(`Importing ${i + 1}/${audio.length} — ${file.name}`);
+        try {
+            const tags = await tagsForAudioFile(file);
+            const up = await uploadAudioFile(file, tags);
+            if (!up.success) { failed++; continue; }
+
+            const song = {
+                title: tags.title || file.name,
+                artist: tags.artist || '',
+                album: tags.album || '',
+                cover: up.cover || '',
+                youtube_id: '',
+                mp3_url: up.mp3_url,
+                spotify_id: ''
+            };
+            const res = await fetch('/save-music', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add', song })
+            });
+            const result = await res.json();
+            if (result.success) {
+                songsData.push(song);
+                currentSongIndex = result.index;
+                added++;
+            } else {
+                failed++;
+            }
+        } catch (e) {
+            failed++;
+        }
+    }
+
+    importInProgress = false;
+    if (shuffleMode !== 'off') buildShuffleQueue();
+    rebuildSongList();
+    updateTrackCount();
+    if (added > 0) {
+        const current = songsData[currentSongIndex];
+        updateSongDisplay(current);
+        playSongSource(current, true); // cue, don't blast the speakers
+    }
+    showImportToast(
+        `Imported ${added} song${added === 1 ? '' : 's'}` + (failed ? ` — ${failed} failed` : ''),
+        failed > 0
+    );
+    setTimeout(hideImportToast, 5000);
+}
+
+// ---- Import progress toast ----
+
+function getImportToast() {
+    let el = document.getElementById('importToast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'importToast';
+        el.className = 'import-toast';
+        document.body.appendChild(el);
+    }
+    return el;
+}
+
+function showImportToast(text, isError = false) {
+    const el = getImportToast();
+    el.textContent = text;
+    el.classList.toggle('import-toast-error', isError);
+    el.classList.add('visible');
+}
+
+function hideImportToast() {
+    const el = document.getElementById('importToast');
+    if (el) el.classList.remove('visible');
+}
+
+// ---- Drag & drop: drop audio files anywhere to add them ----
+
+function dragHasFiles(e) {
+    return e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+}
+
+function getDropOverlay() {
+    let el = document.getElementById('dropOverlay');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'dropOverlay';
+        el.className = 'drop-overlay';
+        el.innerHTML = '<div class="drop-overlay-box">'
+            + '<div class="drop-overlay-icon">&#9834;</div>'
+            + '<div class="drop-overlay-title">Drop your music</div>'
+            + '<div class="drop-overlay-sub" id="dropOverlaySub"></div>'
+            + '</div>';
+        document.body.appendChild(el);
+    }
+    const sub = el.querySelector('#dropOverlaySub');
+    const plName = (playlistsMeta[activePlaylistId] && playlistsMeta[activePlaylistId].name) || 'the current playlist';
+    if (sub) sub.textContent = 'Adds to “' + plName + '” · mp3, m4a, ogg, opus, wav, flac';
+    return el;
+}
+
+let dragDepth = 0;
+
+document.addEventListener('dragenter', (e) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    dragDepth++;
+    getDropOverlay().classList.add('visible');
+});
+
+document.addEventListener('dragover', (e) => {
+    if (dragHasFiles(e)) e.preventDefault();
+});
+
+document.addEventListener('dragleave', (e) => {
+    if (!dragHasFiles(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) {
+        const el = document.getElementById('dropOverlay');
+        if (el) el.classList.remove('visible');
+    }
+});
+
+document.addEventListener('drop', (e) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    const el = document.getElementById('dropOverlay');
+    if (el) el.classList.remove('visible');
+    importAudioFiles(e.dataTransfer.files);
+});
 
 // ============================================================
 // PWA + OFFLINE PLAYLISTS
