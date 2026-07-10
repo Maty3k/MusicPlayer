@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\ScanCoverController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\SetupCheckController;
 use App\Http\Controllers\SearchYoutubeController;
 use App\Http\Controllers\SpotifyController;
 use App\Http\Controllers\SpotifyResolveController;
+use App\Http\Controllers\UploadSongController;
 use Illuminate\Support\Facades\Route;
 
 // Public first-boot diagnostics (booleans only, no secrets) — reachable even
@@ -50,6 +52,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Same action-based contract as the legacy save-music.php, per user.
     Route::post('/save-music', MusicController::class);
+
+    // User-owned audio uploads (offline-capable playback source) and the
+    // authenticated route that serves them back with Range support.
+    Route::post('/upload-song', UploadSongController::class)->middleware('throttle:30,10');
+    Route::get('/media/{filename}', MediaController::class)
+        ->where('filename', '[A-Za-z0-9.\-]+');
 
     // Spotify: GET serves login/callback/token/status/logout/playlists,
     // POST serves import_url/playlist_tracks (mirrors the legacy split).

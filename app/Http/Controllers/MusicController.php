@@ -138,7 +138,9 @@ class MusicController extends Controller
             return ['success' => false, 'error' => 'Invalid song index'];
         }
 
+        $uploads = [$victim->mp3_url, $victim->cover];
         $victim->delete();
+        $this->deleteOrphanedUploads($user, $uploads);
         $this->reindexSongs($playlist);
 
         $total = $playlist->songs()->count();
@@ -343,6 +345,30 @@ class MusicController extends Controller
         foreach ($playlist->songs()->get()->values() as $i => $song) {
             if ((int) $song->position !== $i) {
                 $song->update(['position' => $i]);
+            }
+        }
+    }
+
+    /**
+     * Remove uploaded files (/media/{uuid}.{ext} URLs) that no remaining song
+     * of this user references — keeps per-user storage from growing forever.
+     * Runs after the deleting song row is gone; copies share the same URL, so
+     * a file survives as long as any copy still points at it.
+     */
+    private function deleteOrphanedUploads(User $user, array $urls): void
+    {
+        foreach ($urls as $url) {
+            if (! is_string($url) || ! preg_match('#^/media/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.[a-z0-9]{1,5})$#', $url, $m)) {
+                continue;
+            }
+
+            $stillUsed = \App\Models\Song::whereIn('playlist_id', $user->playlists()->select('id'))
+                ->where(fn ($q) => $q->where('mp3_url', $url)->orWhere('cover', $url))
+                ->exists();
+
+            if (! $stillUsed) {
+                \Illuminate\Support\Facades\Storage::disk('local')
+                    ->delete('music/'.$user->id.'/'.$m[1]);
             }
         }
     }

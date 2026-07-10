@@ -27,6 +27,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Music Player</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1a1510">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -458,14 +464,29 @@
                                 <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                             </svg>
                         </button>
+                    <button class="scan-songs-btn offline-toggle-btn" id="offlineBtn" onclick="toggleOfflinePlaylist()" title="Save playlist for offline">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                    </button>
                     <button class="add-song-btn" onclick="showAddSongModal()" title="Add a song">+</button>
                 </div>
                 <div class="sidebar-track-count">{{ count($songs) }} tracks</div>
             </div>
             <ul class="song-list" id="songList">
+                @if (count($songs) === 0)
+                <li class="song-list-empty">
+                    <div class="song-list-empty-icon">&#9834;</div>
+                    <div class="song-list-empty-text">This playlist is empty</div>
+                    <button class="song-list-empty-add" onclick="showAddSongModal()">+ Add a song</button>
+                </li>
+                @endif
                 @foreach ($songs as $index => $song)
                 <li class="song-list-item {{ $index === $currentIndex ? 'active' : '' }}"
                     data-index="{{ $index }}"
+                    data-src="{{ !empty($song['mp3_url']) ? 'mp3' : (!empty($song['youtube_id']) ? 'yt' : 'spotify') }}"
                     onclick="switchSong({{ $index }})">
                     <div class="song-list-vinyl">
                         <div class="song-list-vinyl-groove"></div>
@@ -643,6 +664,21 @@
                 <div class="add-song-form-group">
                     <label for="addSongYoutube" id="addSongSourceLabel">YouTube URL or ID</label>
                     <input type="text" id="addSongYoutube" placeholder="https://youtube.com/watch?v=... or video ID" required>
+                </div>
+                <div class="add-song-form-group" id="addSongUploadGroup" style="display:none">
+                    <button type="button" class="upload-audio-btn" onclick="document.getElementById('addSongFile').click()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <span>Or upload an audio file</span>
+                    </button>
+                    <input type="file" id="addSongFile" accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.flac" style="display:none" onchange="handleAudioUpload(this.files[0])">
+                    <div class="upload-progress" id="uploadProgress" style="display:none">
+                        <div class="upload-progress-fill" id="uploadProgressFill"></div>
+                    </div>
+                    <div class="upload-status" id="uploadStatus"></div>
                 </div>
                 <div class="add-song-form-group">
                     <label for="addSongTitle">Title</label>

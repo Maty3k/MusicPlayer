@@ -337,9 +337,9 @@ async function selectPlaylistFromCrate(playlistId) {
         // Update playlist title
         document.getElementById('playlistTitle').textContent = result.playlist.name;
 
-        // Rebuild song list
-        const songList = document.getElementById('songList');
-        songList.innerHTML = songsData.map((song, index) => buildSongListItem(song, index)).join('');
+        // Rebuild song list (shows the empty state when the playlist has no songs)
+        rebuildSongList();
+        updateOfflineButton();
 
         // Update track count
         const trackCountEl = document.querySelector('.sidebar-track-count');
@@ -1635,6 +1635,7 @@ function buildSongListItem(song, index) {
     return `
         <li class="song-list-item ${index === currentSongIndex ? 'active' : ''}"
             data-index="${index}"
+            data-src="${song.mp3_url ? 'mp3' : (song.youtube_id ? 'yt' : 'spotify')}"
             onclick="switchSong(${index})">
             <div class="song-list-vinyl">
                 <div class="song-list-vinyl-groove"></div>
@@ -1665,6 +1666,15 @@ function buildSongListItem(song, index) {
 
 function rebuildSongList() {
     const songList = document.getElementById('songList');
+    if (songsData.length === 0) {
+        songList.innerHTML = `
+            <li class="song-list-empty">
+                <div class="song-list-empty-icon">&#9834;</div>
+                <div class="song-list-empty-text">This playlist is empty</div>
+                <button class="song-list-empty-add" onclick="showAddSongModal()">+ Add a song</button>
+            </li>`;
+        return;
+    }
     songList.innerHTML = songsData.map((song, index) => buildSongListItem(song, index)).join('');
 }
 
@@ -1679,6 +1689,8 @@ function updateTrackCount() {
     }
     // Keep meta covers in sync
     refreshMetaCovers();
+    // Offline toggle only shows for playlists with uploaded/MP3 songs
+    if (typeof updateOfflineButton === 'function') updateOfflineButton();
 }
 
 function refreshMetaCovers() {
@@ -1737,7 +1749,10 @@ async function addSongToPlaylist(e) {
 }
 
 async function deleteSong(index) {
-    if (songsData.length <= 1) return; // don't delete the last song
+    const victim = songsData[index];
+    if (!victim) return;
+    const label = [victim.title, victim.artist].filter(Boolean).join(' — ');
+    if (!confirm(`Remove "${label}" from this playlist?`)) return;
 
     const response = await fetch('/save-music', {
         method: 'POST',
@@ -1753,12 +1768,29 @@ async function deleteSong(index) {
         if (shuffleMode !== 'off') buildShuffleQueue();
         rebuildSongList();
         updateTrackCount();
-        if (wasPlaying && songsData.length > 0) {
+        if (songsData.length === 0) {
+            showEmptyPlaylistState();
+        } else if (wasPlaying) {
             const song = songsData[currentSongIndex];
             updateSongDisplay(song);
             playSongSource(song, true);
         }
     }
+}
+
+// Called after the last song of a playlist is deleted: stop whatever is
+// playing and reset the deck to a neutral "nothing loaded" look.
+function showEmptyPlaylistState() {
+    try { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); } catch (e) {}
+    currentSongIndex = 0;
+    updateSongDisplay({ title: 'No songs yet', artist: 'Add one with the + button', album: '', cover: '' });
+    const ampEl = document.getElementById('ampDisplayText');
+    if (ampEl) {
+        ampEl.textContent = 'No songs';
+        ampEl.classList.remove('scrolling');
+    }
+    const platterLabel = document.getElementById('platterLabel');
+    if (platterLabel) platterLabel.innerHTML = '';
 }
 
 // ============================================================
@@ -2134,9 +2166,13 @@ function updateAddSongFormForSource() {
     const input = document.getElementById('addSongYoutube');
     if (!label || !input) return;
 
+    // File upload only makes sense for the MP3 source
+    const uploadGroup = document.getElementById('addSongUploadGroup');
+    if (uploadGroup) uploadGroup.style.display = musicSource === 'mp3' ? '' : 'none';
+
     if (musicSource === 'mp3') {
         label.textContent = 'MP3 URL';
-        input.placeholder = 'https://example.com/song.mp3';
+        input.placeholder = 'https://example.com/song.mp3 — or upload below';
     } else if (musicSource === 'spotify') {
         label.textContent = 'Spotify URL';
         input.placeholder = 'https://open.spotify.com/track/...';
@@ -4387,3 +4423,186 @@ window.setSourceFilter = function(value) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
     else apply();
 })();
+
+// ============================================================
+// AUDIO FILE UPLOAD (Add Song modal, MP3 source)
+// ============================================================
+
+async function handleAudioUpload(file) {
+    if (!file) return;
+    const statusEl = document.getElementById('uploadStatus');
+    const progressEl = document.getElementById('uploadProgress');
+    const fillEl = document.getElementById('uploadProgressFill');
+
+    // Try ID3 tags first for autofill (jsmediatags is already on the page
+    // for the scanner); fall back to parsing the filename.
+    let tags = null;
+    try { tags = await readTagsFromFile(file); } catch (e) {
+        const fromName = cleanFilename(file.name);
+        tags = { title: fromName.title, artist: fromName.artist, album: '', coverUrl: null };
+    }
+
+    const form = new FormData();
+    form.append('audio', file);
+    if (tags.coverUrl) {
+        // The embedded ID3 picture is a blob URL — turn it back into a blob
+        // and upload it alongside so the song keeps its cover art.
+        try {
+            const coverBlob = await (await fetch(tags.coverUrl)).blob();
+            if (coverBlob.size <= 2 * 1024 * 1024) {
+                const ext = (coverBlob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+                form.append('cover', coverBlob, 'cover.' + ext);
+            }
+        } catch (e) {}
+    }
+
+    progressEl.style.display = '';
+    fillEl.style.width = '0%';
+    statusEl.textContent = 'Uploading ' + file.name + '…';
+    statusEl.classList.remove('upload-error');
+
+    // XHR instead of fetch: upload progress events.
+    const result = await new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/upload-song');
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) fillEl.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+        };
+        xhr.onload = () => {
+            try { resolve(JSON.parse(xhr.responseText)); }
+            catch (e) { resolve({ success: false, error: 'Upload failed (' + xhr.status + ')' }); }
+        };
+        xhr.onerror = () => resolve({ success: false, error: 'Upload failed — network error' });
+        xhr.send(form);
+    });
+
+    progressEl.style.display = 'none';
+    document.getElementById('addSongFile').value = '';
+
+    if (!result.success) {
+        statusEl.textContent = result.error || (result.errors ? Object.values(result.errors).flat().join(' ') : 'Upload failed');
+        statusEl.classList.add('upload-error');
+        return;
+    }
+
+    // Fill the form; the user reviews and hits "Add to Playlist" as usual.
+    document.getElementById('addSongYoutube').value = result.mp3_url;
+    const titleInput = document.getElementById('addSongTitle');
+    const artistInput = document.getElementById('addSongArtist');
+    const albumInput = document.getElementById('addSongAlbum');
+    const coverInput = document.getElementById('addSongCover');
+    if (!titleInput.value) titleInput.value = tags.title || '';
+    if (!artistInput.value) artistInput.value = tags.artist || '';
+    if (!albumInput.value) albumInput.value = tags.album || '';
+    if (result.cover && !coverInput.value) coverInput.value = result.cover;
+    statusEl.textContent = 'Uploaded — review the details and add it.';
+}
+
+// ============================================================
+// PWA + OFFLINE PLAYLISTS
+// Uploaded (/media/) songs can be saved into the 'media-v1' cache and
+// played with no network; YouTube/Spotify songs are online-only and
+// grey out while offline.
+// ============================================================
+
+const OFFLINE_MEDIA_CACHE = 'media-v1';
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+}
+
+function getOfflinePlaylists() {
+    try { return JSON.parse(localStorage.getItem('offlinePlaylists')) || []; }
+    catch (e) { return []; }
+}
+
+function setOfflinePlaylists(ids) {
+    localStorage.setItem('offlinePlaylists', JSON.stringify(ids));
+}
+
+/** Same-origin uploaded audio + covers for the active playlist. */
+function offlineUrlsForActivePlaylist() {
+    const urls = new Set();
+    songsData.forEach(s => {
+        if (s.mp3_url && s.mp3_url.startsWith('/media/')) {
+            urls.add(s.mp3_url);
+            if (s.cover && s.cover.startsWith('/media/')) urls.add(s.cover);
+        }
+    });
+    return [...urls];
+}
+
+async function toggleOfflinePlaylist() {
+    if (!('caches' in window)) {
+        alert('Offline storage is not supported by this browser.');
+        return;
+    }
+    const btn = document.getElementById('offlineBtn');
+    const saved = getOfflinePlaylists();
+
+    if (saved.includes(activePlaylistId)) {
+        // Un-save: drop this playlist's files from the cache. A file shared
+        // with another offline playlist gets re-added next time that playlist
+        // is re-toggled — acceptable for a personal library.
+        const cache = await caches.open(OFFLINE_MEDIA_CACHE);
+        for (const url of offlineUrlsForActivePlaylist()) {
+            await cache.delete(url, { ignoreSearch: true });
+        }
+        setOfflinePlaylists(saved.filter(id => id !== activePlaylistId));
+        updateOfflineButton();
+        return;
+    }
+
+    const urls = offlineUrlsForActivePlaylist();
+    if (urls.length === 0) {
+        alert('Nothing here can be saved for offline.\n\nOnly uploaded songs (and MP3s hosted on this app) play offline — YouTube and Spotify tracks always need a connection.');
+        return;
+    }
+
+    btn.classList.add('offline-saving');
+    const cache = await caches.open(OFFLINE_MEDIA_CACHE);
+    let done = 0, failed = 0;
+    for (const url of urls) {
+        try {
+            const res = await fetch(url);
+            if (res.ok) await cache.put(url, res);
+            else failed++;
+        } catch (e) { failed++; }
+        done++;
+        btn.title = `Saving for offline… ${done}/${urls.length}`;
+    }
+    btn.classList.remove('offline-saving');
+
+    if (failed === 0) {
+        setOfflinePlaylists([...saved, activePlaylistId]);
+    } else {
+        alert(`Some files failed to download (${failed}/${urls.length}). Try again while online.`);
+    }
+    updateOfflineButton();
+}
+
+function updateOfflineButton() {
+    const btn = document.getElementById('offlineBtn');
+    if (!btn) return;
+    const isSaved = getOfflinePlaylists().includes(activePlaylistId);
+    btn.classList.toggle('offline-saved', isSaved);
+    btn.title = isSaved ? 'Saved for offline — tap to remove' : 'Save playlist for offline';
+
+    // Only meaningful for playlists that contain uploaded/MP3 songs
+    const hasOfflinable = songsData.some(s => s.mp3_url && s.mp3_url.startsWith('/media/'));
+    btn.style.display = (hasOfflinable || isSaved) ? '' : 'none';
+}
+
+// Grey out online-only songs while disconnected
+function applyOnlineState() {
+    document.body.classList.toggle('offline-mode', !navigator.onLine);
+}
+window.addEventListener('online', applyOnlineState);
+window.addEventListener('offline', applyOnlineState);
+
+document.addEventListener('DOMContentLoaded', () => {
+    applyOnlineState();
+    updateOfflineButton();
+});

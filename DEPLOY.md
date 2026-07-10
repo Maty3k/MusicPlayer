@@ -1,9 +1,17 @@
 # Deploying to Laravel Cloud
 
-This app is a standard Laravel 13 application: database-backed (no runtime
-file storage), no Node build step (plain CSS/JS in `public/`), sessions/cache/
-queue on the `database` drivers. That makes it a clean fit for Laravel Cloud's
-ephemeral containers.
+This app is a standard Laravel 13 application: database-backed, no Node build
+step (plain CSS/JS in `public/`), sessions/cache/queue on the `database`
+drivers. That makes it a clean fit for Laravel Cloud's ephemeral containers —
+with one exception:
+
+> **⚠ Song uploads need persistent storage.** The upload feature
+> (`POST /upload-song`, served back via `GET /media/{file}`) writes to the
+> `local` disk (`storage/app/private/music/{user_id}/`). Laravel Cloud's
+> filesystem is **ephemeral** — uploaded songs are wiped on every deploy.
+> For production, attach a Cloud object-storage bucket (or S3) and point the
+> upload/serve code at that disk before telling users to rely on uploads.
+> Local/dev and self-hosted deployments are fine as-is.
 
 ## One-time setup
 

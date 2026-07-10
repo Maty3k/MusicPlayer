@@ -2552,7 +2552,7 @@ body {
 .song-list-item:hover .song-actions {
     opacity: 1;
     pointer-events: auto;
-    transition: opacity 0.3s ease 3s;
+    transition: opacity 0.3s ease 0.35s;
 }
 
 /* Song send button */
@@ -2599,6 +2599,55 @@ body {
     background: rgba(200, 60, 60, 0.5);
     color: #f2e8d8;
     transform: scale(1.1);
+}
+
+/* Empty playlist state (sidebar) */
+.song-list-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 30px 16px;
+    text-align: center;
+    list-style: none;
+}
+
+.song-list-empty-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(212, 165, 116, 0.06);
+    border: 1px dashed rgba(212, 165, 116, 0.35);
+    color: rgba(212, 165, 116, 0.5);
+    font-size: 1.15rem;
+}
+
+.song-list-empty-text {
+    font-size: 0.8rem;
+    color: rgba(242, 232, 216, 0.45);
+    letter-spacing: 0.3px;
+}
+
+.song-list-empty-add {
+    border: 1px solid rgba(212, 165, 116, 0.4);
+    background: none;
+    color: #d4a574;
+    padding: 6px 16px;
+    border-radius: 18px;
+    font-size: 0.75rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.song-list-empty-add:hover {
+    background: rgba(212, 165, 116, 0.15);
+    border-color: #d4a574;
 }
 
 /* Send menu popover */
@@ -4941,12 +4990,54 @@ body {
         text-overflow: ellipsis;
     }
 
+    /* No hover on phones — pin the actions to the tile corners, always
+       visible: delete top-right, send-to-playlist top-left. */
     .song-actions {
-        display: none;
+        position: static;
+        transform: none;
+        opacity: 1;
+        pointer-events: auto;
+        background: none;
+        padding: 0;
+        gap: 0;
+        transition: none;
+    }
+
+    .song-send-btn,
+    .song-delete-btn {
+        position: absolute;
+        top: 2px;
+        width: 24px;
+        height: 24px;
+        background: rgba(28, 22, 16, 0.92);
+        border: 1px solid rgba(212, 165, 116, 0.25);
+        color: rgba(212, 165, 116, 0.75);
+        z-index: 3;
+    }
+
+    .song-send-btn {
+        left: 2px;
     }
 
     .song-delete-btn {
-        display: none;
+        right: 2px;
+        border-color: rgba(200, 80, 80, 0.45);
+        color: rgba(232, 140, 140, 0.9);
+        font-size: 1rem;
+    }
+
+    .song-list-empty {
+        flex: 1 0 auto;
+        min-width: 100%;
+        flex-direction: row;
+        padding: 16px 20px;
+        gap: 12px;
+    }
+
+    .song-list-empty-icon {
+        width: 36px;
+        height: 36px;
+        flex-shrink: 0;
     }
 
     /* Mobile vinyl room */
@@ -4959,7 +5050,7 @@ body {
     }
 
     .room-content {
-        padding: 15px;
+        padding: 10px 12px;
         justify-content: center;
     }
 
@@ -4967,32 +5058,46 @@ body {
         display: none;
     }
 
-    .string-lights {
-        top: 1%;
-    }
-
-    .string-bulb {
-        width: 8px;
-        height: 12px;
-    }
-
-    .hanging-lights {
-        gap: 50px;
-    }
-
-    .light-bulb {
-        width: 20px;
-        height: 50px;
-    }
-
-    .light-bulb::after {
-        width: 16px;
-        height: 22px;
-        top: 25px;
-    }
-
-    .dust-particles span:nth-child(n+6) {
+    /* The hanging/string lights dangle over the playlist cards and greeting
+       on a phone — keep the room clean, nothing may overlay the playlists. */
+    .string-lights,
+    .hanging-lights,
+    .dust-particles {
         display: none;
+    }
+
+    /* The crate content (greeting + filter + 2 conveyor rows + stats) is
+       taller than a phone viewport. Centered flex inside overflow:hidden
+       clips both ends — scroll from the top instead. */
+    .room-center {
+        width: 100%;
+        max-width: 100%;
+        justify-content: flex-start;
+        overflow-y: auto;
+        overflow-x: hidden;
+        gap: 18px;
+        padding: 12px 0 30px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Tame the now-playing lift so it stays inside its conveyor row and
+       the label doesn't overlap the row below. */
+    .record-card.now-playing {
+        transform: translateY(-6px);
+    }
+
+    .record-card.now-playing::after {
+        bottom: -16px;
+        font-size: 0.5rem;
+    }
+
+    .conveyor-row {
+        padding: 14px 0 22px;
+    }
+
+    /* No hover on phones — the playlist edit (pencil) button must be visible. */
+    .playlist-edit-btn {
+        opacity: 0.9;
     }
 
     .greeting-text h1 {
@@ -6578,6 +6683,9 @@ body.auth-page {
 @media (max-width: 600px) {
     .music-main {
         padding: 16px 12px 24px;   /* desktop 40/32 overflows a 390px phone */
+        /* Centered flex + overflow:auto clips the sleeve off the top when the
+           deck is taller than the viewport — align to top and scroll. */
+        justify-content: flex-start;
     }
 
     .record-player {
@@ -6590,5 +6698,121 @@ body.auth-page {
 
     .turntable-area::after {
         display: none;             /* 1050px-wide shelf glow forces h-scroll */
+    }
+}
+
+/* Any touch device (incl. tablets wider than 600px): hover-revealed controls
+   would otherwise be unreachable — keep them visible. */
+@media (hover: none) and (pointer: coarse) {
+    .song-actions {
+        opacity: 1;
+        pointer-events: auto;
+        transition: none;
+    }
+
+    .playlist-edit-btn {
+        opacity: 0.9;
+    }
+}
+
+/* ============================================================
+   Uploads + offline (PWA)
+   ============================================================ */
+
+/* "Or upload an audio file" button in the Add Song modal (MP3 source) */
+.upload-audio-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    background: rgba(212, 165, 116, 0.06);
+    border: 1px dashed rgba(212, 165, 116, 0.4);
+    border-radius: 10px;
+    color: #d4a574;
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.upload-audio-btn:hover {
+    background: rgba(212, 165, 116, 0.12);
+    border-color: #d4a574;
+}
+
+.upload-progress {
+    margin-top: 10px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(212, 165, 116, 0.12);
+    overflow: hidden;
+}
+
+.upload-progress-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #d4a574, #e8c398);
+    transition: width 0.15s ease;
+}
+
+.upload-status {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: rgba(212, 165, 116, 0.7);
+    min-height: 1em;
+}
+
+.upload-status.upload-error {
+    color: #e88a9b;
+}
+
+/* Sidebar "save playlist offline" toggle */
+.offline-toggle-btn.offline-saved {
+    color: #5cba5c;
+    border-color: rgba(92, 186, 92, 0.5);
+}
+
+.offline-toggle-btn.offline-saving {
+    animation: offlineSavingPulse 1s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes offlineSavingPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+/* While disconnected: online-only songs (YouTube/Spotify) grey out.
+   Uploaded/MP3 songs stay fully interactive. */
+body.offline-mode .song-list-item:not([data-src="mp3"]) {
+    opacity: 0.35;
+    pointer-events: none;
+    filter: grayscale(0.7);
+}
+
+body.offline-mode .song-list-item:not([data-src="mp3"])::after {
+    content: 'online only';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.55rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(242, 232, 216, 0.5);
+    background: rgba(0, 0, 0, 0.5);
+    padding: 2px 7px;
+    border-radius: 8px;
+    pointer-events: none;
+}
+
+@media (max-width: 600px) {
+    /* On the phone tiles the badge sits over the vinyl, not off-screen right */
+    body.offline-mode .song-list-item:not([data-src="mp3"])::after {
+        right: 50%;
+        transform: translate(50%, -50%);
     }
 }
