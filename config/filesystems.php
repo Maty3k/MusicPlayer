@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Song Uploads Disk
+    |--------------------------------------------------------------------------
+    |
+    | Where /upload-song audio (and embedded covers) is stored and served
+    | from. Follows the default disk, so attaching a Laravel Cloud bucket
+    | (which injects FILESYSTEM_DISK=s3 + AWS_* vars) makes uploads
+    | persistent with no further config. Override with UPLOADS_DISK.
+    |
+    */
+
+    'uploads' => env('UPLOADS_DISK', env('FILESYSTEM_DISK', 'local')),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |

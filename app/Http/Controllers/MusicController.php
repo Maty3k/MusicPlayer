@@ -367,7 +367,7 @@ class MusicController extends Controller
                 ->exists();
 
             if (! $stillUsed) {
-                \Illuminate\Support\Facades\Storage::disk('local')
+                \Illuminate\Support\Facades\Storage::disk((string) config('filesystems.uploads', 'local'))
                     ->delete('music/'.$user->id.'/'.$m[1]);
             }
         }

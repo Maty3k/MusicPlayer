@@ -76,6 +76,25 @@ class SetupCheckController extends Controller
             'fix' => 'Set RESEND_API_KEY in the environment variables. Note: until you verify a domain at resend.com/domains, Resend only delivers to your own account email, from onboarding@resend.dev.',
         ];
 
+        // 6) Uploads storage (song files must survive redeploys in production)
+        $uploadsDisk = (string) config('filesystems.uploads', 'local');
+        $uploadsDriver = (string) config("filesystems.disks.{$uploadsDisk}.driver", 'unknown');
+        $uploadsDetail = "disk: {$uploadsDisk}, driver: {$uploadsDriver}";
+        if ($uploadsDriver === 's3') {
+            $s3Ready = (bool) (config("filesystems.disks.{$uploadsDisk}.key") && config("filesystems.disks.{$uploadsDisk}.bucket"));
+            $uploadsOk = $s3Ready;
+            $uploadsDetail .= ', credentials '.($s3Ready ? 'set' : 'MISSING');
+        } else {
+            // Local driver is fine for dev/self-hosting, but on ephemeral
+            // hosts (Laravel Cloud) uploads are wiped on every deploy.
+            $uploadsOk = ! app()->environment('production');
+        }
+        $checks[] = [
+            'label' => "Uploads storage ({$uploadsDetail})",
+            'ok' => $uploadsOk,
+            'fix' => 'In Laravel Cloud: environment → Resources → create/attach a Bucket, then redeploy. Cloud injects FILESYSTEM_DISK=s3 and the AWS_* credentials automatically; uploads follow it (override with UPLOADS_DISK if needed). On the local driver in production, uploaded songs are deleted on every deploy.',
+        ];
+
         $allOk = collect($checks)->every(fn ($c) => $c['ok']);
 
         $rows = '';

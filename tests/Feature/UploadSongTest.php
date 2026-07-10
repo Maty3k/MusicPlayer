@@ -91,4 +91,33 @@ class UploadSongTest extends TestCase
         $this->get('/media/00000000-0000-0000-0000-000000000000.mp3')
             ->assertRedirect('/login');
     }
+
+    public function test_bucket_mode_streams_downloads_and_redirects_playback(): void
+    {
+        config(['filesystems.uploads' => 's3']);
+        Storage::fake('s3');
+        $user = $this->verifiedUser();
+
+        $res = $this->actingAs($user)->post('/upload-song', ['audio' => $this->makeMp3()]);
+        $res->assertOk()->assertJson(['success' => true]);
+        $url = $res->json('mp3_url');
+        Storage::disk('s3')->assertExists("music/{$user->id}/".basename($url));
+
+        // Offline download (?dl=1) must be a same-origin stream, never a redirect
+        $this->actingAs($user)->get($url.'?dl=1')
+            ->assertOk()->assertHeader('Content-Type', 'audio/mpeg');
+
+        // Disk with signed URLs: playback redirects to them
+        Storage::disk('s3')->buildTemporaryUrlsUsing(fn () => 'https://bucket.test/signed-song');
+        $this->actingAs($user)->get($url)->assertRedirect('https://bucket.test/signed-song');
+
+        // Deleting the song still garbage-collects from the bucket
+        $this->actingAs($user)->postJson('/save-music', [
+            'action' => 'add',
+            'song' => ['title' => 'Bucket Song', 'mp3_url' => $url],
+        ])->assertJson(['success' => true]);
+        $this->actingAs($user)->postJson('/save-music', ['action' => 'delete', 'index' => 0])
+            ->assertJson(['success' => true]);
+        Storage::disk('s3')->assertMissing("music/{$user->id}/".basename($url));
+    }
 }

@@ -4566,7 +4566,11 @@ async function toggleOfflinePlaylist() {
     let done = 0, failed = 0;
     for (const url of urls) {
         try {
-            const res = await fetch(url);
+            // ?dl=1 forces a same-origin full-file stream when uploads live
+            // on a bucket (normal playback 302s to a signed URL, which the
+            // Cache API can't store usefully). Cache under the clean URL so
+            // the service worker matches <audio> requests.
+            const res = await fetch(url + '?dl=1');
             if (res.ok) await cache.put(url, res);
             else failed++;
         } catch (e) { failed++; }

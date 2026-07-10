@@ -12,9 +12,10 @@ use Illuminate\Support\Str;
  * private per-user storage. Returns root-relative /media/ URLs that the
  * frontend saves onto the song row — MediaController serves them back.
  *
- * Files live on the 'local' disk at music/{user_id}/{uuid}.{ext}. NOTE:
- * on Laravel Cloud the local filesystem is ephemeral (wiped on deploy);
- * production needs a mounted bucket or S3 disk for uploads to survive.
+ * Files live on the configured uploads disk (config filesystems.uploads)
+ * at music/{user_id}/{uuid}.{ext}. Locally that's the 'local' disk; in
+ * production attach a bucket/S3 (Laravel Cloud injects FILESYSTEM_DISK=s3)
+ * so uploads survive the ephemeral container filesystem.
  */
 class UploadSongController extends Controller
 {
@@ -29,7 +30,8 @@ class UploadSongController extends Controller
             'cover' => ['nullable', 'file', 'max:2048', 'mimes:jpg,jpeg,png,webp,gif'],
         ]);
 
-        $disk = Storage::disk('local');
+        $diskName = (string) config('filesystems.uploads', 'local');
+        $disk = Storage::disk($diskName);
         $dir = 'music/'.$request->user()->id;
 
         $used = array_sum(array_map(fn ($f) => $disk->size($f), $disk->files($dir)));
@@ -41,12 +43,12 @@ class UploadSongController extends Controller
         }
 
         $audioName = (string) Str::uuid().'.'.$request->file('audio')->extension();
-        $request->file('audio')->storeAs($dir, $audioName, 'local');
+        $request->file('audio')->storeAs($dir, $audioName, $diskName);
 
         $coverUrl = '';
         if ($request->hasFile('cover')) {
             $coverName = (string) Str::uuid().'.'.$request->file('cover')->extension();
-            $request->file('cover')->storeAs($dir, $coverName, 'local');
+            $request->file('cover')->storeAs($dir, $coverName, $diskName);
             $coverUrl = '/media/'.$coverName;
         }
 
