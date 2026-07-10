@@ -214,6 +214,9 @@ body {
     position: absolute;
     inset: 0;
     pointer-events: none;
+    /* Contain decor z-indexes (speakers, plants, ...) so they can never
+       paint above .room-content — the record cards scroll past them. */
+    isolation: isolate;
 }
 
 .room-wall {
@@ -4761,6 +4764,16 @@ body {
         gap: 12px;
     }
 
+    /* The recessed control plate is sized for the 250px desktop bay
+       (234x440); left unchecked it juts across the platter and draws a
+       hard vertical seam through the deck. */
+    .record-player-right::before {
+        width: auto;
+        left: 4px;
+        right: 4px;
+        height: 270px;
+    }
+
     .record-player-controls {
         gap: 8px;
     }
@@ -4839,15 +4852,18 @@ body {
         font-size: 0.9rem;
     }
 
-    #music-section.active {
+    /* Laravel port: the row-flex container is .music-player-view (it gets
+       .active), not #music-section as in the legacy markup. */
+    .music-player-view.active {
         flex-direction: column;
     }
 
     .music-sidebar {
         width: 100% !important;
-        max-height: 200px;
+        max-height: 220px;
         border-right: none;
         border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding: 4px 0 0;   /* desktop 30px eats the strip's height budget */
     }
 
     .sidebar-resize-handle,
@@ -5120,6 +5136,41 @@ body {
     .vinyl-peek {
         width: clamp(130px, 21vw, 170px);
         height: clamp(130px, 21vw, 170px);
+    }
+}
+
+/* Short screens (laptops at 768px, small windows): the room scene is composed
+   for tall viewports — compact it so the title and stats bar don't clip. */
+@media (max-height: 860px) {
+    .room-center {
+        gap: 18px;
+    }
+
+    .greeting-text h1 {
+        font-size: 2rem;
+    }
+
+    .greeting-text p {
+        font-size: 0.9rem;
+    }
+
+    .collection-stats {
+        gap: 28px;
+        padding: 12px 32px;
+    }
+
+    .record-card-cover {
+        width: clamp(120px, 16vh, 160px);
+        height: clamp(120px, 16vh, 160px);
+    }
+
+    .vinyl-peek {
+        width: clamp(110px, 15vh, 150px);
+        height: clamp(110px, 15vh, 150px);
+    }
+
+    .conveyor-row {
+        padding: 18px 0 12px;
     }
 }
 
@@ -6501,4 +6552,43 @@ body.auth-page {
 /* Account group in the Settings modal (Laravel session auth) */
 .settings-account-group .settings-hint {
     margin-bottom: 10px;
+}
+
+/* The deck is fixed-pixel art (300px sleeve + 1000px turntable, plus the
+   300px sidebar = ~1600px). Between phone and full desktop it clips the
+   controls off-screen — zoom the whole composition down to fit. */
+@media (min-width: 601px) and (max-width: 1700px) {
+    .turntable-area {
+        zoom: 0.8;
+    }
+}
+
+@media (min-width: 601px) and (max-width: 1440px) {
+    .turntable-area {
+        zoom: 0.66;
+    }
+}
+
+/* ============================================================
+   Phone layout for the player view (Laravel port).
+   The legacy @600px rules already restack everything (horizontal
+   song strip, sleeve as a wide card, shrunken deck) — this block
+   only trims what those rules assumed the WebView would provide.
+   ============================================================ */
+@media (max-width: 600px) {
+    .music-main {
+        padding: 16px 12px 24px;   /* desktop 40/32 overflows a 390px phone */
+    }
+
+    .record-player {
+        width: min(94vw, 380px);   /* fixed 380px clips on small phones */
+    }
+
+    .vinyl-sleeve {
+        max-width: min(94vw, 380px);
+    }
+
+    .turntable-area::after {
+        display: none;             /* 1050px-wide shelf glow forces h-scroll */
+    }
 }
