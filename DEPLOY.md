@@ -50,6 +50,24 @@ with one exception:
 
 5. **Deploy.** The health check endpoint is `/up`.
 
+## Custom domain (music4u.online)
+
+The production app runs on **https://music4u.online** (registered at GoDaddy,
+expires 2027-07-11 — auto-renew intentionally off, renew manually if keeping).
+
+1. **App DNS** — Laravel Cloud: *production → Domains → Add domain*
+   (`music4u.online`). Add the records it shows in GoDaddy → domain → DNS.
+   The apex can't take a CNAME at GoDaddy, so Cloud provides A records for
+   `@`; `www` gets a CNAME. TLS is issued automatically after propagation.
+2. **Email DNS** — Resend: *Domains → Add domain* (`music4u.online`), add the
+   TXT (SPF + DKIM) and MX records in GoDaddy, then Verify. Until this is
+   done Resend is in test mode and only delivers to the account owner.
+3. **Env vars** (then redeploy):
+   - `APP_URL=https://music4u.online` (overrides Cloud's default)
+   - `MAIL_FROM_ADDRESS=noreply@music4u.online`
+   - `SPOTIFY_REDIRECT_URI=https://music4u.online/spotify?action=callback`
+     (register the same URI on the Spotify app)
+
 ## Import your existing library
 
 After the first deploy and registering your account, run in a Cloud command
