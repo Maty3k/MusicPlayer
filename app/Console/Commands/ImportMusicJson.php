@@ -15,7 +15,8 @@ class ImportMusicJson extends Command
     protected $signature = 'music:import
         {email : Email of the user to import into}
         {path=database/legacy/music.json : Path to the legacy music.json}
-        {--force : Delete the user\'s existing playlists first}';
+        {--force : Delete the user\'s existing playlists first}
+        {--add : Add the file\'s playlists alongside existing ones instead of replacing the library}';
 
     protected $description = 'Import a legacy music.json file into a user account';
 
@@ -53,18 +54,38 @@ class ImportMusicJson extends Command
             }
         }
 
-        if (! $this->option('force') && $user->playlists()->whereHas('songs')->exists()) {
-            $this->error("{$email} already has playlists with songs. Use --force to replace them.");
+        $add = (bool) $this->option('add');
+        if ($add && $this->option('force')) {
+            $this->error('--add and --force are mutually exclusive.');
 
             return self::FAILURE;
         }
 
-        [$playlistCount, $songCount] = DB::transaction(function () use ($user, $data): array {
-            // Clear existing playlists (with --force, or leftover empty ones)
-            // so imported slugs never collide with the unique(user_id, slug).
-            $user->playlists()->delete();
+        if ($add) {
+            $taken = $user->playlists()->pluck('slug')->all();
+            $collisions = array_intersect(array_map('strval', array_keys($data['playlists'])), $taken);
+            if ($collisions !== []) {
+                $this->error('Playlist slug(s) already exist for this user: '.implode(', ', $collisions).'.');
 
-            $position = 0;
+                return self::FAILURE;
+            }
+        } elseif (! $this->option('force') && $user->playlists()->whereHas('songs')->exists()) {
+            $this->error("{$email} already has playlists with songs. Use --force to replace them (or --add to keep them).");
+
+            return self::FAILURE;
+        }
+
+        [$playlistCount, $songCount] = DB::transaction(function () use ($user, $data, $add): array {
+            $hadPlaylists = false;
+            if ($add) {
+                $hadPlaylists = $user->playlists()->exists();
+                $position = (int) $user->playlists()->max('position') + 1;
+            } else {
+                // Clear existing playlists (with --force, or leftover empty ones)
+                // so imported slugs never collide with the unique(user_id, slug).
+                $user->playlists()->delete();
+                $position = 0;
+            }
             $songCount = 0;
             $slugs = [];
 
@@ -103,13 +124,24 @@ class ImportMusicJson extends Command
                 }
             }
 
-            $active = $data['activePlaylist'] ?? null;
-            $user->active_playlist_slug = (is_string($active) && in_array($active, $slugs, true))
-                ? $active
-                : ($slugs[0] ?? null);
+            if ($add) {
+                // Adding alongside an existing library: leave the user's active
+                // playlist and history alone. Only seed the active slug when the
+                // account had no playlists at all — a null slug with playlists
+                // present means the app is using its first-playlist fallback,
+                // and the import must not steal that.
+                if (! $hadPlaylists) {
+                    $user->active_playlist_slug ??= $slugs[0] ?? null;
+                }
+            } else {
+                $active = $data['activePlaylist'] ?? null;
+                $user->active_playlist_slug = (is_string($active) && in_array($active, $slugs, true))
+                    ? $active
+                    : ($slugs[0] ?? null);
 
-            $recent = is_array($data['recentlyPlayed'] ?? null) ? $data['recentlyPlayed'] : [];
-            $user->recently_played = array_values(array_filter($recent, 'is_string'));
+                $recent = is_array($data['recentlyPlayed'] ?? null) ? $data['recentlyPlayed'] : [];
+                $user->recently_played = array_values(array_filter($recent, 'is_string'));
+            }
             $user->save();
 
             return [count($slugs), $songCount];

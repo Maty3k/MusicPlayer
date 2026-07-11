@@ -79,6 +79,12 @@ php artisan music:import you@example.com database/legacy/music.json
 
 This loads the snapshot of the pre-rewrite library into your account.
 
+Other snapshots in `database/legacy/` (e.g. `my-playlist-1.json`, the Spotify
+"My playlist #1" export) can be imported the same way. Add `--add` to append
+the file's playlists to an account without touching its existing library
+(plain import replaces everything and refuses if the account already has
+songs; `--force` replaces).
+
 ## Email verification flow
 
 Registration sends a signed verification link through Resend. Users can't
@@ -86,6 +92,10 @@ reach the player until verified (`verified` middleware). The resend button on
 the verify page is throttled (6/min). Locally, `MAIL_MAILER=log` writes the
 mail (with its link) to `storage/logs/laravel.log` so you can test without
 Resend.
+
+While the Resend domain is unverified (test mode delivers only to the account
+owner), `php artisan user:verify user@example.com` (Cloud → Commands) marks an
+account verified manually.
 
 ## Notes / limitations
 

@@ -1,0 +1,276 @@
+{
+    "playlists": {
+        "my-playlist-1": {
+            "name": "My playlist #1",
+            "color": "#7a3b3b",
+            "songs": [
+                {
+                    "title": "No Pole",
+                    "artist": "Don Toliver",
+                    "album": "Love Sick",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273feeff698e6090e6b02f21ec0",
+                    "youtube_id": "fiizRbwD1ZI"
+                },
+                {
+                    "title": "Praise The Lord (Da Shine)",
+                    "artist": "A$AP Rocky ft. Skepta",
+                    "album": "Testing",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273bfcb8d00cee4f8257a6b7fe1",
+                    "youtube_id": "rkEPIjtv15U"
+                },
+                {
+                    "title": "Jugg",
+                    "artist": "Young Nudy",
+                    "album": "Slimeball",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273781b1a0ed5d8ff7eaf3c0432",
+                    "youtube_id": "8gWXVP7AK0s"
+                },
+                {
+                    "title": "MVP",
+                    "artist": "Fimiguerrero ft. YT",
+                    "album": "New World Order",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b2733b3e571ea9131e6018a019cd",
+                    "youtube_id": "OBR1Bpvrzvo"
+                },
+                {
+                    "title": "Airplane Mode",
+                    "artist": "Limbo",
+                    "album": "Airplane Mode",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273a1c71edf4ba5de6802444e4d",
+                    "youtube_id": "KQnQEu03iVY"
+                },
+                {
+                    "title": "The London",
+                    "artist": "Young Thug ft. J. Cole & Travis Scott",
+                    "album": "So Much Fun",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b2736fcd1b6e205d0d19d9efa0cc",
+                    "youtube_id": "3Vu-t1yz7eY"
+                },
+                {
+                    "title": "From the Start",
+                    "artist": "Laufey",
+                    "album": "Bewitched",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b27374c732f8aa0e0ccbb3d17d96",
+                    "youtube_id": "p46zrxhp5OU"
+                },
+                {
+                    "title": "Pretty Girl",
+                    "artist": "Clairo",
+                    "album": "diary 001",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273b9c93163c53545df6182e7ef",
+                    "youtube_id": "U9zvH4GBYNk"
+                },
+                {
+                    "title": "the perfect pair",
+                    "artist": "beabadoobee",
+                    "album": "Beatopia",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273384d10f967c2b914de7e2713",
+                    "youtube_id": "Wo6_mWfdtNI"
+                },
+                {
+                    "title": "Lover Girl",
+                    "artist": "Laufey",
+                    "album": "A Matter of Time",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b2738f68f6e65c1cfd36bb21561c",
+                    "youtube_id": "RZn-0aA6v3c"
+                },
+                {
+                    "title": "Bay City Vibe",
+                    "artist": "HI-ZEN",
+                    "album": "Anger & Love",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b27375c4a0237afafdd44f68f2c1",
+                    "youtube_id": "t-pIrA7HSt8"
+                },
+                {
+                    "title": "I GET IT",
+                    "artist": "Moving in Silence, Lilaj, DaleoDaVinci",
+                    "album": "I GET IT",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b2734ef238522656c4dadf29f58e",
+                    "youtube_id": "azXi4ybC2-A"
+                },
+                {
+                    "title": "Mandy",
+                    "artist": "Fimiguerrero",
+                    "album": "New World Order",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b2733b3e571ea9131e6018a019cd",
+                    "youtube_id": "xK7JQgvSoJA"
+                },
+                {
+                    "title": "OUT WEST",
+                    "artist": "JACKBOYS, Travis Scott ft. Young Thug",
+                    "album": "JACKBOYS",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273b920fc01c37be38130418a34",
+                    "youtube_id": "XGrp5g0JHzM"
+                },
+                {
+                    "title": "I CAN'T LET GO",
+                    "artist": "Lil Tecca ft. Don Toliver",
+                    "album": "PLAN A",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273e55a3924103c132fd3fdc480",
+                    "youtube_id": "koNknehPyyM"
+                },
+                {
+                    "title": "Glue Song",
+                    "artist": "beabadoobee ft. Clairo",
+                    "album": "Glue Song",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b2734ed4cd453322102dafa3e3ec",
+                    "youtube_id": "2jHn18PDjaA"
+                },
+                {
+                    "title": "strangers",
+                    "artist": "proderics ft. melodybloom",
+                    "album": "strangers",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273f753fa08e3115b19bd62ca10",
+                    "youtube_id": "ziAMzhwd-dQ"
+                },
+                {
+                    "title": "Ma Meilleure Ennemie",
+                    "artist": "Stromae ft. Pomme",
+                    "album": "Arcane League of Legends",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273e5a95573f1b91234630fd2cf",
+                    "youtube_id": "Ga174raRMBg"
+                },
+                {
+                    "title": "CITY OF ANGELS",
+                    "artist": "24kGoldn",
+                    "album": "El Dorado",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b273b4141fad9af613c35f55d589",
+                    "youtube_id": "x-qQoEbwdzQ"
+                },
+                {
+                    "title": "Bauklotze",
+                    "artist": "Sawano Hiroyuki ft. Mika Kobayashi",
+                    "album": "Attack on Titan OST",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b2732e09d63a7ba7fa7071e26524",
+                    "youtube_id": "5VX30BrqQyE"
+                },
+                {
+                    "title": "Babydoll",
+                    "artist": "Dominic Fike",
+                    "album": "Don't Forget About Me, Demos",
+                    "cover": "https://i.scdn.co/image/ab67616d0000b2734a42166d927b3acce345c5c0",
+                    "youtube_id": "nb8CnIo_-_A"
+                },
+                {
+                    "title": "嘘",
+                    "artist": "SID",
+                    "album": "SID 10th Anniversary BEST",
+                    "cover": "https://i.ytimg.com/vi/eglYGbybkrY/hqdefault.jpg",
+                    "youtube_id": "eglYGbybkrY"
+                },
+                {
+                    "title": "Sweetest Pie (Sped Up)",
+                    "artist": "Troy Grove, nightcore spedup, life illustrated",
+                    "album": "Sweetest Pie (Sped Up)",
+                    "cover": "https://i.ytimg.com/vi/eg_3TNVT94U/hqdefault.jpg",
+                    "youtube_id": "eg_3TNVT94U"
+                },
+                {
+                    "title": "I Really Want to Stay at Your House",
+                    "artist": "Rosa Walton, Hallie Coggins",
+                    "album": "Cyberpunk 2077: Radio, Vol. 2 (Original Soundtrack)",
+                    "cover": "https://i.ytimg.com/vi/KvMY1uzSC1E/hqdefault.jpg",
+                    "youtube_id": "KvMY1uzSC1E"
+                },
+                {
+                    "title": "Leave Me Alone",
+                    "artist": "Flipp Dinero",
+                    "album": "LOVE FOR GUALA",
+                    "cover": "https://i.ytimg.com/vi/9L-pHRITk0g/hqdefault.jpg",
+                    "youtube_id": "9L-pHRITk0g"
+                },
+                {
+                    "title": "Milo J: Bzrp Music Sessions, Vol. 57/66",
+                    "artist": "Bizarrap, Milo J",
+                    "album": "Milo J: Bzrp Music Sessions, Vol. 57/66",
+                    "cover": "https://i.ytimg.com/vi/hGWa-GO8mKg/hqdefault.jpg",
+                    "youtube_id": "hGWa-GO8mKg"
+                },
+                {
+                    "title": "Love For You",
+                    "artist": "LOVELI LORI, ovg!",
+                    "album": "Love For You",
+                    "cover": "https://i.ytimg.com/vi/nQVaRFP-ppw/hqdefault.jpg",
+                    "youtube_id": "nQVaRFP-ppw"
+                },
+                {
+                    "title": "Falling Behind",
+                    "artist": "Laufey",
+                    "album": "Everything I Know About Love",
+                    "cover": "https://i.ytimg.com/vi/Ej8RhiSv2-4/hqdefault.jpg",
+                    "youtube_id": "Ej8RhiSv2-4"
+                },
+                {
+                    "title": "KISS OF DEATH (Produced by HYDE)",
+                    "artist": "Mika Nakashima",
+                    "album": "Yuki No Hana 15th Anniversary Best Bible",
+                    "cover": "https://i.ytimg.com/vi/N0ixzrZe--0/hqdefault.jpg",
+                    "youtube_id": "N0ixzrZe--0"
+                },
+                {
+                    "title": "Friends",
+                    "artist": "Chase Atlantic",
+                    "album": "Nostalgia - EP",
+                    "cover": "https://i.ytimg.com/vi/nT8O_mP2x6Y/hqdefault.jpg",
+                    "youtube_id": "nT8O_mP2x6Y"
+                },
+                {
+                    "title": "Lumière",
+                    "artist": "Lorien Testard, Alice Duport-Percier",
+                    "album": "Clair Obscur: Expedition 33 (Original Soundtrack)",
+                    "cover": "https://i.ytimg.com/vi/LpNVf8sczqU/hqdefault.jpg",
+                    "youtube_id": "LpNVf8sczqU"
+                },
+                {
+                    "title": "カワキヲアメク",
+                    "artist": "美波",
+                    "album": "カワキヲアメク",
+                    "cover": "https://i.ytimg.com/vi/0YF8vecQWYs/hqdefault.jpg",
+                    "youtube_id": "0YF8vecQWYs"
+                },
+                {
+                    "title": "アイドル",
+                    "artist": "YOASOBI",
+                    "album": "アイドル",
+                    "cover": "https://i.ytimg.com/vi/ZRtdQ81jPUQ/hqdefault.jpg",
+                    "youtube_id": "ZRtdQ81jPUQ"
+                },
+                {
+                    "title": "i love u.",
+                    "artist": "wiv",
+                    "album": "i love u. (extras)",
+                    "cover": "https://i.ytimg.com/vi/HZK38maunm0/hqdefault.jpg",
+                    "youtube_id": "HZK38maunm0"
+                },
+                {
+                    "title": "Paint The Town Blue",
+                    "artist": "Arcane, Ashnikko",
+                    "album": "Arcane League of Legends: Season 2 (Soundtrack from the Animated Series)",
+                    "cover": "https://i.ytimg.com/vi/pl2K9rvsS74/hqdefault.jpg",
+                    "youtube_id": "pl2K9rvsS74"
+                },
+                {
+                    "title": "Blueberry Faygo",
+                    "artist": "Lil Mosey",
+                    "album": "Certified Hitmaker",
+                    "cover": "https://i.ytimg.com/vi/V_jHc_n0p9c/hqdefault.jpg",
+                    "youtube_id": "V_jHc_n0p9c"
+                },
+                {
+                    "title": "Distractions",
+                    "artist": "Haiti Babii",
+                    "album": "Warrior",
+                    "cover": "https://i.ytimg.com/vi/v1qc_u7MujU/hqdefault.jpg",
+                    "youtube_id": "v1qc_u7MujU"
+                },
+                {
+                    "title": "Vogue",
+                    "artist": "Fimiguerrero",
+                    "album": "New World Order",
+                    "cover": "https://i.ytimg.com/vi/BtdLf1n1AVM/hqdefault.jpg",
+                    "youtube_id": "BtdLf1n1AVM"
+                }
+            ]
+        }
+    }
+}
