@@ -948,6 +948,7 @@ function onPlayerStateChange(event) {
             playBtn.classList.add('playing');
         }
         startSleeveProgress();
+        maybeRefineLyricsWithDuration();
     } else if (event.data === YT.PlayerState.ENDED) {
         if (vinyl) vinyl.classList.remove('playing');
         if (tonearm) tonearm.classList.remove('playing');
@@ -1070,44 +1071,106 @@ function parseLRC(lrcString) {
     return result.sort((a, b) => a.time - b.time);
 }
 
-async function fetchLyrics(title, artist) {
+// Strip YouTube-title junk that hurts LRCLIB search recall.
+// Version descriptors like (Live) or (Acoustic) are kept on purpose —
+// they identify which lyrics/timings we actually want.
+function cleanTrackTitle(title) {
+    return (title || '')
+        .replace(/\s*[\(\[][^\)\]]*official[^\)\]]*[\)\]]/gi, '')
+        .replace(/\s*[\(\[][^\)\]]*(music\s*video|lyric(s)?(\s*video)?|visuali[sz]er|video\s*clip|videoclip|audio|hd|4k|hq)[^\)\]]*[\)\]]/gi, '')
+        .replace(/\s*[\(\[]\s*(feat|ft)\.?[^\)\]]*[\)\]]/gi, '')
+        .replace(/\s+(feat|ft)\.?\s+.+$/i, '')
+        .replace(/\s*\|.*$/, '')
+        .replace(/["“”]/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim() || title;
+}
+
+function cleanArtistName(artist) {
+    return (artist || '')
+        .replace(/\s*-\s*Topic$/i, '')
+        .replace(/VEVO$/i, '')
+        .replace(/\s*[\(\[]\s*(feat|ft)\.?[^\)\]]*[\)\]]/gi, '')
+        .replace(/\s+(feat|ft)\.?\s+.+$/i, '')
+        .trim() || artist;
+}
+
+async function lrclibSearch(params) {
+    const resp = await fetch(`https://lrclib.net/api/search?${new URLSearchParams(params)}`);
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return Array.isArray(data) ? data : [];
+}
+
+// LRCLIB reports each entry's duration; the YouTube video's duration tells us
+// which version (album/live/sped-up) we're actually playing.
+const LYRICS_DURATION_TOLERANCE = 7; // seconds
+
+function pickBestLyricsResult(results, duration) {
+    if (!results.length) return null;
+    const byCloseness = (a, b) => Math.abs(a.duration - duration) - Math.abs(b.duration - duration);
+    const synced = results.filter(r => r.syncedLyrics);
+    const plain = results.filter(r => !r.syncedLyrics && r.plainLyrics);
+
+    if (duration > 0) {
+        const syncedSorted = synced.filter(r => typeof r.duration === 'number').sort(byCloseness);
+        const closest = syncedSorted[0];
+        // Right version with timings — ideal.
+        if (closest && Math.abs(closest.duration - duration) <= LYRICS_DURATION_TOLERANCE) return closest;
+        // Slightly-off synced still beats plain text; badly-off would desync
+        // the karaoke view, so fall back to a plain match of the right version.
+        if (closest && Math.abs(closest.duration - duration) <= 20) return closest;
+        const plainMatch = plain.find(r =>
+            typeof r.duration === 'number' && Math.abs(r.duration - duration) <= LYRICS_DURATION_TOLERANCE);
+        if (plainMatch) return plainMatch;
+        if (closest) return closest;
+    }
+    return synced[0] || results[0];
+}
+
+async function fetchLyrics(title, artist, duration = 0) {
     const cacheKey = `${artist}|||${title}`;
-    if (lyricsCache[cacheKey] !== undefined) return lyricsCache[cacheKey];
+    const cached = lyricsCache[cacheKey];
+    if (cached !== undefined) {
+        // Re-run the search once we know the real duration and it disagrees
+        // with what a duration-less fetch picked (likely wrong version).
+        const needsRecheck = cached && !cached.matchedWithDuration && duration > 0
+            && typeof cached.sourceDuration === 'number'
+            && Math.abs(cached.sourceDuration - duration) > LYRICS_DURATION_TOLERANCE;
+        if (!needsRecheck) return cached;
+    }
+
+    const cleanTitle = cleanTrackTitle(title);
+    const cleanArtist = cleanArtistName(artist);
 
     try {
-        const params = new URLSearchParams({ track_name: title, artist_name: artist });
-        const resp = await fetch(`https://lrclib.net/api/search?${params}`);
-        if (!resp.ok) {
-            lyricsCache[cacheKey] = null;
-            return null;
+        let results = await lrclibSearch({ track_name: cleanTitle, artist_name: cleanArtist });
+        if (!results.length && (cleanTitle !== title || cleanArtist !== artist)) {
+            results = await lrclibSearch({ track_name: title, artist_name: artist });
         }
-        const data = await resp.json();
-        if (!data || data.length === 0) {
-            lyricsCache[cacheKey] = null;
-            return null;
+        if (!results.length) {
+            // Loosest pass: full-text query, catches swapped/joined fields.
+            results = await lrclibSearch({ q: `${cleanArtist} ${cleanTitle}` });
         }
 
-        // Pick best result: prefer one with synced lyrics
-        const best = data.find(r => r.syncedLyrics) || data[0];
-        if (best.syncedLyrics) {
+        const best = pickBestLyricsResult(results, duration);
+        let result = null;
+        if (best && best.syncedLyrics) {
             const parsed = parseLRC(best.syncedLyrics);
-            if (parsed.length > 0) {
-                const result = { type: 'synced', lines: parsed };
-                lyricsCache[cacheKey] = result;
-                return result;
-            }
+            if (parsed.length > 0) result = { type: 'synced', lines: parsed };
         }
-        if (best.plainLyrics) {
-            const result = { type: 'plain', text: best.plainLyrics };
-            lyricsCache[cacheKey] = result;
-            return result;
+        if (!result && best && best.plainLyrics) {
+            result = { type: 'plain', text: best.plainLyrics };
         }
-
-        lyricsCache[cacheKey] = null;
-        return null;
+        if (result) {
+            result.sourceDuration = typeof best.duration === 'number' ? best.duration : null;
+            result.matchedWithDuration = duration > 0;
+        }
+        lyricsCache[cacheKey] = result;
+        return result;
     } catch (e) {
-        lyricsCache[cacheKey] = null;
-        return null;
+        // Network hiccup: leave the cache empty so a later attempt can retry.
+        return cached !== undefined ? cached : null;
     }
 }
 
@@ -1253,18 +1316,39 @@ function showLyricsLoading() {
     activeLyricIndex = -1;
 }
 
-async function loadLyricsForSong(song) {
+let currentLyricsResult = null; // last fetch result for the song on the platter
+
+async function loadLyricsForSong(song, duration = 0) {
     if (!song || !song.title || !song.artist) {
+        currentLyricsResult = null;
         renderLyrics(null);
         return;
     }
     const requestId = ++lyricsRequestId;
-    showLyricsLoading();
-    const lyrics = await fetchLyrics(song.title, song.artist);
+    // Skip the loading flash when refining already-visible lyrics
+    if (!currentLyrics) showLyricsLoading();
+    const lyrics = await fetchLyrics(song.title, song.artist, duration);
     // Only render if this is still the active request (prevents stale lyrics)
     if (requestId === lyricsRequestId) {
+        currentLyricsResult = lyrics;
         renderLyrics(lyrics);
     }
+}
+
+// Once playback starts we finally know the video's real duration; if the
+// duration-less fetch picked a different version, redo the search with it.
+function maybeRefineLyricsWithDuration() {
+    const song = currentRadioSong || songsData[currentSongIndex];
+    if (!song || !currentLyricsResult || currentLyricsResult.matchedWithDuration) return;
+    const duration = ytPlayer && ytPlayer.getDuration ? ytPlayer.getDuration() : 0;
+    if (!duration) return;
+    if (typeof currentLyricsResult.sourceDuration === 'number'
+        && Math.abs(currentLyricsResult.sourceDuration - duration) <= LYRICS_DURATION_TOLERANCE) {
+        // The guess already agrees with reality — lock it in.
+        currentLyricsResult.matchedWithDuration = true;
+        return;
+    }
+    loadLyricsForSong(song, duration);
 }
 
 function updateAmpDisplay() {
