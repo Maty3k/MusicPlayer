@@ -886,7 +886,7 @@ function onYouTubeIframeAPIReady() {
                     const song = currentRadioSong || songsData[currentSongIndex];
                     const source = getPlaybackSource(song);
                     if (song && source) {
-                        if (song.mp3_url && !song.youtube_id) {
+                        if (songUsesMp3(song)) {
                             playSongSource(song, false);
                         } else {
                             event.target.loadVideoById(source);
@@ -897,7 +897,7 @@ function onYouTubeIframeAPIReady() {
                     const currentSong = songsData[currentSongIndex];
                     const source = getPlaybackSource(currentSong);
                     if (currentSong && source) {
-                        if (currentSong.mp3_url && !currentSong.youtube_id) {
+                        if (songUsesMp3(currentSong)) {
                             playSongSource(currentSong, true);
                         } else {
                             event.target.cueVideoById(source);
@@ -2655,6 +2655,12 @@ function createMp3Player() {
 }
 
 // Switch active player based on song source
+// A song plays from its local/uploaded file when that's its only source, or
+// when it has a linked offline copy and the network is gone.
+function songUsesMp3(song) {
+    return !!(song && song.mp3_url && (!song.youtube_id || !navigator.onLine));
+}
+
 function activatePlayerForSong(song) {
     if (song && song.spotify_id && !song.youtube_id && !song.mp3_url && spotifyPlayerProxy && spotifyDeviceId) {
         // Spotify source (Premium playback)
@@ -2663,7 +2669,7 @@ function activatePlayerForSong(song) {
             if (mp3PlayerProxy && mp3PlayerProxy._audio) { try { mp3PlayerProxy._audio.pause(); } catch(e) {} }
         }
         ytPlayer = spotifyPlayerProxy;
-    } else if (song && song.mp3_url && !song.youtube_id) {
+    } else if (songUsesMp3(song)) {
         // MP3 source
         if (!mp3PlayerProxy) createMp3Player();
         if (ytPlayer !== mp3PlayerProxy) {
@@ -2686,6 +2692,7 @@ function getPlaybackSource(song) {
     if (song.spotify_id && !song.youtube_id && !song.mp3_url && spotifyPlayerProxy && spotifyDeviceId) {
         return song.spotify_id;
     }
+    if (songUsesMp3(song)) return song.mp3_url;
     return song.youtube_id || song.mp3_url || '';
 }
 
@@ -4957,7 +4964,7 @@ async function importAudioFiles(files) {
     }
 
     importInProgress = true;
-    let added = 0, failed = 0;
+    let added = 0, linked = 0, failed = 0;
     // Ensure add-song mode is MP3-friendly on the backend side: the 'add'
     // action doesn't care about musicSource, so no state to flip here.
     for (let i = 0; i < audio.length; i++) {
@@ -4977,13 +4984,23 @@ async function importAudioFiles(files) {
                 mp3_url: up.mp3_url,
                 spotify_id: ''
             };
+            // link: an upload matching a song already in this playlist
+            // attaches as its offline copy instead of duplicating it.
             const res = await fetch('/save-music', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'add', song })
+                body: JSON.stringify({ action: 'add', song, link: true })
             });
             const result = await res.json();
-            if (result.success) {
+            if (result.success && result.linked) {
+                const existing = songsData[result.index];
+                if (existing) {
+                    existing.mp3_url = song.mp3_url;
+                    if (!existing.album) existing.album = song.album;
+                    if (!existing.cover) existing.cover = song.cover;
+                }
+                linked++;
+            } else if (result.success) {
                 songsData.push(song);
                 currentSongIndex = result.index;
                 added++;
@@ -4999,13 +5016,18 @@ async function importAudioFiles(files) {
     if (shuffleMode !== 'off') buildShuffleQueue();
     rebuildSongList();
     updateTrackCount();
+    if (typeof updateOfflineButton === 'function') updateOfflineButton();
     if (added > 0) {
         const current = songsData[currentSongIndex];
         updateSongDisplay(current);
         playSongSource(current, true); // cue, don't blast the speakers
     }
+    const parts = [];
+    if (added) parts.push(`imported ${added}`);
+    if (linked) parts.push(`linked ${linked} to existing song${linked === 1 ? '' : 's'} for offline`);
+    if (failed) parts.push(`${failed} failed`);
     showImportToast(
-        `Imported ${added} song${added === 1 ? '' : 's'}` + (failed ? ` — ${failed} failed` : ''),
+        parts.length ? parts.join(', ').replace(/^./, c => c.toUpperCase()) : 'Nothing imported',
         failed > 0
     );
     setTimeout(hideImportToast, 5000);

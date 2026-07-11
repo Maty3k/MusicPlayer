@@ -112,6 +112,28 @@ class MusicController extends Controller
             ]);
         }
 
+        // Batch imports of downloaded files send link=true: when an uploaded
+        // MP3 matches a song already in the playlist (same track, streaming
+        // source), attach the file to that song as its offline copy instead
+        // of creating a duplicate entry.
+        $mp3Url = $this->sanitizeUrl($song['mp3_url'] ?? '');
+        if ($request->boolean('link') && $mp3Url !== '') {
+            $match = $this->findLinkableSong(
+                $playlist,
+                (string) ($song['title'] ?? ''),
+                (string) ($song['artist'] ?? '')
+            );
+            if ($match !== null) {
+                $match->update([
+                    'mp3_url' => $mp3Url,
+                    'album' => $match->album !== '' ? $match->album : (string) ($song['album'] ?? ''),
+                    'cover' => $match->cover !== '' ? $match->cover : $this->sanitizeUrl($song['cover'] ?? ''),
+                ]);
+
+                return ['success' => true, 'linked' => true, 'index' => (int) $match->position];
+            }
+        }
+
         $newIndex = $playlist->songs()->count();
         $playlist->songs()->create([
             'position' => $newIndex,
@@ -434,6 +456,50 @@ class MusicController extends Controller
                     ->delete('music/'.$user->id.'/'.$m[1]);
             }
         }
+    }
+
+    /**
+     * Find a song in the playlist that an uploaded file can attach to:
+     * same track by normalized title/artist, no local copy yet. Titles
+     * must match exactly (post-normalization); artists match loosely —
+     * "Shakira" from an ID3 tag should hit "Shakira ft. Wyclef Jean".
+     */
+    private function findLinkableSong(Playlist $playlist, string $title, string $artist): ?\App\Models\Song
+    {
+        $wantTitle = $this->normalizeForMatch($title);
+        if ($wantTitle === '') {
+            return null;
+        }
+        $wantArtist = $this->normalizeForMatch($artist);
+
+        foreach ($playlist->songs()->where('mp3_url', '')->get() as $candidate) {
+            if ($this->normalizeForMatch($candidate->title) !== $wantTitle) {
+                continue;
+            }
+            $haveArtist = $this->normalizeForMatch($candidate->artist);
+            if ($wantArtist === '' || $haveArtist === ''
+                || $wantArtist === $haveArtist
+                || str_contains($haveArtist, $wantArtist)
+                || str_contains($wantArtist, $haveArtist)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Fold a title/artist down to its comparable core: lowercase, bracketed
+     * qualifiers and trailing feat. credits dropped, punctuation collapsed.
+     */
+    private function normalizeForMatch(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = preg_replace('/[\(\[][^\)\]]*[\)\]]/u', ' ', $value) ?? $value;
+        $value = preg_replace('/\b(feat|ft)\.?\s+.*$/u', ' ', $value) ?? $value;
+        $value = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $value) ?? $value;
+
+        return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
     }
 
     /** String-or-empty request input (legacy treated non-strings as invalid). */
