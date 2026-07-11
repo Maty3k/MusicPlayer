@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\AccountController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -75,6 +76,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // POST serves import_url/playlist_tracks (mirrors the legacy split).
     Route::get('/spotify', [SpotifyController::class, 'handleGet'])->middleware('throttle:60,1');
     Route::post('/spotify', [SpotifyController::class, 'handlePost'])->middleware('throttle:30,1');
+
+    // Account settings (fetch/JSON from the Settings modal)
+    Route::post('/settings/name', [AccountController::class, 'updateName'])->middleware('throttle:10,1');
+    Route::post('/settings/password', [AccountController::class, 'updatePassword'])->middleware('throttle:10,1');
 
     Route::post('/spotify-resolve', SpotifyResolveController::class)->middleware('throttle:20,1');
     Route::post('/search-youtube', SearchYoutubeController::class)->middleware('throttle:20,1');

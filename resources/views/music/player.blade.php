@@ -855,6 +855,20 @@
                 <p class="settings-hint">Sets what the Add Song box expects. Spotify tracks stream via the Web Playback SDK (Premium) or a matched YouTube video.</p>
             </div>
 
+            <div class="add-song-form-group">
+                <label>Playback</label>
+                <label class="settings-toggle-row">
+                    <span>Live lyrics</span>
+                    <input type="checkbox" id="settingsLyricsToggle" onchange="setLyricsEnabledFromSettings(this.checked)">
+                    <span class="settings-switch"></span>
+                </label>
+                <label class="settings-toggle-row">
+                    <span>Vinyl crackle between songs</span>
+                    <input type="checkbox" id="settingsCrackleToggle" onchange="setCrackleEnabledFromSettings(this.checked)">
+                    <span class="settings-switch"></span>
+                </label>
+            </div>
+
             <div class="add-song-form-group settings-spotify-group">
                 <label>Spotify</label>
                 <div id="spotifyNotConfigured" class="spotify-state" style="display:none">
@@ -876,8 +890,30 @@
 
             <div class="add-song-form-group settings-account-group">
                 <label>Account</label>
-                <div class="settings-hint">{{ auth()->user()->name }} &middot; {{ auth()->user()->email }}</div>
-                <form method="POST" action="{{ route('logout') }}">
+                <div class="settings-hint" id="settingsAccountEmail">{{ auth()->user()->email }}</div>
+
+                <div class="settings-inline-form">
+                    <input type="text" id="settingsNameInput" value="{{ auth()->user()->name }}" maxlength="100" placeholder="Display name" autocomplete="name">
+                    <button type="button" class="add-song-btn-save" onclick="saveAccountName()">Save</button>
+                </div>
+                <div class="settings-status" id="settingsNameStatus"></div>
+
+                <details class="settings-password-details" id="settingsPasswordDetails">
+                    <summary>Change password</summary>
+                    <div class="add-song-form-group">
+                        <input type="password" id="settingsCurrentPassword" placeholder="Current password" autocomplete="current-password">
+                    </div>
+                    <div class="add-song-form-group">
+                        <input type="password" id="settingsNewPassword" placeholder="New password (at least 8 characters)" autocomplete="new-password">
+                    </div>
+                    <div class="add-song-form-group">
+                        <input type="password" id="settingsNewPasswordConfirm" placeholder="Repeat new password" autocomplete="new-password">
+                    </div>
+                    <button type="button" class="add-song-btn-save" onclick="changeAccountPassword()">Update password</button>
+                    <div class="settings-status" id="settingsPasswordStatus"></div>
+                </details>
+
+                <form method="POST" action="{{ route('logout') }}" class="settings-logout-form">
                     @csrf
                     <button class="add-song-btn-cancel">Log out</button>
                 </form>

@@ -2457,8 +2457,98 @@ function showSettingsModal() {
     document.querySelectorAll('#settingsSourceOptions .settings-source-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.source === musicSource);
     });
+    // Sync playback toggles with their current state
+    const lyricsToggle = document.getElementById('settingsLyricsToggle');
+    if (lyricsToggle) lyricsToggle.checked = lyricsEnabled;
+    const crackleToggle = document.getElementById('settingsCrackleToggle');
+    if (crackleToggle) crackleToggle.checked = crackleEnabled;
+    // Clear any leftover form status from a previous visit
+    const nameStatus = document.getElementById('settingsNameStatus');
+    if (nameStatus) nameStatus.textContent = '';
+    const pwStatus = document.getElementById('settingsPasswordStatus');
+    if (pwStatus) pwStatus.textContent = '';
     // Check Spotify status
     checkSpotifyStatus();
+}
+
+function setLyricsEnabledFromSettings(on) {
+    if (on !== lyricsEnabled) toggleLyrics();
+}
+
+function setCrackleEnabledFromSettings(on) {
+    setCrackleEnabled(on);
+}
+
+function setSettingsStatus(id, message, ok) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = message;
+    el.classList.toggle('ok', !!ok);
+    el.classList.toggle('err', !ok);
+}
+
+function firstValidationError(data, fallback) {
+    if (data && data.errors) {
+        const key = Object.keys(data.errors)[0];
+        if (key && data.errors[key][0]) return data.errors[key][0];
+    }
+    return (data && data.message) || fallback;
+}
+
+async function saveAccountName() {
+    const input = document.getElementById('settingsNameInput');
+    if (!input) return;
+    const name = input.value.trim();
+    if (!name) {
+        setSettingsStatus('settingsNameStatus', 'Name cannot be empty.', false);
+        return;
+    }
+    try {
+        const resp = await fetch('/settings/name', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ name }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            setSettingsStatus('settingsNameStatus', 'Name saved.', true);
+        } else {
+            setSettingsStatus('settingsNameStatus', firstValidationError(data, 'Could not save the name.'), false);
+        }
+    } catch (e) {
+        setSettingsStatus('settingsNameStatus', 'Network error — try again.', false);
+    }
+}
+
+async function changeAccountPassword() {
+    const current = document.getElementById('settingsCurrentPassword');
+    const fresh = document.getElementById('settingsNewPassword');
+    const confirm = document.getElementById('settingsNewPasswordConfirm');
+    if (!current || !fresh || !confirm) return;
+    if (fresh.value !== confirm.value) {
+        setSettingsStatus('settingsPasswordStatus', 'New passwords do not match.', false);
+        return;
+    }
+    try {
+        const resp = await fetch('/settings/password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                current_password: current.value,
+                password: fresh.value,
+                password_confirmation: confirm.value,
+            }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            current.value = fresh.value = confirm.value = '';
+            setSettingsStatus('settingsPasswordStatus', 'Password updated.', true);
+        } else {
+            setSettingsStatus('settingsPasswordStatus', firstValidationError(data, 'Could not update the password.'), false);
+        }
+    } catch (e) {
+        setSettingsStatus('settingsPasswordStatus', 'Network error — try again.', false);
+    }
 }
 
 function hideSettingsModal() {
@@ -3375,17 +3465,24 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==== Phase C: crackle SFX ====
 
 // ===== Vinyl crackle sound effect =====
-let crackleEnabled = false;
+let crackleEnabled = localStorage.getItem('crackleEnabled') === '1';
 let crackleAudioCtx = null;
 
-function toggleCrackle() {
+function setCrackleEnabled(on) {
+    crackleEnabled = !!on;
+    localStorage.setItem('crackleEnabled', crackleEnabled ? '1' : '0');
     const btn = document.getElementById('crackleBtn');
     const label = document.getElementById('crackleLabel');
-    if (!btn || !label) return;
-    crackleEnabled = !crackleEnabled;
-    btn.dataset.crackle = crackleEnabled ? 'on' : 'off';
-    label.textContent = crackleEnabled ? 'crackle on' : 'crackle';
+    if (btn) btn.dataset.crackle = crackleEnabled ? 'on' : 'off';
+    if (label) label.textContent = crackleEnabled ? 'crackle on' : 'crackle';
 }
+
+function toggleCrackle() {
+    setCrackleEnabled(!crackleEnabled);
+}
+
+// Restore the persisted state on the deck button
+if (crackleEnabled) setCrackleEnabled(true);
 
 function playCrackleSound() {
     if (!crackleEnabled) return Promise.resolve();
