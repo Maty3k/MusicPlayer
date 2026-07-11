@@ -2149,8 +2149,30 @@ function buildCoverPicker(playlistId) {
 
 function hidePlaylistEditModal() {
     document.getElementById('playlistEditModal').classList.remove('active');
+    const hint = document.getElementById('playlistWizardHint');
+    if (hint) hint.style.display = 'none';
     editingPlaylistId = '';
 }
+
+// First run: a brand-new account has no playlists — greet the user and walk
+// them straight into naming their first one (prefilled so one tap works).
+function showFirstRunWizard() {
+    showPlaylistCreateModal();
+    document.getElementById('playlistEditModalTitle').textContent = 'Welcome to your record room';
+    document.getElementById('playlistEditSaveBtn').textContent = 'Create my first playlist';
+    const hint = document.getElementById('playlistWizardHint');
+    if (hint) hint.style.display = '';
+    const name = document.getElementById('playlistEditName');
+    name.value = 'Favorites';
+    name.select();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
+        && document.getElementById('playlistEditModal')) {
+        showFirstRunWizard();
+    }
+});
 
 function selectPlaylistColor(el) {
     document.querySelectorAll('#colorSwatchGrid .color-swatch').forEach(s => s.classList.remove('selected'));

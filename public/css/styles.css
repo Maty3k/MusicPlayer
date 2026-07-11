@@ -7001,6 +7001,13 @@ body.auth-page {
    Playlist create / delete
    ============================================================ */
 
+.playlist-wizard-hint {
+    margin: -6px 0 16px;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: rgba(242, 232, 216, 0.6);
+}
+
 .new-playlist-btn {
     background: rgba(212, 165, 116, 0.08);
     border: 1px dashed rgba(212, 165, 116, 0.45);

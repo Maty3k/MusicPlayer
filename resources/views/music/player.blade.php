@@ -734,6 +734,10 @@
                 <h2 class="add-song-modal-title" id="playlistEditModalTitle">Edit Playlist</h2>
             </div>
             <input type="hidden" id="playlistEditId" value="">
+            <p class="playlist-wizard-hint" id="playlistWizardHint" style="display:none">
+                Every collection starts with one playlist — name yours and pick
+                a sleeve color. You can add more from the crate anytime.
+            </p>
             <div class="add-song-form-group">
                 <label for="playlistEditName">Playlist Name</label>
                 <input type="text" id="playlistEditName" placeholder="Playlist name" maxlength="30">

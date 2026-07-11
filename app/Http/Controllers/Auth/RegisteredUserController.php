@@ -28,13 +28,8 @@ class RegisteredUserController extends Controller
 
         $user = User::create($validated);
 
-        // Every account starts with the bootstrap playlist the player expects.
-        $user->playlists()->create([
-            'slug' => 'favorites',
-            'name' => 'Favorites',
-            'position' => 0,
-        ]);
-        $user->update(['active_playlist_slug' => 'favorites', 'recently_played' => ['favorites']]);
+        // No bootstrap playlist: the player greets a playlist-less account
+        // with the first-run wizard so the user names their own.
 
         // Send the verification email — but never let a mail-transport failure
         // (e.g. Resend testing-mode restrictions, missing key) 500 the
