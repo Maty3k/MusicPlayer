@@ -1174,12 +1174,21 @@ async function fetchLyrics(title, artist, duration = 0) {
     }
 }
 
+// DOM refs and word weights are cached at render time so the 100ms playback
+// tick never has to query or measure the DOM — repeated querySelectorAll over
+// every line/word caused an audible hitch on each line change once most songs
+// started getting synced lyrics.
+let lyricsLineEls = [];
+let lyricsWordData = []; // per line: {els, cum (cumulative char fractions), sungDuration}
+
 function renderLyrics(lyrics) {
     const container = document.getElementById('sleeveLyrics');
     if (!container) return;
     container.innerHTML = '';
     activeLyricIndex = -1;
     activeWordIndex = -1;
+    lyricsLineEls = [];
+    lyricsWordData = [];
 
     if (!lyrics) {
         currentLyrics = null;
@@ -1213,6 +1222,8 @@ function renderLyrics(lyrics) {
             div.textContent = line.text;
         } else {
             // Desktop: word-level spans for highlighting
+            const els = [];
+            const charLengths = [];
             const words = line.text.split(/(\s+)/);
             words.forEach(word => {
                 if (/^\s+$/.test(word)) {
@@ -1222,8 +1233,18 @@ function renderLyrics(lyrics) {
                     span.className = 'lyrics-word';
                     span.textContent = word;
                     div.appendChild(span);
+                    els.push(span);
+                    charLengths.push(word.length);
                 }
             });
+
+            const totalChars = charLengths.reduce((a, b) => a + b, 0);
+            let running = 0;
+            const cum = charLengths.map(c => (running += c) / totalChars);
+            // How long the line is actually sung, as opposed to the gap until
+            // the next timestamp (which includes breaths and instrumentals):
+            // singing averages roughly 12 characters per second.
+            lyricsWordData[i] = { els, cum, sungDuration: totalChars / 12 };
         }
 
         div.addEventListener('click', () => {
@@ -1233,11 +1254,11 @@ function renderLyrics(lyrics) {
             }
         });
         container.appendChild(div);
+        lyricsLineEls.push(div);
     });
 }
 
 let activeWordIndex = -1;
-let wordAnimFrame = null;
 
 function updateActiveLyric() {
     if (!currentLyrics || !ytPlayer || !ytPlayer.getCurrentTime) return;
@@ -1250,62 +1271,75 @@ function updateActiveLyric() {
         }
     }
 
-    const container = document.getElementById('sleeveLyrics');
-    if (!container) return;
-    const lines = container.querySelectorAll('.lyrics-line');
+    const lines = lyricsLineEls;
+    if (!lines.length) return;
 
     if (newIndex !== activeLyricIndex) {
+        const prevIndex = activeLyricIndex;
         activeLyricIndex = newIndex;
         activeWordIndex = -1;
-        if (wordAnimFrame) { cancelAnimationFrame(wordAnimFrame); wordAnimFrame = null; }
 
-        lines.forEach((el, i) => {
-            el.classList.toggle('active', i === newIndex);
-            // Reset word highlights on non-active lines
-            if (i !== newIndex) {
-                el.querySelectorAll('.lyrics-word').forEach(w => w.classList.remove('word-active'));
-            }
-        });
-
-        // Auto-scroll active line into view (only within lyrics container)
+        // Only touch the two lines that changed — never the whole list
+        if (prevIndex >= 0 && lines[prevIndex]) {
+            lines[prevIndex].classList.remove('active');
+            const prevWords = lyricsWordData[prevIndex];
+            if (prevWords) prevWords.els.forEach(w => w.classList.remove('word-active'));
+        }
         if (newIndex >= 0 && lines[newIndex]) {
-            const scrollTarget = lines[newIndex].offsetTop - container.offsetTop - container.clientHeight / 2 + lines[newIndex].offsetHeight / 2;
-            container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+            lines[newIndex].classList.add('active');
+            const container = document.getElementById('sleeveLyrics');
+            if (container) {
+                const scrollTarget = lines[newIndex].offsetTop - container.offsetTop - container.clientHeight / 2 + lines[newIndex].offsetHeight / 2;
+                container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+            }
         }
     }
 
     // Word-level highlighting within active line (desktop only)
-    if (!window.ReactNativeWebView && newIndex >= 0 && newIndex < currentLyrics.length && lines[newIndex]) {
+    if (newIndex >= 0 && lyricsWordData[newIndex]) {
+        const wd = lyricsWordData[newIndex];
+        if (!wd.els.length) return;
         const lineStart = currentLyrics[newIndex].time;
         const lineEnd = (newIndex + 1 < currentLyrics.length) ? currentLyrics[newIndex + 1].time : (ytPlayer.getDuration ? ytPlayer.getDuration() : lineStart + 5);
-        const lineDuration = Math.min(lineEnd - lineStart, 8) * 0.85; // tighter timing — words finish before next line
-        const elapsed = time - lineStart;
-        const words = lines[newIndex].querySelectorAll('.lyrics-word');
-        if (words.length > 0) {
-            // Weight each word by its character length
-            const charLengths = Array.from(words).map(w => w.textContent.length);
-            const totalChars = charLengths.reduce((a, b) => a + b, 0);
-            const progress = Math.max(0, Math.min(1, elapsed / lineDuration));
+        // Sweep words over the estimated sung time, not the whole gap to the
+        // next timestamp — long gaps (breaths, instrumentals) made words drag
+        // late, while the old flat 0.85 factor rushed them on tight lines.
+        const gap = lineEnd - lineStart;
+        const lineDuration = Math.max(0.8, Math.min(wd.sungDuration, gap - 0.3, 8));
+        const progress = Math.max(0, Math.min(1, (time - lineStart) / lineDuration));
 
-            let cumulative = 0;
-            let newWordIdx = 0;
-            for (let wi = 0; wi < charLengths.length; wi++) {
-                cumulative += charLengths[wi] / totalChars;
-                if (progress < cumulative) {
-                    newWordIdx = wi;
-                    break;
+        let newWordIdx = wd.cum.length - 1;
+        for (let wi = 0; wi < wd.cum.length; wi++) {
+            if (progress < wd.cum[wi]) { newWordIdx = wi; break; }
+        }
+
+        if (newWordIdx !== activeWordIndex) {
+            // Toggle only the words between the old and new position
+            if (newWordIdx > activeWordIndex) {
+                for (let wi = Math.max(0, activeWordIndex + 1); wi <= newWordIdx; wi++) {
+                    wd.els[wi].classList.add('word-active');
                 }
-                newWordIdx = wi;
+            } else {
+                for (let wi = newWordIdx + 1; wi <= activeWordIndex; wi++) {
+                    wd.els[wi].classList.remove('word-active');
+                }
             }
-
-            if (newWordIdx !== activeWordIndex) {
-                activeWordIndex = newWordIdx;
-                words.forEach((w, wi) => {
-                    w.classList.toggle('word-active', wi <= newWordIdx);
-                });
-            }
+            activeWordIndex = newWordIdx;
         }
     }
+}
+
+// Un-highlight the current line/words and forget the position. Needed
+// anywhere that resets activeLyricIndex directly: updateActiveLyric only
+// touches the lines that changed, so it won't clean up after a hard reset.
+function clearActiveLyricHighlight() {
+    if (activeLyricIndex >= 0 && lyricsLineEls[activeLyricIndex]) {
+        lyricsLineEls[activeLyricIndex].classList.remove('active');
+        const wd = lyricsWordData[activeLyricIndex];
+        if (wd) wd.els.forEach(w => w.classList.remove('word-active'));
+    }
+    activeLyricIndex = -1;
+    activeWordIndex = -1;
 }
 
 function showLyricsLoading() {
@@ -1314,24 +1348,29 @@ function showLyricsLoading() {
     container.innerHTML = '<div class="lyrics-placeholder">Loading lyrics...</div>';
     currentLyrics = null;
     activeLyricIndex = -1;
+    lyricsLineEls = [];
+    lyricsWordData = [];
 }
 
 let currentLyricsResult = null; // last fetch result for the song on the platter
 
-async function loadLyricsForSong(song, duration = 0) {
+async function loadLyricsForSong(song, duration = 0, isRefine = false) {
     if (!song || !song.title || !song.artist) {
         currentLyricsResult = null;
         renderLyrics(null);
         return;
     }
     const requestId = ++lyricsRequestId;
-    // Skip the loading flash when refining already-visible lyrics
-    if (!currentLyrics) showLyricsLoading();
+    // Refines happen mid-song over already-visible lyrics — no loading flash
+    if (!isRefine) showLyricsLoading();
     const lyrics = await fetchLyrics(song.title, song.artist, duration);
     // Only render if this is still the active request (prevents stale lyrics)
     if (requestId === lyricsRequestId) {
+        // A refine that lands on the same pick has nothing new to show;
+        // skipping the render avoids a visible blink and scroll reset.
+        const unchanged = isRefine && lyrics === currentLyricsResult;
         currentLyricsResult = lyrics;
-        renderLyrics(lyrics);
+        if (!unchanged) renderLyrics(lyrics);
     }
 }
 
@@ -1342,13 +1381,14 @@ function maybeRefineLyricsWithDuration() {
     if (!song || !currentLyricsResult || currentLyricsResult.matchedWithDuration) return;
     const duration = ytPlayer && ytPlayer.getDuration ? ytPlayer.getDuration() : 0;
     if (!duration) return;
-    if (typeof currentLyricsResult.sourceDuration === 'number'
-        && Math.abs(currentLyricsResult.sourceDuration - duration) <= LYRICS_DURATION_TOLERANCE) {
-        // The guess already agrees with reality — lock it in.
+    if (typeof currentLyricsResult.sourceDuration !== 'number'
+        || Math.abs(currentLyricsResult.sourceDuration - duration) <= LYRICS_DURATION_TOLERANCE) {
+        // The guess already agrees with reality (or can't be compared) —
+        // lock it in so this doesn't re-run on every play/resume.
         currentLyricsResult.matchedWithDuration = true;
         return;
     }
-    loadLyricsForSong(song, duration);
+    loadLyricsForSong(song, duration, true);
 }
 
 function updateAmpDisplay() {
@@ -1394,7 +1434,7 @@ function restartSong() {
     ytPlayer.seekTo(0, true);
     ytPlayer.playVideo();
     resetSleeveProgress();
-    activeLyricIndex = -1;
+    clearActiveLyricHighlight();
 }
 
 function toggleMusic() {
