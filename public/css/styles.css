@@ -7001,6 +7001,11 @@ body.auth-page {
    Playlist create / delete
    ============================================================ */
 
+.crate-settings-btn {
+    border-style: solid;
+    border-color: rgba(212, 165, 116, 0.3);
+}
+
 .playlist-wizard-hint {
     margin: -6px 0 16px;
     font-size: 0.8rem;

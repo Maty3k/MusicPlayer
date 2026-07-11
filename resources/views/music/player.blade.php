@@ -375,6 +375,7 @@
                             <button class="source-filter-btn"        data-source-filter="spotify" onclick="setSourceFilter('spotify')">Spotify</button>
                         </div>
                         <button class="new-playlist-btn" onclick="showPlaylistCreateModal()">+ New playlist</button>
+                        <button class="new-playlist-btn crate-settings-btn" onclick="showSettingsModal()" title="Settings">&#9881; Settings</button>
                     </div>
                     <div class="records-conveyor" id="recordsConveyor">
                         <div class="conveyor-rows">
