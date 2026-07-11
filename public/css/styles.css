@@ -4458,6 +4458,68 @@ body {
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%);
 }
 
+.sleeve-lyrics-zone {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.lyrics-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 3px 0 6px;
+}
+
+.lyrics-ctrl-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 20px;
+    background: rgba(212, 165, 116, 0.08);
+    border: 1px solid rgba(212, 165, 116, 0.25);
+    border-radius: 6px;
+    color: rgba(242, 232, 216, 0.65);
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+}
+
+.lyrics-ctrl-btn:hover {
+    color: #d4a574;
+    border-color: rgba(212, 165, 116, 0.5);
+}
+
+.lyrics-ctrl-sync {
+    background: none;
+    border: none;
+    min-width: 46px;
+    padding: 0;
+    text-align: center;
+    color: rgba(242, 232, 216, 0.5);
+    font-size: 0.7rem;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+}
+
+.lyrics-ctrl-sync:hover {
+    color: #d4a574;
+}
+
+/* Offset only applies to synced lyrics — hide the nudge controls otherwise */
+.lyrics-controls.no-sync .lyrics-ctrl-btn:not(.lyrics-ctrl-toggle),
+.lyrics-controls.no-sync .lyrics-ctrl-sync {
+    visibility: hidden;
+}
+
+.lyrics-ctrl-toggle.off {
+    opacity: 0.35;
+}
+
 .sleeve-lyrics::-webkit-scrollbar {
     display: none;
 }

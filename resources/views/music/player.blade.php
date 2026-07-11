@@ -564,8 +564,16 @@
                         <div class="sleeve-art-placeholder" id="sleeveArtPlaceholder">&#9834;</div>
                     @endif
                 </div>
-                <div class="sleeve-lyrics" id="sleeveLyrics">
-                    <div class="lyrics-placeholder">Play a song to see lyrics</div>
+                <div class="sleeve-lyrics-zone">
+                    <div class="sleeve-lyrics" id="sleeveLyrics">
+                        <div class="lyrics-placeholder">Play a song to see lyrics</div>
+                    </div>
+                    <div class="lyrics-controls" id="lyricsControls">
+                        <button type="button" class="lyrics-ctrl-btn" id="lyricsOffsetMinus" title="Lyrics show later (fix lyrics that run ahead)">&minus;</button>
+                        <button type="button" class="lyrics-ctrl-sync" id="lyricsOffsetValue" title="Sync offset for this song — click to reset">0s</button>
+                        <button type="button" class="lyrics-ctrl-btn" id="lyricsOffsetPlus" title="Lyrics show sooner (fix lyrics that lag behind)">+</button>
+                        <button type="button" class="lyrics-ctrl-btn lyrics-ctrl-toggle" id="lyricsToggleBtn" title="Lyrics on/off">&#9834;</button>
+                    </div>
                 </div>
                 <div class="sleeve-progress">
                     <div class="sleeve-progress-times">

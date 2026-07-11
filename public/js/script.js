@@ -1054,6 +1054,17 @@ let currentLyrics = null; // array of {time, text} or null
 let activeLyricIndex = -1;
 let lyricsRequestId = 0; // guards against stale lyrics from previous songs
 
+// User settings: global on/off plus a per-song sync offset (seconds added to
+// playback time — positive shows lyrics sooner). Both survive reloads.
+let lyricsEnabled = localStorage.getItem('lyricsEnabled') !== '0';
+let lyricsOffsets = {};
+try { lyricsOffsets = JSON.parse(localStorage.getItem('lyricsOffsets') || '{}') || {}; } catch (e) {}
+let currentLyricsOffset = 0;
+
+function lyricsOffsetKey(song) {
+    return `${song.artist}|||${song.title}`;
+}
+
 function parseLRC(lrcString) {
     const lines = lrcString.split('\n');
     const result = [];
@@ -1181,7 +1192,7 @@ async function fetchLyrics(title, artist, duration = 0) {
 let lyricsLineEls = [];
 let lyricsWordData = []; // per line: {els, cum (cumulative char fractions), sungDuration}
 
-function renderLyrics(lyrics) {
+function renderLyrics(lyrics, placeholderText = 'No lyrics available') {
     const container = document.getElementById('sleeveLyrics');
     if (!container) return;
     container.innerHTML = '';
@@ -1192,7 +1203,11 @@ function renderLyrics(lyrics) {
 
     if (!lyrics) {
         currentLyrics = null;
-        container.innerHTML = '<div class="lyrics-placeholder">No lyrics available</div>';
+        const placeholder = document.createElement('div');
+        placeholder.className = 'lyrics-placeholder';
+        placeholder.textContent = placeholderText;
+        container.appendChild(placeholder);
+        updateLyricsControls();
         return;
     }
 
@@ -1206,6 +1221,7 @@ function renderLyrics(lyrics) {
             div.textContent = text;
             container.appendChild(div);
         });
+        updateLyricsControls();
         return;
     }
 
@@ -1249,20 +1265,21 @@ function renderLyrics(lyrics) {
 
         div.addEventListener('click', () => {
             if (ytPlayer && ytPlayer.seekTo) {
-                ytPlayer.seekTo(line.time, true);
+                ytPlayer.seekTo(Math.max(0, line.time - currentLyricsOffset), true);
                 updateSleeveProgress();
             }
         });
         container.appendChild(div);
         lyricsLineEls.push(div);
     });
+    updateLyricsControls();
 }
 
 let activeWordIndex = -1;
 
 function updateActiveLyric() {
     if (!currentLyrics || !ytPlayer || !ytPlayer.getCurrentTime) return;
-    const time = ytPlayer.getCurrentTime();
+    const time = ytPlayer.getCurrentTime() + currentLyricsOffset;
     let newIndex = -1;
     for (let i = currentLyrics.length - 1; i >= 0; i--) {
         if (time >= currentLyrics[i].time) {
@@ -1360,6 +1377,13 @@ async function loadLyricsForSong(song, duration = 0, isRefine = false) {
         renderLyrics(null);
         return;
     }
+    currentLyricsOffset = lyricsOffsets[lyricsOffsetKey(song)] || 0;
+    if (!lyricsEnabled) {
+        lyricsRequestId++; // cancel any in-flight fetch's render
+        currentLyricsResult = null;
+        renderLyrics(null, 'Lyrics are off');
+        return;
+    }
     const requestId = ++lyricsRequestId;
     // Refines happen mid-song over already-visible lyrics — no loading flash
     if (!isRefine) showLyricsLoading();
@@ -1373,6 +1397,58 @@ async function loadLyricsForSong(song, duration = 0, isRefine = false) {
         if (!unchanged) renderLyrics(lyrics);
     }
 }
+
+function updateLyricsControls() {
+    const controls = document.getElementById('lyricsControls');
+    if (!controls) return;
+    controls.classList.toggle('no-sync', !currentLyrics);
+    const toggle = document.getElementById('lyricsToggleBtn');
+    if (toggle) toggle.classList.toggle('off', !lyricsEnabled);
+    const val = document.getElementById('lyricsOffsetValue');
+    if (val) val.textContent = (currentLyricsOffset > 0 ? '+' : '') + currentLyricsOffset + 's';
+}
+
+function adjustLyricsOffset(delta) {
+    const song = currentRadioSong || songsData[currentSongIndex];
+    if (!song || !currentLyrics) return;
+    // 0.5s steps, clamped — enough to counter intros/edits without hunting
+    currentLyricsOffset = Math.max(-10, Math.min(10, Math.round((currentLyricsOffset + delta) * 2) / 2));
+    const key = lyricsOffsetKey(song);
+    if (currentLyricsOffset === 0) {
+        delete lyricsOffsets[key];
+    } else {
+        lyricsOffsets[key] = currentLyricsOffset;
+    }
+    try { localStorage.setItem('lyricsOffsets', JSON.stringify(lyricsOffsets)); } catch (e) {}
+    updateLyricsControls();
+    updateActiveLyric();
+}
+
+function toggleLyrics() {
+    lyricsEnabled = !lyricsEnabled;
+    localStorage.setItem('lyricsEnabled', lyricsEnabled ? '1' : '0');
+    const song = currentRadioSong || songsData[currentSongIndex];
+    if (song) {
+        const dur = lyricsEnabled && ytPlayer && ytPlayer.getDuration ? (ytPlayer.getDuration() || 0) : 0;
+        loadLyricsForSong(song, dur);
+    } else {
+        renderLyrics(null, lyricsEnabled ? 'Play a song to see lyrics' : 'Lyrics are off');
+    }
+    updateLyricsControls();
+}
+
+// Wire up the lyric controls (script loads at end of body, DOM is ready)
+(function initLyricsControls() {
+    const minus = document.getElementById('lyricsOffsetMinus');
+    const plus = document.getElementById('lyricsOffsetPlus');
+    const val = document.getElementById('lyricsOffsetValue');
+    const toggle = document.getElementById('lyricsToggleBtn');
+    if (minus) minus.addEventListener('click', () => adjustLyricsOffset(-0.5));
+    if (plus) plus.addEventListener('click', () => adjustLyricsOffset(0.5));
+    if (val) val.addEventListener('click', () => adjustLyricsOffset(-currentLyricsOffset));
+    if (toggle) toggle.addEventListener('click', toggleLyrics);
+    updateLyricsControls();
+})();
 
 // Once playback starts we finally know the video's real duration; if the
 // duration-less fetch picked a different version, redo the search with it.
