@@ -4782,6 +4782,11 @@ body {
     margin-top: auto;
 }
 
+/* Phone-only now-playing line inside the sleeve (see 600px block) */
+.sleeve-mobile-nowplaying {
+    display: none;
+}
+
 .sleeve-progress-times {
     display: flex;
     justify-content: space-between;
@@ -5051,8 +5056,54 @@ body {
         display: none;
     }
 
+    /* The sleeve wraps into three rows on phones: art+lyrics, then the
+       now-playing line, then the seek bar (both hidden on desktop where
+       the control bay and vertical sleeve carry them). */
+    .vinyl-sleeve {
+        flex-wrap: wrap;
+    }
+
+    .sleeve-lyrics-zone {
+        min-width: 0;
+    }
+
+    .sleeve-mobile-nowplaying {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        width: 100%;
+        order: 3;
+        padding: 10px 12px 0;
+        min-width: 0;
+        border-top: 1px solid rgba(212, 165, 116, 0.12);
+    }
+
+    .sleeve-mobile-nowplaying .song-title {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #f2e8d8;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+    }
+
+    .sleeve-mobile-nowplaying .song-artist {
+        font-size: 0.72rem;
+        color: rgba(212, 165, 116, 0.7);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex-shrink: 2;
+        min-width: 0;
+    }
+
     .sleeve-progress {
-        display: none;
+        display: block;
+        width: 100%;
+        order: 4;
+        margin-top: 0;
+        padding: 6px 12px 12px;
     }
 
     .rp-song-info {
@@ -5071,7 +5122,10 @@ body {
 
     .music-sidebar {
         width: 100% !important;
-        max-height: 220px;
+        /* Size to content: a fixed 220px cap clipped the tile titles (the
+           strip is a single horizontal row — nothing to scroll vertically). */
+        max-height: none;
+        flex: 0 0 auto;
         border-right: none;
         border-bottom: 1px solid rgba(255,255,255,0.1);
         padding: 4px 0 0;   /* desktop 30px eats the strip's height budget */
@@ -5255,6 +5309,7 @@ body {
 
     .conveyor-row {
         padding: 14px 0 22px;
+        overflow: visible;
     }
 
     /* No hover on phones — the playlist edit (pencil) button must be visible. */
@@ -5332,6 +5387,13 @@ body {
 
     .music-player-view {
         flex-direction: column;
+    }
+
+    /* Notched phones: keep content clear of the home indicator and notch
+       (viewport-fit=cover in the page meta makes these insets non-zero). */
+    #music-section {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
     }
 
 }
@@ -6506,6 +6568,12 @@ body {
 }
 .conveyor-track > .record-card { flex-shrink: 0; }
 
+/* The clones only exist to make the marquee seamless; on desktop they lay
+   out exactly like direct track children. */
+.conveyor-dupes {
+    display: contents;
+}
+
 /* Auto-scrolling conveyor marquee. Animate -50% because the cards are rendered twice. */
 @keyframes conveyor-forward {
     from { transform: translateX(0); }
@@ -6527,6 +6595,36 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .conveyor-row[data-row="1"] .conveyor-track,
     .conveyor-row[data-row="2"] .conveyor-track { animation: none; }
+}
+
+/* Phones get a static, wrapped grid instead of the sliding marquee: moving
+   cards are impossible tap targets, and the seamless-loop clones read as
+   duplicate playlists. (Placed after the desktop rules so it wins.) */
+@media (max-width: 600px) {
+    .conveyor-dupes {
+        display: none;
+    }
+
+    .conveyor-row[data-row="1"] .conveyor-track,
+    .conveyor-row[data-row="2"] .conveyor-track {
+        animation: none;
+    }
+
+    .conveyor-track {
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 16px 14px;
+    }
+
+    .records-conveyor {
+        -webkit-mask-image: none;
+                mask-image: none;
+    }
+
+    .conveyor-rows {
+        gap: 0;
+    }
 }
 
 /* =================================================

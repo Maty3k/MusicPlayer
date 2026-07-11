@@ -24,7 +24,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Music Player</title>
     <link rel="manifest" href="/manifest.webmanifest">
@@ -381,13 +381,18 @@
                             <div class="conveyor-row" data-row="1">
                                 <div class="conveyor-track">
                                     @php foreach ($row1 as $c) $renderCard($c); @endphp
-                                    @php foreach ($row1 as $c) $renderCard($c); /* duplicate for seamless marquee loop */ @endphp
+                                    {{-- Marquee loop clones: display:contents on desktop, hidden on phones --}}
+                                    <div class="conveyor-dupes" aria-hidden="true">
+                                        @php foreach ($row1 as $c) $renderCard($c); @endphp
+                                    </div>
                                 </div>
                             </div>
                             <div class="conveyor-row" data-row="2">
                                 <div class="conveyor-track">
                                     @php foreach ($row2 as $c) $renderCard($c); @endphp
-                                    @php foreach ($row2 as $c) $renderCard($c); /* duplicate */ @endphp
+                                    <div class="conveyor-dupes" aria-hidden="true">
+                                        @php foreach ($row2 as $c) $renderCard($c); @endphp
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -574,6 +579,11 @@
                         <button type="button" class="lyrics-ctrl-btn" id="lyricsOffsetPlus" title="Lyrics show sooner (fix lyrics that lag behind)">+</button>
                         <button type="button" class="lyrics-ctrl-btn lyrics-ctrl-toggle" id="lyricsToggleBtn" title="Lyrics on/off">&#9834;</button>
                     </div>
+                </div>
+                {{-- Phone-only now-playing line (desktop shows this in the control bay) --}}
+                <div class="sleeve-mobile-nowplaying" aria-hidden="true">
+                    <span class="song-title">{{ $current['title'] ?? 'No song playing' }}</span>
+                    <span class="song-artist">{{ $current['artist'] ?? '' }}</span>
                 </div>
                 <div class="sleeve-progress">
                     <div class="sleeve-progress-times">

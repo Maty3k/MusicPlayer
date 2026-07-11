@@ -117,9 +117,7 @@ async function animateRecordChange(newSong) {
     }
 
     // Update song info while hidden
-    document.querySelector('.song-title').textContent = newSong.title;
-    document.querySelector('.song-artist').textContent = newSong.artist;
-    document.querySelector('.song-album').textContent = newSong.album || '';
+    setNowPlayingText(newSong.title, newSong.artist, newSong.album || '');
 
     // Update sleeve cover art
     const sleeveImg = document.getElementById('sleeveArtImg');
@@ -354,9 +352,7 @@ async function selectPlaylistFromCrate(playlistId) {
         } else {
             label.innerHTML = '<div class="record-label-placeholder">&#9834;</div>';
         }
-        document.querySelector('.song-title').textContent = currentSong.title || 'No song';
-        document.querySelector('.song-artist').textContent = currentSong.artist || '';
-        document.querySelector('.song-album').textContent = currentSong.album || '';
+        setNowPlayingText(currentSong.title || 'No song', currentSong.artist || '', currentSong.album || '');
 
         // Update sleeve cover art
         const sleeveImg2 = document.getElementById('sleeveArtImg');
@@ -1495,6 +1491,14 @@ function updateAmpDisplay() {
     }
 }
 
+// The now-playing text appears in two places (control bay on desktop, sleeve
+// bar on phones) — update every instance, not just the first.
+function setNowPlayingText(title, artist, album) {
+    document.querySelectorAll('.song-title').forEach(el => el.textContent = title);
+    document.querySelectorAll('.song-artist').forEach(el => el.textContent = artist);
+    document.querySelectorAll('.song-album').forEach(el => el.textContent = album);
+}
+
 // Init amp display scroll on load
 document.addEventListener('DOMContentLoaded', () => {
     updateAmpDisplay();
@@ -1816,9 +1820,7 @@ function updateSongDisplay(song) {
         }
     }
     // Song info
-    document.querySelector('.song-title').textContent = song.title || 'No song';
-    document.querySelector('.song-artist').textContent = song.artist || '';
-    document.querySelector('.song-album').textContent = song.album || '';
+    setNowPlayingText(song.title || 'No song', song.artist || '', song.album || '');
     // Track number
     const trackNum = document.getElementById('sleeveTrackNum');
     if (trackNum) trackNum.textContent = 'TRACK ' + String(currentSongIndex + 1).padStart(2, '0');
