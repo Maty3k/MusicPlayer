@@ -6623,6 +6623,28 @@ body.auth-page {
     accent-color: #d4a574;
 }
 
+.auth-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 4px 0 20px;
+}
+
+.auth-row .auth-remember {
+    margin: 0;
+}
+
+.auth-forgot {
+    font-size: 0.8rem;
+    color: rgba(212, 165, 116, 0.85);
+    text-decoration: none;
+}
+
+.auth-forgot:hover {
+    color: #d4a574;
+    text-decoration: underline;
+}
+
 .auth-submit {
     display: block;
     width: 100%;
