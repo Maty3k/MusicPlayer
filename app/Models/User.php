@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'active_playlist_slug', 'recently_played'])]
+#[Fillable(['name', 'email', 'password', 'member_number', 'active_playlist_slug', 'recently_played'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -31,6 +31,25 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'recently_played' => 'array',
         ];
+    }
+
+    /**
+     * Member-number accounts never hit the email-verification wall: they
+     * start with no email at all, and once one is attached in Settings it's
+     * a recovery convenience, not a gate — blocking the player on a
+     * verification mail (which prod can't always send) would lock them out.
+     */
+    public function hasVerifiedEmail(): bool
+    {
+        return $this->member_number !== null || $this->email_verified_at !== null;
+    }
+
+    /** Club-card presentation of the member number: 42 → "#0042". */
+    public function formattedMemberNumber(): ?string
+    {
+        return $this->member_number === null
+            ? null
+            : '#'.str_pad((string) $this->member_number, 4, '0', STR_PAD_LEFT);
     }
 
     public function playlists(): HasMany

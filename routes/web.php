@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\AccountController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
+use App\Http\Controllers\Auth\MemberAccessController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -35,6 +36,14 @@ Route::middleware('guest')->group(function () {
     Route::post('/register', [RegisteredUserController::class, 'store'])->middleware('throttle:10,1');
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('/login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:10,1');
+
+    // Vinyl-club instant access: one tap creates a member-number account,
+    // and members log back in with number + PIN. Tighter throttle on start
+    // (each hit creates a DB row) than on login.
+    Route::post('/member/start', [MemberAccessController::class, 'start'])
+        ->middleware('throttle:5,10')->name('member.start');
+    Route::post('/member/login', [MemberAccessController::class, 'login'])
+        ->middleware('throttle:10,1')->name('member.login');
 
     // Password reset. The 'password.reset' route name is what the framework's
     // ResetPassword notification uses to build the emailed link.
@@ -80,6 +89,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Account settings (fetch/JSON from the Settings modal)
     Route::post('/settings/name', [AccountController::class, 'updateName'])->middleware('throttle:10,1');
     Route::post('/settings/password', [AccountController::class, 'updatePassword'])->middleware('throttle:10,1');
+    Route::post('/settings/email', [AccountController::class, 'attachEmail'])->middleware('throttle:10,1');
 
     Route::post('/spotify-resolve', SpotifyResolveController::class)->middleware('throttle:20,1');
     Route::post('/search-youtube', SearchYoutubeController::class)->middleware('throttle:20,1');

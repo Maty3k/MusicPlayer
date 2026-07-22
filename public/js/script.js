@@ -12,7 +12,8 @@
         }
         return csrfToken || '';
     }
-    const ORIGIN_ENDPOINTS = /^\/(save-music|spotify|spotify-resolve|search-youtube|scan-cover)(\?|$)/;
+    const ORIGIN_ENDPOINTS = /^\/(save-music|spotify|spotify-resolve|search-youtube|scan-cover|settings|upload-song)(\/|\?|$)/;
+    window.getCsrfToken = getCsrfToken; // for the upload XHR, which bypasses fetch
     const origFetch = window.fetch.bind(window);
     window.fetch = function (input, init) {
         const url = typeof input === 'string' ? input : (input && input.url) || '';
@@ -1186,16 +1187,13 @@ async function fetchLyrics(title, artist, duration = 0) {
 // every line/word caused an audible hitch on each line change once most songs
 // started getting synced lyrics.
 let lyricsLineEls = [];
-let lyricsWordData = []; // per line: {els, cum (cumulative char fractions), sungDuration}
 
 function renderLyrics(lyrics, placeholderText = 'No lyrics available') {
     const container = document.getElementById('sleeveLyrics');
     if (!container) return;
     container.innerHTML = '';
     activeLyricIndex = -1;
-    activeWordIndex = -1;
     lyricsLineEls = [];
-    lyricsWordData = [];
 
     if (!lyrics) {
         currentLyrics = null;
@@ -1221,43 +1219,14 @@ function renderLyrics(lyrics, placeholderText = 'No lyrics available') {
         return;
     }
 
-    // Synced lyrics
+    // Synced lyrics — whole-line highlighting driven by LRCLIB's real
+    // per-line timestamps (word-level sweep was estimated and often wrong).
     currentLyrics = lyrics.lines;
-    const isApp = !!window.ReactNativeWebView;
     lyrics.lines.forEach((line, i) => {
         const div = document.createElement('div');
         div.className = 'lyrics-line';
         div.dataset.index = i;
-
-        if (isApp) {
-            // App mode: line-level only, no word spans
-            div.textContent = line.text;
-        } else {
-            // Desktop: word-level spans for highlighting
-            const els = [];
-            const charLengths = [];
-            const words = line.text.split(/(\s+)/);
-            words.forEach(word => {
-                if (/^\s+$/.test(word)) {
-                    div.appendChild(document.createTextNode(word));
-                } else {
-                    const span = document.createElement('span');
-                    span.className = 'lyrics-word';
-                    span.textContent = word;
-                    div.appendChild(span);
-                    els.push(span);
-                    charLengths.push(word.length);
-                }
-            });
-
-            const totalChars = charLengths.reduce((a, b) => a + b, 0);
-            let running = 0;
-            const cum = charLengths.map(c => (running += c) / totalChars);
-            // How long the line is actually sung, as opposed to the gap until
-            // the next timestamp (which includes breaths and instrumentals):
-            // singing averages roughly 12 characters per second.
-            lyricsWordData[i] = { els, cum, sungDuration: totalChars / 12 };
-        }
+        div.textContent = line.text;
 
         div.addEventListener('click', () => {
             if (ytPlayer && ytPlayer.seekTo) {
@@ -1270,8 +1239,6 @@ function renderLyrics(lyrics, placeholderText = 'No lyrics available') {
     });
     updateLyricsControls();
 }
-
-let activeWordIndex = -1;
 
 function updateActiveLyric() {
     if (!currentLyrics || !ytPlayer || !ytPlayer.getCurrentTime) return;
@@ -1290,13 +1257,10 @@ function updateActiveLyric() {
     if (newIndex !== activeLyricIndex) {
         const prevIndex = activeLyricIndex;
         activeLyricIndex = newIndex;
-        activeWordIndex = -1;
 
         // Only touch the two lines that changed — never the whole list
         if (prevIndex >= 0 && lines[prevIndex]) {
             lines[prevIndex].classList.remove('active');
-            const prevWords = lyricsWordData[prevIndex];
-            if (prevWords) prevWords.els.forEach(w => w.classList.remove('word-active'));
         }
         if (newIndex >= 0 && lines[newIndex]) {
             lines[newIndex].classList.add('active');
@@ -1307,52 +1271,16 @@ function updateActiveLyric() {
             }
         }
     }
-
-    // Word-level highlighting within active line (desktop only)
-    if (newIndex >= 0 && lyricsWordData[newIndex]) {
-        const wd = lyricsWordData[newIndex];
-        if (!wd.els.length) return;
-        const lineStart = currentLyrics[newIndex].time;
-        const lineEnd = (newIndex + 1 < currentLyrics.length) ? currentLyrics[newIndex + 1].time : (ytPlayer.getDuration ? ytPlayer.getDuration() : lineStart + 5);
-        // Sweep words over the estimated sung time, not the whole gap to the
-        // next timestamp — long gaps (breaths, instrumentals) made words drag
-        // late, while the old flat 0.85 factor rushed them on tight lines.
-        const gap = lineEnd - lineStart;
-        const lineDuration = Math.max(0.8, Math.min(wd.sungDuration, gap - 0.3, 8));
-        const progress = Math.max(0, Math.min(1, (time - lineStart) / lineDuration));
-
-        let newWordIdx = wd.cum.length - 1;
-        for (let wi = 0; wi < wd.cum.length; wi++) {
-            if (progress < wd.cum[wi]) { newWordIdx = wi; break; }
-        }
-
-        if (newWordIdx !== activeWordIndex) {
-            // Toggle only the words between the old and new position
-            if (newWordIdx > activeWordIndex) {
-                for (let wi = Math.max(0, activeWordIndex + 1); wi <= newWordIdx; wi++) {
-                    wd.els[wi].classList.add('word-active');
-                }
-            } else {
-                for (let wi = newWordIdx + 1; wi <= activeWordIndex; wi++) {
-                    wd.els[wi].classList.remove('word-active');
-                }
-            }
-            activeWordIndex = newWordIdx;
-        }
-    }
 }
 
-// Un-highlight the current line/words and forget the position. Needed
-// anywhere that resets activeLyricIndex directly: updateActiveLyric only
-// touches the lines that changed, so it won't clean up after a hard reset.
+// Un-highlight the current line and forget the position. Needed anywhere
+// that resets activeLyricIndex directly: updateActiveLyric only touches
+// the lines that changed, so it won't clean up after a hard reset.
 function clearActiveLyricHighlight() {
     if (activeLyricIndex >= 0 && lyricsLineEls[activeLyricIndex]) {
         lyricsLineEls[activeLyricIndex].classList.remove('active');
-        const wd = lyricsWordData[activeLyricIndex];
-        if (wd) wd.els.forEach(w => w.classList.remove('word-active'));
     }
     activeLyricIndex = -1;
-    activeWordIndex = -1;
 }
 
 function showLyricsLoading() {
@@ -1362,7 +1290,6 @@ function showLyricsLoading() {
     currentLyrics = null;
     activeLyricIndex = -1;
     lyricsLineEls = [];
-    lyricsWordData = [];
 }
 
 let currentLyricsResult = null; // last fetch result for the song on the platter
@@ -2156,10 +2083,13 @@ function hidePlaylistEditModal() {
 
 // First run: a brand-new account has no playlists — greet the user and walk
 // them straight into naming their first one (prefilled so one tap works).
-function showFirstRunWizard() {
+// asStepTwo: arriving from the member welcome card, so show the step chip.
+function showFirstRunWizard(asStepTwo = false) {
     showPlaylistCreateModal();
     document.getElementById('playlistEditModalTitle').textContent = 'Welcome to your record room';
     document.getElementById('playlistEditSaveBtn').textContent = 'Create my first playlist';
+    const step = document.getElementById('playlistWizardStep');
+    if (step) step.style.display = asStepTwo ? '' : 'none';
     const hint = document.getElementById('playlistWizardHint');
     if (hint) hint.style.display = '';
     const name = document.getElementById('playlistEditName');
@@ -2168,11 +2098,86 @@ function showFirstRunWizard() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Enter in the playlist-name field saves — one keystroke through the
+    // wizard, and a nicety for regular renames too.
+    const plName = document.getElementById('playlistEditName');
+    if (plName) {
+        plName.addEventListener('keydown', e => {
+            if (e.key === 'Enter') savePlaylistEdit();
+        });
+    }
+
+    // Fresh member signup: the welcome card (number + PIN, shown only once)
+    // goes first; finishMemberWelcome() chains into the playlist wizard.
+    const memberWelcome = document.getElementById('memberWelcomeModal');
+    if (memberWelcome) {
+        memberWelcome.classList.add('active');
+        const nameInput = document.getElementById('memberWelcomeName');
+        if (nameInput) {
+            nameInput.focus();
+            nameInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter') finishMemberWelcome();
+            });
+        }
+        return;
+    }
     if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
         && document.getElementById('playlistEditModal')) {
         showFirstRunWizard();
     }
 });
+
+function copyMemberCard(btn) {
+    const number = document.getElementById('memberCardNumber');
+    const pin = document.getElementById('memberCardPin');
+    if (!number || !pin) return;
+    const text = 'Music Player member ' + number.textContent.trim() + ' — PIN ' + pin.textContent.trim();
+    const flash = () => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy card details'; }, 2000);
+    };
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(flash).catch(() => {});
+        return;
+    }
+    // navigator.clipboard needs a secure context; plain-http local domains
+    // (musicplayer.test) fall back to the legacy path.
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { if (document.execCommand('copy')) flash(); } catch (e) {}
+    ta.remove();
+}
+
+async function finishMemberWelcome() {
+    const btn = document.getElementById('memberWelcomeContinue');
+    if (btn && btn.disabled) return;
+    if (btn) btn.disabled = true;
+    const modal = document.getElementById('memberWelcomeModal');
+    const nameInput = document.getElementById('memberWelcomeName');
+    const name = nameInput ? nameInput.value.trim() : '';
+    if (name) {
+        // Best-effort: a failed name save shouldn't strand the wizard —
+        // the name can always be set again from Settings.
+        try {
+            await fetch('/settings/name', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ name }),
+            });
+            const settingsName = document.getElementById('settingsNameInput');
+            if (settingsName) settingsName.value = name;
+        } catch (e) {}
+    }
+    if (modal) modal.classList.remove('active');
+    if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
+        && document.getElementById('playlistEditModal')) {
+        showFirstRunWizard(true);
+    }
+}
 
 function selectPlaylistColor(el) {
     document.querySelectorAll('#colorSwatchGrid .color-swatch').forEach(s => s.classList.remove('selected'));
@@ -2192,18 +2197,29 @@ async function savePlaylistEdit() {
 
     if (creatingPlaylist) {
         if (!name) return;
-        const response = await fetch('/save-music', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'createPlaylist', name, color: selectedEditColor })
-        });
-        const result = await response.json();
-        if (result.success) {
-            // New card needs to appear in both conveyor rows' server-rendered
-            // markup — a reload is the reliable path.
-            location.reload();
-        } else {
-            alert(result.error || 'Could not create playlist');
+        // Guard against double-clicks: a second in-flight create makes a
+        // real duplicate playlist. Stays disabled on success (page reloads).
+        const saveBtn = document.getElementById('playlistEditSaveBtn');
+        if (saveBtn && saveBtn.disabled) return;
+        if (saveBtn) saveBtn.disabled = true;
+        try {
+            const response = await fetch('/save-music', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'createPlaylist', name, color: selectedEditColor })
+            });
+            const result = await response.json();
+            if (result.success) {
+                // New card needs to appear in both conveyor rows' server-rendered
+                // markup — a reload is the reliable path.
+                location.reload();
+            } else {
+                alert(result.error || 'Could not create playlist');
+                if (saveBtn) saveBtn.disabled = false;
+            }
+        } catch (e) {
+            alert('Network error — try again.');
+            if (saveBtn) saveBtn.disabled = false;
         }
         return;
     }
@@ -2541,6 +2557,30 @@ async function saveAccountName() {
         }
     } catch (e) {
         setSettingsStatus('settingsNameStatus', 'Network error — try again.', false);
+    }
+}
+
+async function attachAccountEmail() {
+    const email = document.getElementById('settingsAttachEmail');
+    const pin = document.getElementById('settingsAttachEmailPin');
+    if (!email || !pin) return;
+    try {
+        const resp = await fetch('/settings/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ email: email.value.trim().toLowerCase(), current_password: pin.value }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            pin.value = '';
+            setSettingsStatus('settingsAttachEmailStatus', 'Email attached — you can log in with it now.', true);
+            const label = document.getElementById('settingsAccountEmail');
+            if (label) label.textContent = data.email + ' · ' + label.textContent.replace(' · no email attached', '');
+        } else {
+            setSettingsStatus('settingsAttachEmailStatus', firstValidationError(data, 'Could not attach the email.'), false);
+        }
+    } catch (e) {
+        setSettingsStatus('settingsAttachEmailStatus', 'Network error — try again.', false);
     }
 }
 
@@ -4855,6 +4895,9 @@ window.setSourceFilter = function(value) {
         b.classList.toggle('active', b.dataset.sourceFilter === value);
     });
     try { localStorage.setItem('music_source_filter', value); } catch (_) {}
+    // Filtering hides cards, which can flip a row between fitting and
+    // overflowing — re-measure the marquee either way.
+    updateConveyorMarquee();
 };
 
 (function initSourceFilter() {
@@ -4866,6 +4909,23 @@ window.setSourceFilter = function(value) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
     else apply();
 })();
+
+// The marquee (and its seamless-loop clones) only earns its keep when the
+// real cards overflow the row; otherwise the clones show every playlist
+// twice. Rows toggle between marquee and a static centered layout.
+function updateConveyorMarquee() {
+    document.querySelectorAll('.conveyor-row').forEach(row => {
+        const track = row.querySelector('.conveyor-track');
+        if (!track) return;
+        // With clones visible the track is double-width, so halve it to get
+        // the real cards' span; with .no-marquee already on, it's exact.
+        const realWidth = row.classList.contains('no-marquee')
+            ? track.scrollWidth
+            : track.scrollWidth / 2;
+        row.classList.toggle('no-marquee', realWidth <= row.clientWidth);
+    });
+}
+window.addEventListener('resize', updateConveyorMarquee);
 
 // ============================================================
 // AUDIO FILE UPLOAD (single via Add Song modal, batch via multi-
@@ -4906,6 +4966,7 @@ async function uploadAudioFile(file, tags, onProgress) {
     return new Promise((resolve) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/upload-song');
+        xhr.setRequestHeader('X-CSRF-TOKEN', window.getCsrfToken ? window.getCsrfToken() : '');
         if (onProgress) {
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));

@@ -4646,28 +4646,15 @@ body {
     transform: scale(1.08);
     font-weight: 700;
     filter: blur(0px);
-}
-
-.lyrics-line.active ~ .lyrics-line {
-    filter: blur(2.5px);
-}
-
-/* Word-level highlighting */
-.lyrics-word {
-    transition: color 0.1s ease, text-shadow 0.1s ease;
-}
-
-.lyrics-line.active .lyrics-word {
-    color: rgba(212, 165, 116, 0.35);
-    text-shadow: none;
-}
-
-.lyrics-line.active .lyrics-word.word-active {
-    color: #f2e8d8;
     text-shadow:
         0 0 8px rgba(242, 232, 216, 0.6),
         0 0 20px rgba(212, 165, 116, 0.4),
         0 0 35px rgba(212, 165, 116, 0.2);
+    transition: color 0.4s ease, transform 0.4s ease, filter 0.4s ease, text-shadow 0.4s ease;
+}
+
+.lyrics-line.active ~ .lyrics-line {
+    filter: blur(2.5px);
 }
 
 /* Plain lyrics lines (no sync, same visual style) */
@@ -6592,6 +6579,20 @@ body {
 .records-conveyor:hover .conveyor-track {
     animation-play-state: paused;
 }
+
+/* A track whose real cards fit inside the row doesn't need the marquee —
+   and its loop clones would sit in plain view as duplicate playlists
+   (blatant on a fresh account with one playlist). JS measures and toggles
+   .no-marquee on load/resize/filter. */
+.conveyor-row.no-marquee .conveyor-dupes {
+    display: none;
+}
+
+.conveyor-row.no-marquee .conveyor-track {
+    animation: none;
+    width: 100%;
+    justify-content: center;
+}
 @media (prefers-reduced-motion: reduce) {
     .conveyor-row[data-row="1"] .conveyor-track,
     .conveyor-row[data-row="2"] .conveyor-track { animation: none; }
@@ -6939,6 +6940,155 @@ body.auth-page {
 /* Account group in the Settings modal (Laravel session auth) */
 .settings-account-group .settings-hint {
     margin-bottom: 10px;
+}
+
+/* ---- Vinyl-club member access (login page) ---- */
+.member-start-form {
+    margin-bottom: 4px;
+}
+
+.member-start-btn {
+    font-size: 0.95rem;
+    padding: 14px;
+}
+
+.member-start-hint {
+    margin-top: 8px;
+    text-align: center;
+    font-size: 0.72rem;
+    color: rgba(242, 232, 216, 0.4);
+}
+
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0 14px;
+    color: rgba(212, 165, 116, 0.5);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid rgba(212, 165, 116, 0.15);
+}
+
+.member-login-row {
+    display: grid;
+    grid-template-columns: 1fr 96px;
+    gap: 10px;
+}
+
+.auth-email-details {
+    margin-top: 18px;
+}
+
+.auth-email-details summary {
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: rgba(212, 165, 116, 0.85);
+    text-align: center;
+    list-style: none;
+    padding: 4px 0;
+}
+
+.auth-email-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.auth-email-details summary:hover {
+    color: #d4a574;
+    text-decoration: underline;
+}
+
+.auth-email-details[open] summary {
+    margin-bottom: 10px;
+}
+
+/* ---- Member welcome card (first load after instant signup) ---- */
+.member-card {
+    margin: 6px 0 14px;
+    padding: 18px 16px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(212, 165, 116, 0.4);
+    background:
+        radial-gradient(circle at 85% 15%, rgba(212, 165, 116, 0.18), transparent 55%),
+        linear-gradient(135deg, rgba(58, 42, 30, 0.9), rgba(30, 22, 16, 0.95));
+    text-align: center;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.member-card-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: rgba(212, 165, 116, 0.7);
+    margin-bottom: 10px;
+}
+
+.member-card-number {
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #f2e8d8;
+    text-shadow: 0 0 18px rgba(212, 165, 116, 0.35);
+    margin-bottom: 8px;
+}
+
+.member-card-pin {
+    font-size: 0.8rem;
+    color: rgba(242, 232, 216, 0.6);
+}
+
+.member-card-pin span {
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: #d4a574;
+    margin-left: 4px;
+}
+
+.member-card-note {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: rgba(242, 232, 216, 0.55);
+    margin-bottom: 14px;
+}
+
+.member-card-copy {
+    margin-top: 12px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(212, 165, 116, 0.4);
+    background: transparent;
+    color: rgba(212, 165, 116, 0.9);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.member-card-copy:hover {
+    background: rgba(212, 165, 116, 0.15);
+    color: #f2e8d8;
+}
+
+/* Setup wizard step indicator (member welcome + first-playlist modals) */
+.wizard-step-chip {
+    display: inline-block;
+    margin-bottom: 12px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(212, 165, 116, 0.3);
+    background: rgba(212, 165, 116, 0.1);
+    color: rgba(212, 165, 116, 0.9);
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
 /* The deck is fixed-pixel art (300px sleeve + 1000px turntable, plus the

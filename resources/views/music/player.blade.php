@@ -735,6 +735,7 @@
                 <h2 class="add-song-modal-title" id="playlistEditModalTitle">Edit Playlist</h2>
             </div>
             <input type="hidden" id="playlistEditId" value="">
+            <div class="wizard-step-chip" id="playlistWizardStep" style="display:none">Step 2 of 2 &middot; Your first playlist</div>
             <p class="playlist-wizard-hint" id="playlistWizardHint" style="display:none">
                 Every collection starts with one playlist — name yours and pick
                 a sleeve color. You can add more from the crate anytime.
@@ -769,6 +770,40 @@
             </div>
         </div>
     </div>
+
+    @if (session('member_card'))
+    <!-- Member Welcome: the one page-load right after instant signup. The
+         PIN is only ever visible here, so there's no backdrop-dismiss — the
+         wizard chains into the first-run playlist wizard from its button. -->
+    <div class="add-song-modal" id="memberWelcomeModal">
+        <div class="add-song-modal-backdrop"></div>
+        <div class="add-song-modal-panel">
+            <div class="add-song-modal-header">
+                <div class="add-song-modal-icon">&#127911;</div>
+                <h2 class="add-song-modal-title">Welcome to the club</h2>
+            </div>
+            <div class="wizard-step-chip">Step 1 of 2 &middot; Your member card</div>
+            <div class="member-card">
+                <div class="member-card-label">Music Player &middot; Member card</div>
+                <div class="member-card-number" id="memberCardNumber">{{ session('member_card')['number'] }}</div>
+                <div class="member-card-pin">PIN <span id="memberCardPin">{{ session('member_card')['pin'] }}</span></div>
+                <button type="button" class="member-card-copy" onclick="copyMemberCard(this)">Copy card details</button>
+            </div>
+            <p class="member-card-note">
+                Your number and PIN are how you get back in — they're on the
+                login page. Save them somewhere: the PIN is only shown this
+                once. You can attach an email later in Settings.
+            </p>
+            <div class="add-song-form-group">
+                <label for="memberWelcomeName">What should we call you?</label>
+                <input type="text" id="memberWelcomeName" maxlength="100" placeholder="Your name" autocomplete="name">
+            </div>
+            <div class="add-song-modal-buttons">
+                <button type="button" class="add-song-btn-save" id="memberWelcomeContinue" onclick="finishMemberWelcome()">Continue &rarr;</button>
+            </div>
+        </div>
+    </div>
+    @endif
 
     <!-- Song Scanner Modal (reuses .add-song-modal shell; scan-specific inner steps) -->
     <div class="add-song-modal scan-modal" id="scanModal">
@@ -905,7 +940,11 @@
 
             <div class="add-song-form-group settings-account-group">
                 <label>Account</label>
-                <div class="settings-hint" id="settingsAccountEmail">{{ auth()->user()->email }}</div>
+                @if (auth()->user()->email)
+                    <div class="settings-hint" id="settingsAccountEmail">{{ auth()->user()->email }}@if (auth()->user()->member_number) &middot; Member {{ auth()->user()->formattedMemberNumber() }}@endif</div>
+                @else
+                    <div class="settings-hint" id="settingsAccountEmail">Member {{ auth()->user()->formattedMemberNumber() }} &middot; no email attached</div>
+                @endif
 
                 <div class="settings-inline-form">
                     <input type="text" id="settingsNameInput" value="{{ auth()->user()->name }}" maxlength="100" placeholder="Display name" autocomplete="name">
@@ -913,10 +952,25 @@
                 </div>
                 <div class="settings-status" id="settingsNameStatus"></div>
 
-                <details class="settings-password-details" id="settingsPasswordDetails">
-                    <summary>Change password</summary>
+                @if (! auth()->user()->email)
+                <details class="settings-password-details" id="settingsAttachEmailDetails">
+                    <summary>Attach an email</summary>
+                    <p class="settings-hint">Adds email login and password reset. Your member number and PIN keep working.</p>
                     <div class="add-song-form-group">
-                        <input type="password" id="settingsCurrentPassword" placeholder="Current password" autocomplete="current-password">
+                        <input type="email" id="settingsAttachEmail" placeholder="you@example.com" autocomplete="email">
+                    </div>
+                    <div class="add-song-form-group">
+                        <input type="password" id="settingsAttachEmailPin" placeholder="Current PIN" inputmode="numeric" maxlength="4" autocomplete="current-password">
+                    </div>
+                    <button type="button" class="add-song-btn-save" onclick="attachAccountEmail()">Attach email</button>
+                    <div class="settings-status" id="settingsAttachEmailStatus"></div>
+                </details>
+                @endif
+
+                <details class="settings-password-details" id="settingsPasswordDetails">
+                    <summary>{{ auth()->user()->email ? 'Change password' : 'Change PIN to a password' }}</summary>
+                    <div class="add-song-form-group">
+                        <input type="password" id="settingsCurrentPassword" placeholder="{{ auth()->user()->email ? 'Current password' : 'Current PIN' }}" autocomplete="current-password">
                     </div>
                     <div class="add-song-form-group">
                         <input type="password" id="settingsNewPassword" placeholder="New password (at least 8 characters)" autocomplete="new-password">

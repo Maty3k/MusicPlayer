@@ -25,6 +25,24 @@ class AccountController extends Controller
         return response()->json(['success' => true, 'name' => $validated['name']]);
     }
 
+    /**
+     * Member-number accounts start with no email; attaching one upgrades the
+     * account (login by email, password reset) without touching the member
+     * number, which keeps working. Requires the current PIN/password so a
+     * borrowed open session can't be claimed by someone else's email.
+     */
+    public function attachEmail(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
+            'current_password' => ['required', 'current_password'],
+        ]);
+
+        $request->user()->update(['email' => $validated['email']]);
+
+        return response()->json(['success' => true, 'email' => $validated['email']]);
+    }
+
     public function updatePassword(Request $request): JsonResponse
     {
         $validated = $request->validate([
