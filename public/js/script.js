@@ -1652,16 +1652,149 @@ setPitch(0);
 // SONG ADD / DELETE
 // ============================================================
 
-function showAddSongModal() {
+// opts.wizard: opened as the setup wizard's last step (first song);
+// opts.chip shows the "Step 3 of 3" indicator (member signup flow only).
+function showAddSongModal(opts = {}) {
     updateAddSongFormForSource();
+    const title = document.getElementById('addSongModalTitle');
+    if (title) title.textContent = opts.wizard ? 'Add your first song' : 'Add music';
+    const chip = document.getElementById('addSongWizardStep');
+    if (chip) chip.style.display = opts.wizard && opts.chip ? '' : 'none';
+    const hint = document.getElementById('addSongWizardHint');
+    if (hint) hint.style.display = opts.wizard ? '' : 'none';
     document.getElementById('addSongModal').classList.add('active');
-    document.getElementById('addSongYoutube').focus();
+    const search = document.getElementById('addSongSearch');
+    if (search) search.focus();
+    else document.getElementById('addSongYoutube').focus();
 }
 
 function hideAddSongModal() {
     document.getElementById('addSongModal').classList.remove('active');
     document.getElementById('addSongForm').reset();
+    const search = document.getElementById('addSongSearch');
+    if (search) search.value = '';
+    renderAddSearchResults(null);
+    const manual = document.getElementById('addSongManualDetails');
+    if (manual) manual.open = false;
     lastFetchedYtId = '';
+}
+
+// ---- Search-first add: type a song, tap a result, needle drops. ----
+let addSearchTimer = null;
+let addSearchSeq = 0;       // stale-response guard
+let addSearchResults = [];  // last rendered results, indexed by row
+
+// "Artist - Title (Official Video)" → { artist, title }. YouTube titles are
+// messy; strip the usual noise and fall back to the channel as the artist.
+function parseYoutubeResultTitle(videoTitle, channel) {
+    const noise = /[(\[](official\s*)?(music\s*)?(video|audio|visuali[sz]er|lyrics?(\s*video)?|hd|4k|hq)[)\]]/gi;
+    const clean = String(videoTitle || '').replace(noise, '').replace(/\s{2,}/g, ' ').trim();
+    const parts = clean.split(/\s+[-–—]\s+/);
+    if (parts.length >= 2) {
+        return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() };
+    }
+    const cleanChannel = String(channel || '').replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/i, '').trim();
+    return { artist: cleanChannel, title: clean };
+}
+
+function onAddSearchKeydown(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        // Bypass the debounce; if results are already up, take the top one.
+        if (addSearchResults.length > 0) pickAddSearchResult(0);
+        else runAddSongSearch();
+    }
+}
+
+function onAddSearchInput() {
+    clearTimeout(addSearchTimer);
+    const q = document.getElementById('addSongSearch').value.trim();
+    if (q.length < 2) { renderAddSearchResults(null); return; }
+    addSearchTimer = setTimeout(runAddSongSearch, 400);
+}
+
+async function runAddSongSearch() {
+    clearTimeout(addSearchTimer);
+    const input = document.getElementById('addSongSearch');
+    const q = input ? input.value.trim() : '';
+    if (q.length < 2) { renderAddSearchResults(null); return; }
+
+    // A pasted link (or bare video ID) isn't a search — hand it to the
+    // manual form, prefilled. NB extractYoutubeId can't gate this: it
+    // returns its raw input as a fallback, so it's truthy for any text.
+    const looksLikeLink = /^https?:\/\//i.test(q)
+        || /^(www\.)?(youtube\.com|youtu\.be)\//i.test(q)
+        || /^[a-zA-Z0-9_-]{11}$/.test(q);
+    if (looksLikeLink) {
+        const manual = document.getElementById('addSongManualDetails');
+        if (manual) manual.open = true;
+        const urlInput = document.getElementById('addSongYoutube');
+        if (urlInput) {
+            urlInput.value = q;
+            urlInput.dispatchEvent(new Event('input'));  // triggers title autofill
+        }
+        renderAddSearchResults([], 'Link detected — finish it below.');
+        return;
+    }
+
+    const seq = ++addSearchSeq;
+    renderAddSearchResults([], 'Searching…');
+    try {
+        const resp = await fetch('/search-youtube', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ query: q }),
+        });
+        const data = await resp.json();
+        if (seq !== addSearchSeq) return;  // a newer search superseded this one
+        if (!data.success || !Array.isArray(data.results) || data.results.length === 0) {
+            renderAddSearchResults([], 'No matches — try different words, or use "More options" below.');
+            return;
+        }
+        renderAddSearchResults(data.results.slice(0, 8));
+    } catch (e) {
+        if (seq === addSearchSeq) renderAddSearchResults([], 'Search failed — check your connection and try again.');
+    }
+}
+
+// results: null clears; [] with status shows only the status line.
+function renderAddSearchResults(results, status = '') {
+    const box = document.getElementById('addSongSearchResults');
+    if (!box) return;
+    addSearchResults = results || [];
+    if (results === null) { box.innerHTML = ''; return; }
+    let html = status ? `<div class="search-result-status">${escapeHtml(status)}</div>` : '';
+    addSearchResults.forEach((r, i) => {
+        const parsed = parseYoutubeResultTitle(r.title, r.channel);
+        const thumb = safeUrl(r.thumbnail);
+        html += `<button type="button" class="search-result-row" onclick="pickAddSearchResult(${i})">
+            ${thumb ? `<img class="search-result-thumb" src="${escapeHtml(thumb)}" alt="" loading="lazy">` : '<span class="search-result-thumb"></span>'}
+            <span class="search-result-meta">
+                <span class="search-result-title">${escapeHtml(parsed.title)}</span>
+                <span class="search-result-artist">${escapeHtml(parsed.artist)}</span>
+            </span>
+            <span class="search-result-play">&#9654;</span>
+        </button>`;
+    });
+    box.innerHTML = html;
+}
+
+async function pickAddSearchResult(index) {
+    const r = addSearchResults[index];
+    if (!r || !r.videoId) return;
+    const rows = document.querySelectorAll('#addSongSearchResults .search-result-row');
+    rows.forEach(row => { row.disabled = true; });
+    if (rows[index]) rows[index].classList.add('adding');
+    const parsed = parseYoutubeResultTitle(r.title, r.channel);
+    const ok = await saveAndPlaySong({
+        title: parsed.title || r.title,
+        artist: parsed.artist,
+        album: '',
+        cover: safeUrl(r.thumbnail),
+        youtube_id: r.videoId,
+        mp3_url: '',
+    });
+    if (!ok) rows.forEach(row => { row.disabled = false; });
 }
 
 function extractYoutubeId(input) {
@@ -1907,23 +2040,41 @@ async function addSongToPlaylist(e) {
         song = { title, artist, album, cover, youtube_id: youtubeId, mp3_url: '' };
     }
 
-    const response = await fetch('/save-music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add', song })
-    });
-    const result = await response.json();
+    await saveAndPlaySong(song);
+}
 
-    if (result.success) {
-        songsData.push(song);
-        currentSongIndex = songsData.length - 1;
-        if (shuffleMode !== 'off') buildShuffleQueue();
-        rebuildSongList();
-        updateTrackCount();
-        hideAddSongModal();
-        updateSongDisplay(song);
-        playSongSource(song, true);
+// Persist a new song, then start it — shared by the manual form and the
+// search results. Returns false if the save failed (caller re-enables UI).
+async function saveAndPlaySong(song) {
+    let result;
+    try {
+        const response = await fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'add', song })
+        });
+        result = await response.json();
+    } catch (e) {
+        return false;
     }
+    if (!result.success) return false;
+
+    songsData.push(song);
+    currentSongIndex = songsData.length - 1;
+    if (shuffleMode !== 'off') buildShuffleQueue();
+    rebuildSongList();
+    updateTrackCount();
+    hideAddSongModal();
+
+    // Adding from the crate (e.g. the wizard's first-song step): pull the
+    // active record onto the deck first, then drop the needle.
+    const playerView = document.getElementById('musicPlayerView');
+    if (playerView && !playerView.classList.contains('active')) {
+        await selectPlaylistFromCrate(activePlaylistId);
+    }
+    updateSongDisplay(song);
+    playSongSource(song, true);
+    return true;
 }
 
 async function deleteSong(index) {
@@ -2124,6 +2275,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
         && document.getElementById('playlistEditModal')) {
         showFirstRunWizard();
+        return;
+    }
+
+    // Wizard finale, straight after the first playlist's reload: open the
+    // add-music search so the first session ends with music playing.
+    let firstRunAddSong = null;
+    try { firstRunAddSong = localStorage.getItem('firstRunAddSong'); } catch (e) {}
+    if (firstRunAddSong) {
+        try { localStorage.removeItem('firstRunAddSong'); } catch (e) {}
+        if (typeof songsData !== 'undefined' && songsData.length === 0
+            && document.getElementById('addSongModal')) {
+            showAddSongModal({ wizard: true, chip: firstRunAddSong === 'chip' });
+        }
     }
 });
 
@@ -2210,6 +2374,15 @@ async function savePlaylistEdit() {
             });
             const result = await response.json();
             if (result.success) {
+                // First-run wizard: after the reload, chain into the final
+                // "add your first song" step ('chip' keeps the step badges
+                // from the member-signup flow; '1' = plain first run).
+                const wizardHint = document.getElementById('playlistWizardHint');
+                if (wizardHint && wizardHint.style.display !== 'none') {
+                    const stepChip = document.getElementById('playlistWizardStep');
+                    const chipShown = stepChip && stepChip.style.display !== 'none';
+                    try { localStorage.setItem('firstRunAddSong', chipShown ? 'chip' : '1'); } catch (e) {}
+                }
                 // New card needs to appear in both conveyor rows' server-rendered
                 // markup — a reload is the reliable path.
                 location.reload();

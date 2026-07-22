@@ -678,8 +678,19 @@
             <button class="add-song-modal-close" onclick="hideAddSongModal()">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon">&#9834;</div>
-                <h2 class="add-song-modal-title">Add Song</h2>
+                <h2 class="add-song-modal-title" id="addSongModalTitle">Add music</h2>
             </div>
+            <div class="wizard-step-chip" id="addSongWizardStep" style="display:none">Step 3 of 3 &middot; Your first song</div>
+            <p class="playlist-wizard-hint" id="addSongWizardHint" style="display:none">
+                What do you love? Search it, tap it, and the needle drops.
+            </p>
+            <div class="add-song-form-group">
+                <label for="addSongSearch">Search</label>
+                <input type="text" id="addSongSearch" placeholder="Song or artist — or paste a YouTube link" autocomplete="off" oninput="onAddSearchInput()" onkeydown="onAddSearchKeydown(event)">
+            </div>
+            <div class="add-song-search-results" id="addSongSearchResults"></div>
+            <details class="add-song-manual" id="addSongManualDetails">
+                <summary>More options — link, upload, details</summary>
             <form id="addSongForm" onsubmit="addSongToPlaylist(event)">
                 <div class="add-song-form-group">
                     <label for="addSongYoutube" id="addSongSourceLabel">YouTube URL or ID</label>
@@ -718,10 +729,10 @@
                     <input type="text" id="addSongCover" placeholder="https://... (optional)">
                 </div>
                 <div class="add-song-modal-buttons">
-                    <button type="button" class="add-song-btn-cancel" onclick="hideAddSongModal()">Cancel</button>
                     <button type="submit" class="add-song-btn-save">Add to Playlist</button>
                 </div>
             </form>
+            </details>
         </div>
     </div>
 
@@ -735,7 +746,7 @@
                 <h2 class="add-song-modal-title" id="playlistEditModalTitle">Edit Playlist</h2>
             </div>
             <input type="hidden" id="playlistEditId" value="">
-            <div class="wizard-step-chip" id="playlistWizardStep" style="display:none">Step 2 of 2 &middot; Your first playlist</div>
+            <div class="wizard-step-chip" id="playlistWizardStep" style="display:none">Step 2 of 3 &middot; Your first playlist</div>
             <p class="playlist-wizard-hint" id="playlistWizardHint" style="display:none">
                 Every collection starts with one playlist — name yours and pick
                 a sleeve color. You can add more from the crate anytime.
@@ -782,7 +793,7 @@
                 <div class="add-song-modal-icon">&#127911;</div>
                 <h2 class="add-song-modal-title">Welcome to the club</h2>
             </div>
-            <div class="wizard-step-chip">Step 1 of 2 &middot; Your member card</div>
+            <div class="wizard-step-chip">Step 1 of 3 &middot; Your member card</div>
             <div class="member-card">
                 <div class="member-card-label">Music Player &middot; Member card</div>
                 <div class="member-card-number" id="memberCardNumber">{{ session('member_card')['number'] }}</div>

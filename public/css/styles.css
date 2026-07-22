@@ -2983,6 +2983,131 @@ body {
     margin-top: 24px;
 }
 
+/* ---- Search-first add music (results list + manual fallback) ---- */
+.add-song-search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+    margin: 4px 0 8px;
+}
+
+.search-result-status {
+    font-size: 0.78rem;
+    color: rgba(242, 232, 216, 0.5);
+    font-style: italic;
+    padding: 6px 2px;
+}
+
+.search-result-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(212, 165, 116, 0.15);
+    background: rgba(212, 165, 116, 0.05);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.search-result-row:hover:not(:disabled) {
+    background: rgba(212, 165, 116, 0.14);
+    border-color: rgba(212, 165, 116, 0.4);
+}
+
+.search-result-row:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.search-result-row.adding {
+    opacity: 1;
+    border-color: rgba(212, 165, 116, 0.6);
+}
+
+.search-result-thumb {
+    width: 56px;
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    object-fit: cover;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.search-result-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.search-result-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #f2e8d8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-result-artist {
+    font-size: 0.75rem;
+    color: rgba(212, 165, 116, 0.75);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-result-play {
+    flex-shrink: 0;
+    color: rgba(212, 165, 116, 0.6);
+    font-size: 0.8rem;
+    padding-right: 6px;
+}
+
+.search-result-row:hover:not(:disabled) .search-result-play {
+    color: #f2e8d8;
+}
+
+.add-song-manual {
+    margin-top: 10px;
+    border-top: 1px solid rgba(212, 165, 116, 0.12);
+    padding-top: 10px;
+}
+
+.add-song-manual summary {
+    cursor: pointer;
+    font-size: 0.78rem;
+    color: rgba(212, 165, 116, 0.7);
+    list-style: none;
+    padding: 4px 0;
+}
+
+.add-song-manual summary::-webkit-details-marker {
+    display: none;
+}
+
+.add-song-manual summary::before {
+    content: '▸ ';
+}
+
+.add-song-manual[open] summary::before {
+    content: '▾ ';
+}
+
+.add-song-manual summary:hover {
+    color: #d4a574;
+}
+
+.add-song-manual[open] summary {
+    margin-bottom: 10px;
+}
+
 .add-song-btn-cancel {
     padding: 10px 20px;
     background: rgba(212, 165, 116, 0.08);
