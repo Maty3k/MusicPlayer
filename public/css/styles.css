@@ -8424,6 +8424,125 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
         font-size: 1.15rem;
         line-height: 1.9;
     }
+
+    /* ============================================================
+       Crate polish: true-order 2-col grid, quiet now-playing marker,
+       compact toolbar/stats, phone upload path
+       ============================================================ */
+
+    /* The interleaved conveyor rows collapse into ONE grid: both
+       wrappers become display:contents (rows alone would yield a
+       2-cell grid) and order:var(--ord) restores creation order. */
+    .conveyor-rows {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px 14px;
+        padding: 0 16px;
+    }
+
+    .conveyor-row,
+    .conveyor-track {
+        display: contents;
+    }
+
+    .record-card {
+        order: var(--ord, 0);
+        width: 100%;
+    }
+
+    .record-card-cover {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1;
+    }
+
+    .vinyl-peek {
+        width: 88%;
+        height: auto;
+        aspect-ratio: 1;
+    }
+
+    /* Quiet now-playing marker: gold ring + corner note chip instead
+       of the lift + hanging label (which clipped inside the grid) */
+    .record-card.now-playing {
+        transform: none;
+        outline: 2px solid var(--m-gold);
+        outline-offset: 2px;
+        border-radius: 10px;
+    }
+
+    .record-card.now-playing::after {
+        content: '\266A';
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        bottom: auto;
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: var(--m-gold);
+        color: var(--m-ink);
+        font-size: 0.7rem;
+        letter-spacing: 0;
+        animation: none;
+    }
+
+    /* Compact toolbar: one scrollable pill row */
+    .collection-toolbar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 0 16px;
+        scrollbar-width: none;
+        max-width: 100%;
+    }
+
+    .collection-toolbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .new-playlist-btn,
+    .source-filter-btn {
+        white-space: nowrap;
+    }
+
+    .greeting-text h1 {
+        font-size: 1.4rem;
+    }
+
+    .greeting-text p {
+        font-size: 0.8rem;
+    }
+
+    .collection-stats {
+        padding: 8px 16px;
+        gap: 16px;
+        min-height: 44px;
+    }
+
+    .stat-num {
+        font-size: 1rem;
+    }
+
+    /* Phone upload path in the Add music sheet; the drag-drop hint
+       is impossible on touch */
+    #mUploadBtn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 48px;
+        margin: 10px 0 4px;
+    }
+
+    .add-song-modal .upload-hint {
+        display: none;
+    }
 }
 
 @keyframes mSheetUp {

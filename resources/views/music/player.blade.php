@@ -294,8 +294,11 @@
                     }
 
                     // Interleave into two rows so they stay balanced even with odd totals.
+                    // The creation index rides along so the phone grid can restore
+                    // true creation order via CSS order:var(--ord).
                     $row1 = $row2 = [];
                     foreach ($cards as $i => $c) {
+                        $c['ord'] = $i;
                         if ($i % 2 === 0) $row1[] = $c;
                         else              $row2[] = $c;
                     }
@@ -322,6 +325,7 @@
                         }
 
                         $pid        = htmlspecialchars($playlistId);
+                        $ord        = (int) ($c['ord'] ?? 0);
                         $nowPlaying = $playlistId === $activePlaylistId ? ' now-playing' : '';
                         $plName     = htmlspecialchars($playlist['name']);
                         $vinylImg   = $coverUrl ? '<img src="' . htmlspecialchars($coverUrl) . '" alt="">' : '';
@@ -334,7 +338,7 @@
                         <div class="record-card{$nowPlaying}"
                              data-playlist="{$pid}"
                              data-source="{$source}"
-                             style="--card-color: {$color}"
+                             style="--card-color: {$color}; --ord: {$ord}"
                              onclick="selectPlaylistFromCrate('{$pid}')">
                             <div class="record-card-vinyl">
                                 <div class="vinyl-peek">
@@ -760,6 +764,16 @@
                 <input type="text" id="addSongSearch" placeholder="Song or artist — or paste a YouTube link" autocomplete="off" oninput="onAddSearchInput()" onkeydown="onAddSearchKeydown(event)">
             </div>
             <div class="add-song-search-results" id="addSongSearchResults"></div>
+            {{-- Phones can't drag-and-drop: a direct path to the hidden
+                 multi-file input, skipping the source-mode burial. --}}
+            <button type="button" id="mUploadBtn" class="m-only upload-audio-btn" onclick="document.getElementById('addSongFile').click()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span>Upload audio files from this phone</span>
+            </button>
             <details class="add-song-manual" id="addSongManualDetails">
                 <summary>More options — link, upload, details</summary>
             <form id="addSongForm" onsubmit="addSongToPlaylist(event)">
