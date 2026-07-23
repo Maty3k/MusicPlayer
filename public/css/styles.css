@@ -7615,7 +7615,9 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
    re-enables it. Desktop safety never depends on media-query support. */
 .m-only { display: none; }
 
-@media (max-width: 600px) {
+/* Tokens + the dock serve BOTH mobile shells: portrait phones and short
+   landscape phones (where the dock is likewise the only transport). */
+@media (max-width: 600px), (min-width: 601px) and (max-height: 500px) and (pointer: coarse) {
     :root {
         --m-walnut-hi: #3a2d22;
         --m-walnut: #2a1f16;
@@ -7634,7 +7636,9 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
         --m-safe-b: env(safe-area-inset-bottom, 0px);
         --m-dock-h: 64px;
     }
+}
 
+@media (max-width: 600px) {
     /* ---- Every modal on the .add-song-modal shell becomes a scrollable
        bottom sheet: full width, capped height, momentum scroll. Settings'
        lower half (account, log out) is reachable on phones for the
@@ -7753,9 +7757,13 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
         font-size: 16px;
     }
 
-    /* ============================================================
-       The dock: persistent bottom transport on every screen
-       ============================================================ */
+}
+
+/* ============================================================
+   The dock: persistent bottom transport on every screen —
+   shared by the portrait-phone and landscape-phone shells
+   ============================================================ */
+@media (max-width: 600px), (min-width: 601px) and (max-height: 500px) and (pointer: coarse) {
     #mDock {
         display: flex;
         position: fixed;
@@ -7903,7 +7911,137 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
     body.m-playing #mDockPlay .m-ic-play {
         display: none;
     }
+}
 
+/* ============================================================
+   Landscape phones (wide + short + touch): the desktop deck cannot
+   fit a ~390px-tall screen — it rendered as a giant platter with no
+   reachable controls. Layout here: desktop track list on the left,
+   a compact sleeve card (art + lyrics + now-playing + seek) on the
+   right, the dock as transport.
+   ============================================================ */
+@media (min-width: 601px) and (max-height: 500px) and (pointer: coarse) {
+    /* Crate: centered flex inside overflow:hidden clips both ends on a
+       short screen — scroll from the top and clear the dock. */
+    .room-center {
+        justify-content: flex-start;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding: 8px 0 calc(var(--m-dock-h) + 12px + var(--m-safe-b));
+    }
+
+    /* Player: the deck art goes; the sleeve carries now-playing */
+    .record-player {
+        display: none;
+    }
+
+    .turntable-area {
+        zoom: 1;
+        width: 100%;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 10px 12px;
+    }
+
+    .turntable-area::after {
+        display: none;
+    }
+
+    .music-main {
+        justify-content: flex-start;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 0 0 calc(var(--m-dock-h) + 12px + var(--m-safe-b));
+    }
+
+    .vinyl-sleeve {
+        width: min(100%, 560px);
+        min-width: 0;
+        height: auto;
+        transform: none;
+        margin: 0;
+        border-radius: 12px;
+        border-right: none;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .vinyl-sleeve::after {
+        display: none;
+    }
+
+    .sleeve-art {
+        width: 96px;
+        min-width: 96px;
+        flex: none;
+        aspect-ratio: 1;
+    }
+
+    .sleeve-lyrics-zone {
+        flex: 1;
+        min-width: 0;
+        max-height: 150px;
+        overflow: hidden;
+    }
+
+    .sleeve-lyrics {
+        border-top: none;
+        border-left: 1px solid rgba(212, 165, 116, 0.1);
+        padding: 8px 12px;
+        mask-image: none;
+        -webkit-mask-image: none;
+    }
+
+    .sleeve-catalog {
+        display: none;
+    }
+
+    .sleeve-mobile-nowplaying {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        width: 100%;
+        order: 3;
+        min-width: 0;
+        padding: 8px 12px 0;
+        border-top: 1px solid rgba(212, 165, 116, 0.12);
+    }
+
+    .sleeve-mobile-nowplaying .song-title {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: var(--m-cream);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+    }
+
+    .sleeve-mobile-nowplaying .song-artist {
+        font-size: 0.72rem;
+        color: rgba(212, 165, 116, 0.7);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex-shrink: 2;
+        min-width: 0;
+    }
+
+    .sleeve-progress {
+        width: 100%;
+        order: 4;
+        margin-top: 0;
+        padding: 6px 12px 12px;
+    }
+
+    /* The list scrolls under the dock — give it clearance */
+    .song-list {
+        padding-bottom: calc(var(--m-dock-h) + 12px + var(--m-safe-b));
+    }
+}
+
+@media (max-width: 600px) {
     /* Content that can end up under the dock gets clearance */
     .room-center {
         padding-bottom: calc(var(--m-dock-h) + 12px + var(--m-safe-b));
@@ -8843,6 +8981,12 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
         opacity: 1;
         width: 14px;
         height: 14px;
+    }
+
+    /* The volume knob drags via Pointer Events — don't let the browser
+       claim the gesture for scrolling on touch tablets */
+    .volume-knob-wrapper {
+        touch-action: none;
     }
 
     /* Lyrics lines are blur(2.5px) until :hover — unreadable on touch.

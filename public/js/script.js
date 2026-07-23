@@ -1571,7 +1571,10 @@ if (volumeKnobWrapper) {
         return Math.atan2(e.clientX - cx, cy - e.clientY) * (180 / Math.PI);
     }
 
-    volumeKnobWrapper.addEventListener('mousedown', (e) => {
+    // Pointer events cover mouse identically and add touch (tablets):
+    // touch-action:none on the wrapper (coarse-pointer CSS) stops the
+    // browser claiming the drag for scrolling.
+    volumeKnobWrapper.addEventListener('pointerdown', (e) => {
         isDragging = true;
         const rect = volumeKnobWrapper.getBoundingClientRect();
         lastAngle = getAngleFromEvent(e, rect);
@@ -1580,7 +1583,7 @@ if (volumeKnobWrapper) {
         e.preventDefault();
     });
 
-    document.addEventListener('mousemove', (e) => {
+    document.addEventListener('pointermove', (e) => {
         if (!isDragging) return;
         const rect = volumeKnobWrapper.getBoundingClientRect();
         const angle = getAngleFromEvent(e, rect);
@@ -1593,14 +1596,16 @@ if (volumeKnobWrapper) {
         setVolume(currentVolume + volDelta);
     });
 
-    document.addEventListener('mouseup', () => {
+    const endKnobDrag = () => {
         if (isDragging) {
             isDragging = false;
             lastAngle = null;
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
         }
-    });
+    };
+    document.addEventListener('pointerup', endKnobDrag);
+    document.addEventListener('pointercancel', endKnobDrag);
 
     // Scroll wheel
     volumeKnobWrapper.addEventListener('wheel', (e) => {
