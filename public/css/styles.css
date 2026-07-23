@@ -7515,3 +7515,192 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
         transform: translate(50%, -50%);
     }
 }
+
+/* ============================================================
+   ===== MOBILE V2 — must remain the LAST block in this file =====
+   Phone redesign: Spotify-grade ergonomics, vinyl identity.
+   Everything here is (a) the unscoped .m-only default hide, or
+   (b) scoped to @media (max-width:600px) / (hover:none)+(pointer:coarse).
+   The legacy 600px block at ~5028 loses equal-specificity ties to the
+   desktop rules that come after it — this block wins those ties by
+   being last in the file. Never add rules below it.
+   ============================================================ */
+
+/* Mobile-only DOM is hidden everywhere by default; the 600px section
+   re-enables it. Desktop safety never depends on media-query support. */
+.m-only { display: none; }
+
+@media (max-width: 600px) {
+    :root {
+        --m-walnut-hi: #3a2d22;
+        --m-walnut: #2a1f16;
+        --m-walnut-deep: #241a12;
+        --m-ink: #1a1510;
+        --m-cream: #f2e8d8;
+        --m-cream-dim: rgba(242, 232, 216, 0.55);
+        --m-gold: #d4a574;
+        --m-gold-hi: #e8c9a0;
+        --m-brass-border: rgba(212, 165, 116, 0.35);
+        --m-gold-wash: rgba(212, 165, 116, 0.10);
+        --m-danger: #e85d75;
+        --m-r-row: 12px;
+        --m-r-dock: 14px;
+        --m-r-pill: 24px;
+        --m-safe-b: env(safe-area-inset-bottom, 0px);
+        --m-dock-h: 64px;
+    }
+
+    /* ---- Every modal on the .add-song-modal shell becomes a scrollable
+       bottom sheet: full width, capped height, momentum scroll. Settings'
+       lower half (account, log out) is reachable on phones for the
+       first time. ---- */
+    .add-song-modal.active {
+        align-items: flex-end;
+        justify-content: stretch;
+    }
+
+    .add-song-modal-panel {
+        width: 100%;
+        max-width: 100%;
+        max-height: calc(100vh - 24px);
+        max-height: calc(100dvh - 24px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 20px 20px 0 0;
+        margin: 0;
+        padding: 22px 18px calc(20px + var(--m-safe-b));
+        animation: mSheetUp 240ms cubic-bezier(0.32, 0.72, 0.28, 1);
+    }
+
+    /* Sheet grab handle — reads as a stylus dash */
+    .add-song-modal-panel::before {
+        content: '';
+        display: block;
+        width: 36px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(212, 165, 116, 0.4);
+        margin: -8px auto 12px;
+    }
+
+    /* 16px floor on every sheet input kills iOS focus auto-zoom */
+    .add-song-modal-panel input,
+    .add-song-modal-panel select,
+    .add-song-modal-panel textarea {
+        font-size: 16px;
+    }
+
+    .add-song-modal-close {
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        top: 8px;
+        right: 8px;
+    }
+
+    .settings-toggle-row {
+        min-height: 44px;
+        align-items: center;
+    }
+
+    /* ---- Seek bar: an invisible 36px hit slab around the 4px groove.
+       Events still land on .sleeve-progress-bar itself, so the existing
+       click-to-seek math is untouched. ---- */
+    .sleeve-progress-bar {
+        touch-action: pan-y;
+    }
+
+    .sleeve-progress-bar::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -16px;
+        bottom: -16px;
+    }
+
+    .lyrics-ctrl-btn {
+        min-width: 44px;
+        min-height: 36px;
+    }
+
+    /* ---- Touch-target floor for the small chrome ---- */
+    .back-to-crate {
+        min-height: 44px;
+    }
+
+    .settings-gear-btn,
+    .scan-songs-btn,
+    .offline-toggle-btn,
+    .sidebar-header-row .add-song-btn {
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    .new-playlist-btn {
+        min-height: 40px;
+    }
+
+    .playlist-edit-btn {
+        width: 40px;
+        height: 40px;
+    }
+
+    /* ---- Battery trims: GPU-hungry mood layers off on phones.
+       The blurred cover backdrop stays — that IS the mood. ---- */
+    .aurora-orbs,
+    .player-eq-visualizer,
+    .vinyl-groove-bg {
+        display: none;
+    }
+
+    /* ---- Auth pages: centered flex + overflow:hidden traps the submit
+       button under the software keyboard — scroll from the top instead. ---- */
+    body.auth-page {
+        overflow-y: auto;
+        align-items: flex-start;
+        padding: 24px 0 40px;
+    }
+
+    body.auth-page input {
+        font-size: 16px;
+    }
+}
+
+@keyframes mSheetUp {
+    from {
+        transform: translateY(40px);
+        opacity: 0.6;
+    }
+}
+
+/* Touch devices of any width (phones AND touch tablets): hover-gated
+   affordances must be visible/usable without a cursor. */
+@media (hover: none) and (pointer: coarse) {
+    /* The seek knob is opacity:0 until :hover on desktop — always show it */
+    .sleeve-progress-knob {
+        opacity: 1;
+        width: 14px;
+        height: 14px;
+    }
+
+    /* Lyrics lines are blur(2.5px) until :hover — unreadable on touch.
+       (.sleeve-lyrics .lyrics-line outranks the .active ~ sibling re-blur
+       by later source at equal specificity.) */
+    .sleeve-lyrics .lyrics-line {
+        filter: none;
+        color: rgba(212, 165, 116, 0.5);
+    }
+
+    .sleeve-lyrics .lyrics-line.active {
+        color: #f2e8d8;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .add-song-modal-panel {
+        animation: none;
+    }
+}
