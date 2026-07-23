@@ -2945,8 +2945,18 @@ function createMp3Player() {
 // Switch active player based on song source
 // A song plays from its local/uploaded file when that's its only source, or
 // when it has a linked offline copy and the network is gone.
+//
+// PREFER_LOCAL_ON_PHONE: phones suspend the YouTube iframe when the screen
+// locks, so dual-source songs would keep playing from their local file if
+// this were on. Ships OFF until tested on real devices — flipping it changes
+// engine choice, pitch availability, and view counts for dual-source songs.
+const PREFER_LOCAL_ON_PHONE = false;
+
 function songUsesMp3(song) {
-    return !!(song && song.mp3_url && (!song.youtube_id || !navigator.onLine));
+    if (!song || !song.mp3_url) return false;
+    if (!song.youtube_id || !navigator.onLine) return true;
+    return PREFER_LOCAL_ON_PHONE
+        && window.matchMedia('(max-width: 600px) and (pointer: coarse)').matches;
 }
 
 function activatePlayerForSong(song) {
