@@ -6128,6 +6128,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ============================================================
+    // Full-screen lyrics (phase 7)
+    // ============================================================
+    function openLyrics() {
+        if (!onPhone() || document.body.classList.contains('m-lyrics-open')) return;
+        document.body.classList.add('m-lyrics-open');
+        openLayer('lyrics', () => document.body.classList.remove('m-lyrics-open'));
+    }
+
+    function toggleLyricsExpand() {
+        if (topLayerIs('lyrics')) history.back();
+        else openLyrics();
+    }
+
+    const lyricsExpand = document.getElementById('mLyricsExpand');
+    if (lyricsExpand) lyricsExpand.addEventListener('click', toggleLyricsExpand);
+
+    // Tapping the collapsed preview card expands too — but taps on lyric
+    // lines keep their seek behavior, and the control row keeps its own.
+    const lyricsZone = document.querySelector('.sleeve-lyrics-zone');
+    if (lyricsZone) {
+        lyricsZone.addEventListener('click', (e) => {
+            if (!onPhone() || document.body.classList.contains('m-lyrics-open')) return;
+            if (e.target.closest && e.target.closest('.lyrics-line, .lyrics-controls')) return;
+            openLyrics();
+        });
+    }
+
+    // The NP chevron closes the topmost NP-owned layer: lyrics first
+    if (npCollapse) {
+        npCollapse.addEventListener('click', () => {
+            if (topLayerIs('lyrics')) history.back();
+        }, true);
+    }
+
     // ---- Transport
     if (dockPlay) dockPlay.addEventListener('click', () => toggleMusic());
     if (dockNext) dockNext.addEventListener('click', () => nextSong());

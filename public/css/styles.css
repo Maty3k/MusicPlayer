@@ -8370,6 +8370,60 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
         accent-color: var(--m-gold);
         background: transparent;
     }
+
+    /* ============================================================
+       Lyrics: preview card on the NP sheet, tap to go full screen.
+       #sleeveLyrics never moves in the DOM — the highlighter,
+       tap-to-seek, auto-scroll, and offset persistence stay untouched.
+       ============================================================ */
+    .sleeve-lyrics-zone {
+        max-height: 24vh;
+        max-height: 24dvh;
+        overflow: hidden;
+        position: relative;
+        border-radius: 14px;
+        background: rgba(0, 0, 0, 0.18);
+    }
+
+    #mLyricsExpand {
+        min-width: 44px;
+        min-height: 36px;
+        display: flex;
+        transition: transform 200ms ease-out;
+    }
+
+    body.m-lyrics-open #mLyricsExpand {
+        transform: rotate(180deg);
+    }
+
+    /* Expanded: the deck steps aside, the lyric card takes all the
+       height, the transport stays under the thumb. The sheet never
+       scrolls as a page — .sleeve-lyrics is the inner scroller. */
+    body.m-lyrics-open .record-player {
+        display: none;
+    }
+
+    body.m-lyrics-open .turntable-area {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+    }
+
+    body.m-lyrics-open .vinyl-sleeve {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    body.m-lyrics-open .sleeve-lyrics-zone {
+        max-height: none;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    body.m-lyrics-open .sleeve-lyrics .lyrics-line {
+        font-size: 1.15rem;
+        line-height: 1.9;
+    }
 }
 
 @keyframes mSheetUp {

@@ -599,6 +599,7 @@
                         <button type="button" class="lyrics-ctrl-sync" id="lyricsOffsetValue" title="Sync offset for this song — click to reset">0s</button>
                         <button type="button" class="lyrics-ctrl-btn" id="lyricsOffsetPlus" title="Lyrics show sooner (fix lyrics that lag behind)">+</button>
                         <button type="button" class="lyrics-ctrl-btn lyrics-ctrl-toggle" id="lyricsToggleBtn" title="Lyrics on/off">&#9834;</button>
+                        <button type="button" class="lyrics-ctrl-btn m-only" id="mLyricsExpand" aria-label="Expand lyrics">&#9650;</button>
                     </div>
                 </div>
                 {{-- Phone-only now-playing line (desktop shows this in the control bay) --}}
