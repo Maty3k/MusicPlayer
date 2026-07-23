@@ -671,6 +671,32 @@
         </div><!-- End music-player-view -->
     </div>
 
+    <!-- Mobile dock: persistent bottom transport (phones only; .m-only is
+         display:none outside the mobile media query). The .song-title /
+         .song-artist spans ride setNowPlayingText's querySelectorAll fan-out,
+         so every track change updates the dock with no extra wiring. -->
+    <div id="mDock" class="m-only" role="toolbar" aria-label="Playback">
+        <div id="mDockProgress"></div>
+        <button type="button" id="mDockInfo">
+            <span id="mDockArtWrap">
+                @if (!empty($current['cover']))
+                <img id="mDockArt" src="{{ $current['cover'] }}" alt="">
+                @else
+                <img id="mDockArt" src="" alt="" style="display:none;">
+                @endif
+                <span class="m-dock-hole"></span>
+            </span>
+            <span class="m-dock-meta">
+                <span class="song-title">{{ $current['title'] ?? 'Nothing playing' }}</span>
+                <span class="song-artist">{{ $current['artist'] ?? '' }}</span>
+            </span>
+        </button>
+        <button type="button" id="mDockPlay" aria-label="Play or pause">
+            <span class="m-ic-play">&#9654;</span><span class="m-ic-pause">&#9208;</span>
+        </button>
+        <button type="button" id="mDockNext" aria-label="Next">&#9197;</button>
+    </div>
+
     <!-- Add Song Modal -->
     <div class="add-song-modal" id="addSongModal">
         <div class="add-song-modal-backdrop" onclick="hideAddSongModal()"></div>

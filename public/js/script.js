@@ -1052,6 +1052,10 @@ function updateSleeveProgress() {
     if (elapsedEl) elapsedEl.textContent = formatTime(current);
     if (totalEl) totalEl.textContent = formatTime(duration);
 
+    // Mobile dock groove (display:none on desktop; the write is harmless)
+    const dockProgress = document.getElementById('mDockProgress');
+    if (dockProgress) dockProgress.style.transform = 'scaleX(' + (pct / 100) + ')';
+
     updateActiveLyric();
 }
 
@@ -5545,3 +5549,149 @@ document.addEventListener('DOMContentLoaded', () => {
     applyOnlineState();
     updateOfflineButton();
 });
+
+// ============================================================
+// MOBILE V2 — phone-browser shell (dock, sheets, gestures)
+// ============================================================
+// Lives at the END of script.js on purpose: top-level bindings like
+// loopMode/shuffleMode/songsData are file-scoped to classic scripts'
+// global bindings, and same-file access is what makes direct reads
+// reliable. Everything here is inert unless the viewport is a phone
+// and we're NOT inside the ReactNative WebView / ?app mode.
+(function mobileV2() {
+    const isAppShell = !!window.ReactNativeWebView
+        || new URLSearchParams(window.location.search).has('app');
+    if (isAppShell) return;
+
+    const mq = window.matchMedia('(max-width: 600px)');
+    const onPhone = () => mq.matches;
+
+    const dock = document.getElementById('mDock');
+    if (!dock) return;
+    const dockInfo = document.getElementById('mDockInfo');
+    const dockArt = document.getElementById('mDockArt');
+    const dockPlay = document.getElementById('mDockPlay');
+    const dockNext = document.getElementById('mDockNext');
+
+    // ---- Play state: #vinyl.playing is the single source of truth toggled
+    // by onPlayerStateChange for all three engines — mirror it on <body>.
+    const vinyl = document.getElementById('vinyl');
+    if (vinyl) {
+        const syncPlaying = () => {
+            document.body.classList.toggle('m-playing', vinyl.classList.contains('playing'));
+        };
+        new MutationObserver(syncPlaying)
+            .observe(vinyl, { attributes: true, attributeFilter: ['class'] });
+        syncPlaying();
+    }
+
+    // ---- Dock art mirrors the sleeve art (updated on every track change)
+    const sleeveArt = document.getElementById('sleeveArtImg');
+    if (sleeveArt && dockArt) {
+        const syncArt = () => {
+            dockArt.src = sleeveArt.src || '';
+            dockArt.style.display = sleeveArt.style.display === 'none' || !sleeveArt.src
+                ? 'none' : '';
+        };
+        new MutationObserver(syncArt)
+            .observe(sleeveArt, { attributes: true, attributeFilter: ['src', 'style'] });
+    }
+
+    // ---- Dock visibility: hidden when the playlist is empty or while the
+    // software keyboard is up (an input has focus).
+    let keyboardOpen = false;
+    function updateDockVisibility() {
+        const empty = typeof songsData === 'undefined' || songsData.length === 0;
+        dock.classList.toggle('m-dock-hidden', empty || keyboardOpen);
+    }
+    document.addEventListener('focusin', (e) => {
+        if (e.target.matches && e.target.matches('input, select, textarea')) {
+            keyboardOpen = true;
+            updateDockVisibility();
+        }
+    });
+    document.addEventListener('focusout', () => {
+        setTimeout(() => {
+            const el = document.activeElement;
+            keyboardOpen = !!(el && el.matches && el.matches('input, select, textarea'));
+            updateDockVisibility();
+        }, 150);
+    });
+    // Playlist switches / song add+delete rebuild the list — piggyback on it.
+    const origRebuildSongList = window.rebuildSongList;
+    if (typeof origRebuildSongList === 'function') {
+        window.rebuildSongList = function () {
+            const out = origRebuildSongList.apply(this, arguments);
+            updateDockVisibility();
+            return out;
+        };
+    }
+    updateDockVisibility();
+
+    // ---- Transport
+    if (dockPlay) dockPlay.addEventListener('click', () => toggleMusic());
+    if (dockNext) dockNext.addEventListener('click', () => nextSong());
+
+    // ---- Info area: tap opens the player; horizontal swipe = prev/next.
+    if (dockInfo) {
+        let startX = 0, startY = 0, startT = 0, dx = 0, tracking = false, horizontal = false;
+
+        dockInfo.addEventListener('pointerdown', (e) => {
+            if (!onPhone()) return;
+            tracking = true;
+            horizontal = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            startT = performance.now();
+            dx = 0;
+        });
+
+        dockInfo.addEventListener('pointermove', (e) => {
+            if (!tracking) return;
+            dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            if (!horizontal && Math.abs(dx) > 10 && Math.abs(dx) > 2 * Math.abs(dy)) {
+                horizontal = true;
+                dockInfo.setPointerCapture(e.pointerId);
+            }
+            if (horizontal) {
+                const drag = Math.max(-72, Math.min(72, dx * 0.6));
+                dock.style.transform = 'translateX(' + drag + 'px)';
+            }
+        });
+
+        const settle = (e) => {
+            if (!tracking) return;
+            tracking = false;
+            const dt = Math.max(1, performance.now() - startT);
+            dock.style.transform = '';
+            if (horizontal) {
+                const velocity = Math.abs(dx) / dt;
+                if (Math.abs(dx) >= 48 || velocity > 0.4) {
+                    if (dx < 0) nextSong(); else prevSong();
+                }
+            } else if (Math.abs(dx) < 10 && dt < 300) {
+                // Tap: from the crate, open the player on the active playlist.
+                // (A later phase rewires this to the Now Playing sheet.)
+                const crate = document.getElementById('vinylCrateView');
+                if (crate && !crate.classList.contains('hidden')) {
+                    selectPlaylistFromCrate(activePlaylistId);
+                }
+            }
+            dx = 0;
+            horizontal = false;
+        };
+        dockInfo.addEventListener('pointerup', settle);
+        dockInfo.addEventListener('pointercancel', settle);
+    }
+
+    // ---- Leaving phone widths: strip mobile-only state so desktop is clean.
+    mq.addEventListener('change', (e) => {
+        if (!e.matches) {
+            dock.style.transform = '';
+            dock.classList.remove('m-dock-hidden');
+            document.body.classList.remove('m-np-open', 'm-lyrics-open');
+        }
+        updateDockVisibility();
+    });
+})();

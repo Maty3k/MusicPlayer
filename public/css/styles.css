@@ -7667,6 +7667,170 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
     body.auth-page input {
         font-size: 16px;
     }
+
+    /* ============================================================
+       The dock: persistent bottom transport on every screen
+       ============================================================ */
+    #mDock {
+        display: flex;
+        position: fixed;
+        left: 8px;
+        right: 8px;
+        bottom: calc(8px + var(--m-safe-b));
+        height: var(--m-dock-h);
+        z-index: 9000;
+        align-items: center;
+        gap: 4px;
+        padding: 0 6px 0 10px;
+        border-radius: var(--m-r-dock);
+        background: linear-gradient(180deg, var(--m-walnut-hi), var(--m-walnut));
+        border: 1px solid var(--m-brass-border);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+        transition: transform 200ms ease-out;
+    }
+
+    #mDock.m-dock-hidden {
+        transform: translateY(calc(120% + var(--m-safe-b)));
+    }
+
+    body.m-np-open #mDock {
+        display: none;
+    }
+
+    /* Thin gold groove along the dock's top edge = playback progress */
+    #mDockProgress {
+        position: absolute;
+        top: 0;
+        left: 12px;
+        right: 12px;
+        height: 2px;
+        border-radius: 1px;
+        background: linear-gradient(90deg, var(--m-gold), var(--m-gold-hi));
+        transform: scaleX(0);
+        transform-origin: left;
+    }
+
+    #mDockInfo {
+        display: flex;
+        flex: 1;
+        min-width: 0;
+        align-items: center;
+        gap: 10px;
+        height: 100%;
+        background: none;
+        border: none;
+        padding: 0;
+        text-align: left;
+        color: inherit;
+        touch-action: pan-y;
+        cursor: pointer;
+    }
+
+    /* The dock art is a little record: dark ring, brass rim, center hole */
+    #mDockArtWrap {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        flex: none;
+        border-radius: 50%;
+        overflow: hidden;
+        background: radial-gradient(circle, #241a12 0%, #12100d 100%);
+        border: 2px solid var(--m-brass-border);
+        animation: mSpin 3.2s linear infinite;
+        animation-play-state: paused;
+    }
+
+    body.m-playing #mDockArtWrap {
+        animation-play-state: running;
+    }
+
+    #mDockArt {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .m-dock-hole {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 6px;
+        height: 6px;
+        margin: -3px 0 0 -3px;
+        border-radius: 50%;
+        background: var(--m-ink);
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+    }
+
+    .m-dock-meta {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        gap: 1px;
+    }
+
+    #mDock .song-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--m-cream);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    #mDock .song-artist {
+        font-size: 0.75rem;
+        color: var(--m-gold);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    #mDockPlay,
+    #mDockNext {
+        width: 48px;
+        height: 48px;
+        flex: none;
+        background: none;
+        border: none;
+        color: var(--m-gold-hi);
+        font-size: 1.3rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border-radius: 50%;
+    }
+
+    #mDockPlay:active,
+    #mDockNext:active {
+        background: var(--m-gold-wash);
+    }
+
+    #mDockPlay .m-ic-pause {
+        display: none;
+    }
+
+    body.m-playing #mDockPlay .m-ic-pause {
+        display: inline;
+    }
+
+    body.m-playing #mDockPlay .m-ic-play {
+        display: none;
+    }
+
+    /* Content that can end up under the dock gets clearance */
+    .room-center {
+        padding-bottom: calc(var(--m-dock-h) + 12px + var(--m-safe-b));
+    }
+
+    .music-main {
+        padding-bottom: calc(var(--m-dock-h) + 24px + var(--m-safe-b));
+    }
+
+    .import-toast {
+        bottom: calc(var(--m-dock-h) + 16px + var(--m-safe-b));
+    }
 }
 
 @keyframes mSheetUp {
@@ -7694,6 +7858,12 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
     animation: mSwap 250ms ease-out;
 }
 
+@keyframes mSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* Touch devices of any width (phones AND touch tablets): hover-gated
    affordances must be visible/usable without a cursor. */
 @media (hover: none) and (pointer: coarse) {
@@ -7719,7 +7889,8 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
 
 @media (prefers-reduced-motion: reduce) {
     .add-song-modal-panel,
-    #vinyl.m-swap {
+    #vinyl.m-swap,
+    #mDockArtWrap {
         animation: none;
     }
 }
