@@ -536,6 +536,17 @@
 
         <!-- Main record player area -->
         <div class="music-main">
+            {{-- Phone-only Now Playing header: grab bar, collapse chevron,
+                 "PLAYING FROM" context, song-options kebab --}}
+            <div id="mNpHeader" class="m-only">
+                <button type="button" id="mNpCollapse" aria-label="Close now playing">&#x2304;</button>
+                <div class="m-np-from">
+                    <span class="m-np-from-label">Playing from</span>
+                    <span id="mNpFromName"></span>
+                </div>
+                <button type="button" id="mNpKebab" aria-label="Song options">&#8943;</button>
+                <div class="m-grab"></div>
+            </div>
             <div class="music-main-backdrop" id="musicBackdrop">
                 @if (!empty($current['cover']))
                 <img src="{{ $current['cover'] }}" alt="" id="backdropImg">
@@ -609,6 +620,30 @@
                     <span class="sleeve-side">SIDE A</span>
                     <span class="sleeve-track-num" id="sleeveTrackNum">TRACK {{ str_pad($currentIndex + 1, 2, '0', STR_PAD_LEFT) }}</span>
                 </div>
+            </div>
+
+            {{-- Phone-only flat transport + volume for the Now Playing sheet
+                 (the desktop control bay is mouse-sized and hidden on phones) --}}
+            <div id="mTransport" class="m-only">
+                <button type="button" id="mShuffleBtn" aria-pressed="false" aria-label="Shuffle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                        <path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>
+                    </svg>
+                </button>
+                <button type="button" id="mPrevBtn" aria-label="Previous">&#9198;</button>
+                <button type="button" id="mPlayBtn" aria-label="Play or pause">
+                    <span class="m-ic-play">&#9654;</span><span class="m-ic-pause">&#9208;</span>
+                </button>
+                <button type="button" id="mNextBtn" aria-label="Next">&#9197;</button>
+                <button type="button" id="mLoopBtn" data-mode="playlist" aria-pressed="true" aria-label="Loop mode">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+                        <path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>
+                    </svg>
+                    <span class="m-loop-one">1</span>
+                </button>
+            </div>
+            <div id="mVolume" class="m-only">
+                <input type="range" id="mVolumeRange" min="0" max="100" value="100" aria-label="Volume">
             </div>
 
             <div class="record-player">

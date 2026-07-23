@@ -5642,7 +5642,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (playAll) {
         playAll.addEventListener('click', () => {
             if (songsData.length === 0) return;
+            const startingPlayback = !document.body.classList.contains('m-playing');
             toggleMusic();
+            // Starting playback is the flagship moment — reveal Now Playing
+            if (startingPlayback && window.mOpenNowPlaying) window.mOpenNowPlaying();
         });
     }
 
@@ -5748,6 +5751,261 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (filterInput) filterInput.addEventListener('input', applyRowFilter);
 
+    // ============================================================
+    // Layer manager: every mobile surface (playlist screen, NP sheet,
+    // modals, song sheet) is a history entry, so hardware back / edge
+    // swipe closes the topmost surface instead of leaving the app.
+    // Programmatic closes route through history.back() — popstate is
+    // the single close path; closeFns are idempotent as insurance.
+    // ============================================================
+    const layerStack = [];
+
+    function openLayer(name, closeFn) {
+        layerStack.push({ name, closeFn });
+        try { history.pushState({ mLayer: name }, ''); } catch (e) {}
+    }
+
+    window.addEventListener('popstate', () => {
+        const layer = layerStack.pop();
+        if (layer) {
+            try { layer.closeFn(); } catch (e) {}
+        }
+    });
+
+    function topLayerIs(name) {
+        return layerStack.length > 0 && layerStack[layerStack.length - 1].name === name;
+    }
+
+    function closeAllLayers() {
+        while (layerStack.length) {
+            const layer = layerStack.pop();
+            try { layer.closeFn(); } catch (e) {}
+        }
+    }
+
+    // Playlist screen is a layer over the crate
+    const origSelectPlaylist = window.selectPlaylistFromCrate;
+    window.selectPlaylistFromCrate = async function () {
+        const crate = document.getElementById('vinylCrateView');
+        const wasCrate = crate && !crate.classList.contains('hidden');
+        const out = await origSelectPlaylist.apply(this, arguments);
+        if (onPhone() && wasCrate && !topLayerIs('playlist')) {
+            openLayer('playlist', () => {
+                if (document.getElementById('musicPlayerView').classList.contains('active')) {
+                    origShowPicker();
+                }
+            });
+        }
+        return out;
+    };
+
+    const origShowPicker = window.showPlaylistPicker;
+    window.showPlaylistPicker = function () {
+        if (onPhone() && topLayerIs('playlist')) {
+            history.back();
+            return;
+        }
+        return origShowPicker.apply(this, arguments);
+    };
+
+    // Modals: wrap every show/hide global pair. Create and edit share the
+    // playlistEditModal element (and its hide), so they share a layer key.
+    const modalOpen = {};
+    const modalOrigHide = {};
+
+    function wrapModalPair(showName, hideName, key) {
+        const origShow = window[showName];
+        if (typeof origShow !== 'function') return;
+        window[showName] = function () {
+            const out = origShow.apply(this, arguments);
+            if (onPhone() && !modalOpen[key]) {
+                modalOpen[key] = true;
+                openLayer('modal:' + key, () => {
+                    if (modalOpen[key]) {
+                        modalOpen[key] = false;
+                        modalOrigHide[key]();
+                    }
+                });
+            }
+            return out;
+        };
+        if (!modalOrigHide[key]) {
+            const origHide = window[hideName];
+            if (typeof origHide !== 'function') return;
+            modalOrigHide[key] = origHide;
+            window[hideName] = function () {
+                if (onPhone() && modalOpen[key] && topLayerIs('modal:' + key)) {
+                    history.back();
+                    return;
+                }
+                modalOpen[key] = false;
+                return origHide.apply(this, arguments);
+            };
+        }
+    }
+
+    wrapModalPair('showSettingsModal', 'hideSettingsModal', 'settings');
+    wrapModalPair('showAddSongModal', 'hideAddSongModal', 'addSong');
+    wrapModalPair('showScanModal', 'hideScanModal', 'scan');
+    wrapModalPair('showPlaylistEditModal', 'hidePlaylistEditModal', 'playlistEdit');
+    wrapModalPair('showPlaylistCreateModal', 'hidePlaylistEditModal', 'playlistEdit');
+
+    // ============================================================
+    // Now Playing sheet
+    // ============================================================
+    function openNp() {
+        if (!onPhone() || document.body.classList.contains('m-np-open')) return;
+        const fromName = document.getElementById('mNpFromName');
+        const title = document.getElementById('playlistTitle');
+        if (fromName && title) fromName.textContent = title.textContent;
+        document.body.classList.add('m-np-open');
+        openLayer('np', () => document.body.classList.remove('m-np-open'));
+    }
+
+    function closeNp() {
+        if (topLayerIs('np')) history.back();
+    }
+
+    const npCollapse = document.getElementById('mNpCollapse');
+    if (npCollapse) npCollapse.addEventListener('click', closeNp);
+
+    // Drag down on the header to dismiss
+    const npHeader = document.getElementById('mNpHeader');
+    const musicMain = document.querySelector('.music-main');
+    if (npHeader && musicMain) {
+        let dragY = 0, dragStart = 0, dragT = 0, dragging = false;
+
+        npHeader.addEventListener('pointerdown', (e) => {
+            if (!onPhone() || !document.body.classList.contains('m-np-open')) return;
+            if (e.target.closest && e.target.closest('#mNpCollapse, #mNpKebab')) return;
+            dragging = true;
+            dragStart = e.clientY;
+            dragT = performance.now();
+            dragY = 0;
+            npHeader.setPointerCapture(e.pointerId);
+            musicMain.style.transition = 'none';
+        });
+
+        npHeader.addEventListener('pointermove', (e) => {
+            if (!dragging) return;
+            dragY = Math.max(0, e.clientY - dragStart);
+            musicMain.style.transform = 'translateY(' + dragY + 'px)';
+        });
+
+        const npSettle = () => {
+            if (!dragging) return;
+            dragging = false;
+            musicMain.style.transition = '';
+            musicMain.style.transform = '';
+            const dt = Math.max(1, performance.now() - dragT);
+            const velocity = dragY / dt;
+            if (dragY > window.innerHeight / 3 || velocity > 0.5) closeNp();
+        };
+        npHeader.addEventListener('pointerup', npSettle);
+        npHeader.addEventListener('pointercancel', npSettle);
+    }
+
+    // ---- NP transport ----
+    const bind = (id, fn) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', fn);
+    };
+    bind('mPlayBtn', () => toggleMusic());
+    bind('mPrevBtn', () => prevSong());
+    bind('mNextBtn', () => nextSong());
+    bind('mShuffleBtn', () => { toggleShuffle(); mSyncModes(); });
+    bind('mLoopBtn', () => { toggleLoopMode(); mSyncModes(); });
+
+    // ---- Touch scrubbing on the seek bar (all three engines via the
+    // facade). The 100ms tick yields via the __mScrubbing guard; the
+    // legacy click handler is suppressed right after a scrub. ----
+    const progressBar = document.getElementById('sleeveProgressBar');
+    if (progressBar) {
+        let scrubbing = false;
+        let lastScrubEnd = 0;
+
+        const scrubRatio = (e) => {
+            const rect = progressBar.getBoundingClientRect();
+            return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        };
+
+        const previewScrub = (ratio) => {
+            const fill = document.getElementById('sleeveProgressFill');
+            const knob = document.getElementById('sleeveProgressKnob');
+            const elapsed = document.getElementById('sleeveTimeElapsed');
+            if (fill) fill.style.width = (ratio * 100) + '%';
+            if (knob) knob.style.left = (ratio * 100) + '%';
+            if (elapsed && ytPlayer && ytPlayer.getDuration) {
+                try { elapsed.textContent = formatTime(ratio * ytPlayer.getDuration()); } catch (e) {}
+            }
+        };
+
+        progressBar.addEventListener('pointerdown', (e) => {
+            if (!onPhone()) return;
+            scrubbing = true;
+            window.__mScrubbing = true;
+            document.body.classList.add('m-scrubbing');
+            progressBar.setPointerCapture(e.pointerId);
+            previewScrub(scrubRatio(e));
+        });
+
+        progressBar.addEventListener('pointermove', (e) => {
+            if (!scrubbing) return;
+            previewScrub(scrubRatio(e));
+        });
+
+        const endScrub = (e) => {
+            if (!scrubbing) return;
+            scrubbing = false;
+            document.body.classList.remove('m-scrubbing');
+            const ratio = scrubRatio(e);
+            try {
+                if (ytPlayer && ytPlayer.seekTo && ytPlayer.getDuration) {
+                    ytPlayer.seekTo(ratio * ytPlayer.getDuration(), true);
+                }
+            } catch (err) {}
+            window.__mScrubbing = false;
+            lastScrubEnd = performance.now();
+        };
+        progressBar.addEventListener('pointerup', endScrub);
+        progressBar.addEventListener('pointercancel', (e) => {
+            scrubbing = false;
+            document.body.classList.remove('m-scrubbing');
+            window.__mScrubbing = false;
+        });
+
+        // The legacy click-to-seek fires right after pointerup — swallow it
+        // once so the scrub position isn't re-seeked from the click point.
+        progressBar.addEventListener('click', (e) => {
+            if (performance.now() - lastScrubEnd < 350) {
+                e.stopImmediatePropagation();
+                e.preventDefault();
+            }
+        }, true);
+    }
+
+    // ---- Volume slider (hidden on iOS: programmatic volume is hardware-
+    // locked there; never render an inert control) ----
+    const mVolume = document.getElementById('mVolume');
+    const mVolumeRange = document.getElementById('mVolumeRange');
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (mVolume && isIOS) {
+        mVolume.style.display = 'none';
+    } else if (mVolumeRange) {
+        mVolumeRange.addEventListener('input', () => setVolume(parseInt(mVolumeRange.value, 10)));
+    }
+
+    // ---- Dock tap opens the NP sheet (entering the playlist screen
+    // first when coming from the crate, so back unwinds naturally) ----
+    window.mOpenNowPlaying = async function () {
+        const crate = document.getElementById('vinylCrateView');
+        if (crate && !crate.classList.contains('hidden')) {
+            await window.selectPlaylistFromCrate(activePlaylistId);
+        }
+        openNp();
+    };
+
     // ---- Transport
     if (dockPlay) dockPlay.addEventListener('click', () => toggleMusic());
     if (dockNext) dockNext.addEventListener('click', () => nextSong());
@@ -5791,12 +6049,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (dx < 0) nextSong(); else prevSong();
                 }
             } else if (Math.abs(dx) < 10 && dt < 300) {
-                // Tap: from the crate, open the player on the active playlist.
-                // (A later phase rewires this to the Now Playing sheet.)
-                const crate = document.getElementById('vinylCrateView');
-                if (crate && !crate.classList.contains('hidden')) {
-                    selectPlaylistFromCrate(activePlaylistId);
-                }
+                // Tap: open the Now Playing sheet (via the playlist screen
+                // when coming from the crate, so back unwinds naturally)
+                if (window.mOpenNowPlaying) window.mOpenNowPlaying();
             }
             dx = 0;
             horizontal = false;
@@ -5808,9 +6063,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---- Leaving phone widths: strip mobile-only state so desktop is clean.
     mq.addEventListener('change', (e) => {
         if (!e.matches) {
+            closeAllLayers();
             dock.style.transform = '';
             dock.classList.remove('m-dock-hidden');
-            document.body.classList.remove('m-np-open', 'm-lyrics-open');
+            document.body.classList.remove('m-np-open', 'm-lyrics-open', 'm-scrubbing');
+            window.__mScrubbing = false;
             if (filterInput) {
                 filterInput.value = '';
                 applyRowFilter();

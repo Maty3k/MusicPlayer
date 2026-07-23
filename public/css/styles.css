@@ -7835,11 +7835,15 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
     /* ============================================================
        Playlist screen: vertical tracklist replaces the 80px tile strip
        ============================================================ */
+    /* With .music-main promoted to the NP sheet, the sidebar IS the
+       playlist screen — it takes all the height the deck used to eat. */
     .music-sidebar {
         display: flex;
         flex-direction: column;
-        max-height: 44vh;
-        max-height: 44dvh;
+        flex: 1 1 auto;
+        max-height: none;
+        height: auto;
+        min-height: 0;
         padding-top: 4px;
     }
 
@@ -8039,6 +8043,332 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
         content: '\22EF';
         font-size: 1.4rem;
         line-height: 1;
+    }
+
+    /* ============================================================
+       Now Playing sheet: .music-main promoted to a full-screen layer.
+       The YouTube iframe lives inside it and is never display:none'd,
+       so playback survives open/close.
+       ============================================================ */
+
+    /* Release the containing block: the view's translateY made it the
+       containing block for fixed descendants. Both states covered; the
+       .active opacity fade still runs. */
+    .music-player-view,
+    .music-player-view.active {
+        transform: none;
+    }
+
+    .music-main {
+        position: fixed;
+        inset: 0;
+        z-index: 250;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        background: linear-gradient(180deg, var(--m-walnut-deep), var(--m-ink));
+        transform: translateY(103%);
+        transition: transform 300ms cubic-bezier(0.32, 0.72, 0.28, 1);
+        will-change: transform;
+    }
+
+    body.m-np-open .music-main {
+        transform: translateY(0);
+    }
+
+    /* NP header */
+    #mNpHeader {
+        display: grid;
+        grid-template-columns: 44px 1fr 44px;
+        align-items: center;
+        width: 100%;
+        min-height: 56px;
+        padding: calc(6px + env(safe-area-inset-top)) 10px 2px;
+        position: relative;
+        z-index: 3;
+        touch-action: none;
+    }
+
+    #mNpHeader .m-grab {
+        position: absolute;
+        top: calc(4px + env(safe-area-inset-top));
+        left: 50%;
+        width: 36px;
+        height: 4px;
+        margin-left: -18px;
+        border-radius: 2px;
+        background: rgba(212, 165, 116, 0.4);
+    }
+
+    #mNpCollapse,
+    #mNpKebab {
+        width: 44px;
+        height: 44px;
+        background: none;
+        border: none;
+        color: var(--m-gold);
+        font-size: 1.4rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .m-np-from {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .m-np-from-label {
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--m-gold);
+    }
+
+    #mNpFromName {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--m-cream);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 240px;
+    }
+
+    /* Deck as hero: real turntable, control bay hidden, platter centered */
+    .turntable-area {
+        gap: 14px;
+        padding: 4px 16px 8px;
+        position: relative;
+        z-index: 2;
+        width: 100%;
+    }
+
+    .record-player {
+        order: 1;
+        width: min(92vw, 340px);
+        height: 290px;
+    }
+
+    .record-player-right {
+        display: none;
+    }
+
+    .record-player-platter {
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+    }
+
+    .tonearm {
+        right: 6px;
+        top: 34px;
+    }
+
+    .tonearm-base {
+        right: 16px;
+        top: 16px;
+    }
+
+    /* Sleeve becomes a flat info card: title/artist, seek, catalog line,
+       lyrics preview. The art duplicates the record label — hide it. */
+    .vinyl-sleeve {
+        order: 2;
+        display: flex;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        width: min(92vw, 360px);
+        max-width: none;
+        background: transparent;
+        border: none;
+        border-bottom: none;
+        box-shadow: none;
+        margin-bottom: 0;
+    }
+
+    .vinyl-sleeve::before {
+        display: none;
+    }
+
+    .sleeve-art {
+        display: none;
+    }
+
+    .sleeve-mobile-nowplaying {
+        order: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        border-top: none;
+        padding: 4px 0 0;
+        text-align: center;
+    }
+
+    .sleeve-mobile-nowplaying .song-title {
+        font-size: 1.3rem;
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    .sleeve-mobile-nowplaying .song-artist {
+        font-size: 0.95rem;
+        color: var(--m-gold);
+    }
+
+    .sleeve-progress {
+        order: 2;
+        padding: 10px 0 4px;
+    }
+
+    .sleeve-progress-bar {
+        height: 6px;
+    }
+
+    body.m-scrubbing .sleeve-progress-knob {
+        width: 20px;
+        height: 20px;
+    }
+
+    .sleeve-catalog {
+        order: 3;
+        display: flex;
+        justify-content: space-between;
+        padding: 2px 0 0;
+        border-top: none;
+    }
+
+    .sleeve-lyrics-zone {
+        order: 4;
+        width: 100%;
+    }
+
+    .sleeve-lyrics {
+        border-left: none;
+    }
+
+    /* Flat transport: 72px play, 56px prev/next, 44px shuffle/loop */
+    #mTransport {
+        order: 3;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: min(92vw, 340px);
+        padding: 2px 0;
+    }
+
+    #mTransport button {
+        background: none;
+        border: none;
+        color: var(--m-cream);
+        font-family: inherit;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+
+    #mTransport #mShuffleBtn,
+    #mTransport #mLoopBtn {
+        width: 44px;
+        height: 44px;
+        color: var(--m-cream-dim);
+        position: relative;
+    }
+
+    #mTransport #mShuffleBtn[aria-pressed="true"],
+    #mTransport #mLoopBtn[aria-pressed="true"] {
+        color: var(--m-gold);
+    }
+
+    #mShuffleBtn[data-mode="smart"]::after {
+        content: '\2726';
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        font-size: 0.6rem;
+        color: var(--m-gold-hi);
+    }
+
+    #mLoopBtn .m-loop-one {
+        display: none;
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        font-size: 0.6rem;
+        font-weight: 800;
+        color: var(--m-gold-hi);
+    }
+
+    #mLoopBtn[data-mode="single"] .m-loop-one {
+        display: block;
+    }
+
+    #mTransport #mPrevBtn,
+    #mTransport #mNextBtn {
+        width: 56px;
+        height: 56px;
+        font-size: 1.5rem;
+        color: var(--m-cream);
+    }
+
+    /* The play button is a turntable start/stop switch: brass radial
+       circle with an inner shadow */
+    #mTransport #mPlayBtn {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 30%, var(--m-gold-hi), var(--m-gold) 55%, #a87a4e);
+        color: var(--m-ink);
+        font-size: 1.5rem;
+        box-shadow:
+            inset 0 -3px 8px rgba(0, 0, 0, 0.35),
+            inset 0 2px 3px rgba(255, 255, 255, 0.35),
+            0 4px 16px rgba(212, 165, 116, 0.3);
+    }
+
+    #mTransport #mPlayBtn:active {
+        box-shadow:
+            inset 0 3px 8px rgba(0, 0, 0, 0.4),
+            0 2px 8px rgba(212, 165, 116, 0.2);
+    }
+
+    #mPlayBtn .m-ic-pause {
+        display: none;
+    }
+
+    body.m-playing #mPlayBtn .m-ic-pause {
+        display: inline;
+    }
+
+    body.m-playing #mPlayBtn .m-ic-play {
+        display: none;
+    }
+
+    /* Volume: brass range slider (hidden on iOS — hardware-locked there) */
+    #mVolume {
+        order: 4;
+        display: flex;
+        width: min(80vw, 300px);
+        padding: 0 0 10px;
+    }
+
+    #mVolumeRange {
+        width: 100%;
+        height: 32px;
+        accent-color: var(--m-gold);
+        background: transparent;
     }
 }
 
