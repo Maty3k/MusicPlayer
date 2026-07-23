@@ -360,6 +360,10 @@ async function selectPlaylistFromCrate(playlistId) {
 
         // Rebuild song list (shows the empty state when the playlist has no songs)
         rebuildSongList();
+        // A NEW playlist starts at the top — the scroll preservation in
+        // rebuildSongList is for in-place edits (delete/move), not switches.
+        const songListEl = document.getElementById('songList');
+        if (songListEl) songListEl.scrollTop = 0;
         updateOfflineButton();
 
         // Update track count
@@ -5614,6 +5618,42 @@ document.addEventListener('DOMContentLoaded', () => {
 (function mobileV2() {
     const isAppShell = !!window.ReactNativeWebView
         || new URLSearchParams(window.location.search).has('app');
+
+    // These two are referenced from HTML the SHEET BRANCH of showSendMenu
+    // emits, and that branch also serves the RN app shell — so they must
+    // exist even when the rest of mobileV2 stands down.
+    window.mToast = function (text) {
+        document.querySelectorAll('.m-toast').forEach((t) => t.remove());
+        const toast = document.createElement('div');
+        toast.className = 'm-toast';
+        toast.textContent = text;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+    };
+
+    // Two-tap inline delete confirm: first tap arms the row for 3s
+    window.mArmDelete = function (row, songIndex) {
+        if (row.classList.contains('m-confirm-armed')) {
+            closeSendMenu();
+            deleteSong(songIndex, { skipConfirm: true });
+            if (window.mToast) mToast('Removed');
+            return;
+        }
+        row.classList.add('m-confirm-armed');
+        const nameEl = row.querySelector('.send-menu-name');
+        if (nameEl) {
+            row.dataset.origLabel = nameEl.textContent;
+            nameEl.textContent = 'Tap again to remove';
+        }
+        setTimeout(() => {
+            if (row.isConnected && row.classList.contains('m-confirm-armed')) {
+                row.classList.remove('m-confirm-armed');
+                const n = row.querySelector('.send-menu-name');
+                if (n && row.dataset.origLabel) n.textContent = row.dataset.origLabel;
+            }
+        }, 3000);
+    };
+
     if (isAppShell) return;
 
     const mq = window.matchMedia('(max-width: 600px)');
@@ -5632,10 +5672,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (vinyl) {
         const syncPlaying = () => {
             document.body.classList.toggle('m-playing', vinyl.classList.contains('playing'));
+            // Dock visibility depends on play state (empty-playlist case)
+            if (typeof updateDockVisibility === 'function') updateDockVisibility();
         };
         new MutationObserver(syncPlaying)
             .observe(vinyl, { attributes: true, attributeFilter: ['class'] });
-        syncPlaying();
+        // Deferred: updateDockVisibility's lexical bindings (keyboardOpen)
+        // are declared further down the IIFE — calling synchronously here
+        // would hit the temporal dead zone.
+        setTimeout(syncPlaying, 0);
     }
 
     // ---- Dock art mirrors the sleeve art (updated on every track change)
@@ -5654,7 +5699,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // software keyboard is up (an input has focus).
     let keyboardOpen = false;
     function updateDockVisibility() {
-        const empty = typeof songsData === 'undefined' || songsData.length === 0;
+        // An empty playlist hides the dock — unless audio is still playing
+        // (switching into an empty playlist doesn't stop the old track, and
+        // the dock would be the only reachable transport).
+        const empty = (typeof songsData === 'undefined' || songsData.length === 0)
+            && !document.body.classList.contains('m-playing');
         dock.classList.toggle('m-dock-hidden', empty || keyboardOpen);
     }
     document.addEventListener('focusin', (e) => {
@@ -5804,15 +5853,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // the single close path; closeFns are idempotent as insurance.
     // ============================================================
     const layerStack = [];
+    // One programmatic traversal at a time: double-taps on any close
+    // control must not fire two history.back()s (two layers would close,
+    // or the user would leave the page from the last one).
+    let pendingBack = false;
 
     function openLayer(name, closeFn) {
         layerStack.push({ name, closeFn });
-        try { history.pushState({ mLayer: name }, ''); } catch (e) {}
+        // The entry records its own depth so popstate can reconcile
+        // instead of blind-popping (forward traversals fire it too).
+        try { history.pushState({ mLayer: name, mDepth: layerStack.length }, ''); } catch (e) {}
     }
 
-    window.addEventListener('popstate', () => {
-        const layer = layerStack.pop();
-        if (layer) {
+    window.addEventListener('popstate', (event) => {
+        pendingBack = false;
+        const depth = (event.state && typeof event.state.mDepth === 'number')
+            ? event.state.mDepth : 0;
+        if (depth > layerStack.length) {
+            // Forward traversal into an entry we no longer track (e.g. the
+            // user swiped forward after closing a sheet) — snap back.
+            history.go(layerStack.length - depth);
+            return;
+        }
+        while (layerStack.length > depth) {
+            const layer = layerStack.pop();
             try { layer.closeFn(); } catch (e) {}
         }
     });
@@ -5821,10 +5885,28 @@ document.addEventListener('DOMContentLoaded', () => {
         return layerStack.length > 0 && layerStack[layerStack.length - 1].name === name;
     }
 
-    function closeAllLayers() {
-        while (layerStack.length) {
+    // The single programmatic close path: every UI close control routes
+    // here so popstate stays the one place layers actually close.
+    function backOneLayer() {
+        if (pendingBack || layerStack.length === 0) return;
+        pendingBack = true;
+        history.back();
+    }
+
+    // Width-change teardown: close phone-only surfaces (NP, lyrics, song
+    // sheet, modals) but keep the playlist screen — a rotation must not
+    // kick the user back to the crate. The closed layers' history entries
+    // are consumed with one history.go() so back presses don't go dead;
+    // the depth-reconciling popstate handler makes that a no-op pop.
+    function teardownPhoneLayers() {
+        let n = 0;
+        while (layerStack.length && layerStack[layerStack.length - 1].name !== 'playlist') {
             const layer = layerStack.pop();
             try { layer.closeFn(); } catch (e) {}
+            n++;
+        }
+        if (n > 0) {
+            try { history.go(-n); } catch (e) {}
         }
     }
 
@@ -5847,7 +5929,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const origShowPicker = window.showPlaylistPicker;
     window.showPlaylistPicker = function () {
         if (onPhone() && topLayerIs('playlist')) {
-            history.back();
+            backOneLayer();
             return;
         }
         return origShowPicker.apply(this, arguments);
@@ -5880,7 +5962,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modalOrigHide[key] = origHide;
             window[hideName] = function () {
                 if (onPhone() && modalOpen[key] && topLayerIs('modal:' + key)) {
-                    history.back();
+                    backOneLayer();
                     return;
                 }
                 modalOpen[key] = false;
@@ -5895,6 +5977,20 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapModalPair('showPlaylistEditModal', 'hidePlaylistEditModal', 'playlistEdit');
     wrapModalPair('showPlaylistCreateModal', 'hidePlaylistEditModal', 'playlistEdit');
 
+    // The member welcome card shows the PIN exactly once and must not be
+    // dismissible — a hardware back would otherwise leave the page and
+    // lose the PIN forever. While the card is up, back is a no-op: the
+    // popped guard layer immediately re-pushes itself.
+    if (document.getElementById('memberWelcomeModal')) {
+        const reGuardWelcome = () => {
+            const card = document.getElementById('memberWelcomeModal');
+            if (card && getComputedStyle(card).display !== 'none') {
+                openLayer('memberWelcome', reGuardWelcome);
+            }
+        };
+        openLayer('memberWelcome', reGuardWelcome);
+    }
+
     // ============================================================
     // Now Playing sheet
     // ============================================================
@@ -5908,7 +6004,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function closeNp() {
-        if (topLayerIs('np')) history.back();
+        if (topLayerIs('np')) backOneLayer();
     }
 
     const npCollapse = document.getElementById('mNpCollapse');
@@ -6052,52 +6148,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ============================================================
-    // Song sheet (phase 6): layer registration, two-tap delete, toasts
+    // Song sheet (phase 6): layer registration (mToast/mArmDelete are
+    // defined above the app-shell gate — the sheet serves the app too)
     // ============================================================
-    window.mToast = function (text) {
-        document.querySelectorAll('.m-toast').forEach((t) => t.remove());
-        const toast = document.createElement('div');
-        toast.className = 'm-toast';
-        toast.textContent = text;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2000);
-    };
-
-    // Two-tap inline delete confirm: first tap arms the row for 3s
-    window.mArmDelete = function (row, songIndex) {
-        if (row.classList.contains('m-confirm-armed')) {
-            closeSendMenu();
-            deleteSong(songIndex, { skipConfirm: true });
-            if (window.mToast) mToast('Removed');
-            return;
-        }
-        row.classList.add('m-confirm-armed');
-        const nameEl = row.querySelector('.send-menu-name');
-        if (nameEl) {
-            row.dataset.origLabel = nameEl.textContent;
-            nameEl.textContent = 'Tap again to remove';
-        }
-        setTimeout(() => {
-            if (row.isConnected && row.classList.contains('m-confirm-armed')) {
-                row.classList.remove('m-confirm-armed');
-                const n = row.querySelector('.send-menu-name');
-                if (n && row.dataset.origLabel) n.textContent = row.dataset.origLabel;
-            }
-        }, 3000);
-    };
-
     // The open sheet is a history layer: hardware back closes it first.
-    // The closing latch stops the backdrop onclick + document outside-click
-    // pair (same tick) from calling history.back() twice.
+    // backOneLayer's latch stops the backdrop onclick + document outside-
+    // click pair (same tick) from traversing history twice.
     let songSheetOpen = false;
-    let songSheetClosing = false;
     const origCloseSendMenu = window.closeSendMenu;
     window.closeSendMenu = function () {
         if (onPhone() && songSheetOpen && topLayerIs('songSheet')) {
-            if (!songSheetClosing) {
-                songSheetClosing = true;
-                history.back();
-            }
+            backOneLayer();
             return;
         }
         songSheetOpen = false;
@@ -6105,25 +6166,40 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const origShowSendMenu = window.showSendMenu;
     window.showSendMenu = function () {
+        // Re-entrant open (e.g. NP kebab while a row sheet is up): close the
+        // old sheet's DOM synchronously and REUSE its history entry — the
+        // deferred history.back() path would orphan the old menu node.
+        const hadSheet = songSheetOpen;
+        if (hadSheet) {
+            songSheetOpen = false;
+            origCloseSendMenu();
+        }
         const out = origShowSendMenu.apply(this, arguments);
-        if (onPhone() && !songSheetOpen && document.querySelector('.send-menu-sheet')) {
+        if (onPhone() && document.querySelector('.send-menu-sheet')) {
             songSheetOpen = true;
-            songSheetClosing = false;
-            openLayer('songSheet', () => {
-                songSheetClosing = false;
-                if (songSheetOpen) {
-                    songSheetOpen = false;
-                    origCloseSendMenu();
-                }
-            });
+            if (!hadSheet) {
+                openLayer('songSheet', () => {
+                    if (songSheetOpen) {
+                        songSheetOpen = false;
+                        origCloseSendMenu();
+                    }
+                });
+            }
         }
         return out;
     };
 
-    // NP header kebab: song options for the current track
+    // NP header kebab: song options for the current track. During smart-
+    // shuffle radio, the playing track is NOT in the playlist and
+    // currentSongIndex points at an unrelated song — never open the sheet
+    // on the wrong target.
     const npKebab = document.getElementById('mNpKebab');
     if (npKebab) {
         npKebab.addEventListener('click', () => {
+            if (typeof currentRadioSong !== 'undefined' && currentRadioSong) {
+                if (window.mToast) mToast('Radio track — not in this crate');
+                return;
+            }
             window.showSendMenu(npKebab, currentSongIndex);
         });
     }
@@ -6138,7 +6214,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function toggleLyricsExpand() {
-        if (topLayerIs('lyrics')) history.back();
+        if (topLayerIs('lyrics')) backOneLayer();
         else openLyrics();
     }
 
@@ -6159,7 +6235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // The NP chevron closes the topmost NP-owned layer: lyrics first
     if (npCollapse) {
         npCollapse.addEventListener('click', () => {
-            if (topLayerIs('lyrics')) history.back();
+            if (topLayerIs('lyrics')) backOneLayer();
         }, true);
     }
 
@@ -6169,7 +6245,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ---- Info area: tap opens the player; horizontal swipe = prev/next.
     if (dockInfo) {
-        let startX = 0, startY = 0, startT = 0, dx = 0, tracking = false, horizontal = false;
+        let startX = 0, startY = 0, startT = 0, dx = 0, dy = 0, tracking = false, horizontal = false;
 
         dockInfo.addEventListener('pointerdown', (e) => {
             if (!onPhone()) return;
@@ -6179,12 +6255,13 @@ document.addEventListener('DOMContentLoaded', () => {
             startY = e.clientY;
             startT = performance.now();
             dx = 0;
+            dy = 0;
         });
 
         dockInfo.addEventListener('pointermove', (e) => {
             if (!tracking) return;
             dx = e.clientX - startX;
-            const dy = e.clientY - startY;
+            dy = e.clientY - startY;
             if (!horizontal && Math.abs(dx) > 10 && Math.abs(dx) > 2 * Math.abs(dy)) {
                 horizontal = true;
                 dockInfo.setPointerCapture(e.pointerId);
@@ -6205,12 +6282,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (Math.abs(dx) >= 48 || velocity > 0.4) {
                     if (dx < 0) nextSong(); else prevSong();
                 }
-            } else if (Math.abs(dx) < 10 && dt < 300) {
+            } else if (e.type !== 'pointercancel'
+                && Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) {
                 // Tap: open the Now Playing sheet (via the playlist screen
-                // when coming from the crate, so back unwinds naturally)
+                // when coming from the crate, so back unwinds naturally).
+                // Cancelled pointers and vertical flicks (touch-action:pan-y
+                // hands them to the scroller) must never count as taps.
                 if (window.mOpenNowPlaying) window.mOpenNowPlaying();
             }
             dx = 0;
+            dy = 0;
             horizontal = false;
         };
         dockInfo.addEventListener('pointerup', settle);
@@ -6220,7 +6301,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---- Leaving phone widths: strip mobile-only state so desktop is clean.
     mq.addEventListener('change', (e) => {
         if (!e.matches) {
-            closeAllLayers();
+            teardownPhoneLayers();
             dock.style.transform = '';
             dock.classList.remove('m-dock-hidden');
             document.body.classList.remove('m-np-open', 'm-lyrics-open', 'm-scrubbing');

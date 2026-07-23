@@ -8005,6 +8005,15 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
         position: static;
     }
 
+    /* The offline 'online only' badge was centered for the old 80px
+       tiles — on full-width rows it stamped over the title. Tuck it
+       against the right edge, before the kebab. */
+    body.offline-mode .song-list-item:not([data-src="mp3"])::after {
+        right: 52px;
+        left: auto;
+        transform: translateY(-50%);
+    }
+
     /* Corner send/delete buttons become one row kebab; delete moves
        into the song sheet (no more accidental-tap X on every row) */
     .song-actions {
@@ -8070,12 +8079,21 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
         -webkit-overflow-scrolling: touch;
         background: linear-gradient(180deg, var(--m-walnut-deep), var(--m-ink));
         transform: translateY(103%);
-        transition: transform 300ms cubic-bezier(0.32, 0.72, 0.28, 1);
-        will-change: transform;
+        /* While closed: no paint, no compositor layer — but NEVER
+           display:none (the YouTube iframe lives here). visibility flips
+           after the slide-out finishes. */
+        visibility: hidden;
+        will-change: auto;
+        transition:
+            transform 300ms cubic-bezier(0.32, 0.72, 0.28, 1),
+            visibility 0s 300ms;
     }
 
     body.m-np-open .music-main {
         transform: translateY(0);
+        visibility: visible;
+        will-change: transform;
+        transition: transform 300ms cubic-bezier(0.32, 0.72, 0.28, 1);
     }
 
     /* NP header */
@@ -8740,9 +8758,10 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
     }
 
     /* Lyrics lines are blur(2.5px) until :hover — unreadable on touch.
-       (.sleeve-lyrics .lyrics-line outranks the .active ~ sibling re-blur
-       by later source at equal specificity.) */
-    .sleeve-lyrics .lyrics-line {
+       The .active ~ sibling re-blur is (0,3,0), so the lines AFTER the
+       active one need their own higher-specificity unblur. */
+    .sleeve-lyrics .lyrics-line,
+    .sleeve-lyrics .lyrics-line.active ~ .lyrics-line {
         filter: none;
         color: rgba(212, 165, 116, 0.5);
     }
