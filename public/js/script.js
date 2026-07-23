@@ -2043,7 +2043,11 @@ function rebuildSongList() {
             </li>`;
         return;
     }
+    // The innerHTML swap resets scroll — a delete halfway down a long list
+    // must not fling the user back to the top.
+    const scrollTop = songList.scrollTop;
     songList.innerHTML = songsData.map((song, index) => buildSongListItem(song, index)).join('');
+    songList.scrollTop = scrollTop;
 }
 
 function updateTrackCount() {
@@ -2632,6 +2636,10 @@ function showSendMenu(btn, songIndex) {
         }
         if (menuRect.bottom > window.innerHeight - 8) {
             menu.style.top = (rect.top - menuRect.height - 4) + 'px';
+        }
+        // Narrow windows: rect.left - 160 can land off-screen left
+        if (menu.getBoundingClientRect().left < 8) {
+            menu.style.left = '8px';
         }
     }
 
@@ -5623,10 +5631,122 @@ document.addEventListener('DOMContentLoaded', () => {
         window.rebuildSongList = function () {
             const out = origRebuildSongList.apply(this, arguments);
             updateDockVisibility();
+            applyRowFilter();
             return out;
         };
     }
     updateDockVisibility();
+
+    // ---- Hero actions: Play pill + shuffle chip ----
+    const playAll = document.getElementById('mPlayAll');
+    if (playAll) {
+        playAll.addEventListener('click', () => {
+            if (songsData.length === 0) return;
+            toggleMusic();
+        });
+    }
+
+    // The chip mirrors the coaster's three-state cycle (off/shuffle/smart)
+    function mSyncModes() {
+        const chip = document.getElementById('mShuffleChip');
+        if (chip) {
+            chip.dataset.mode = shuffleMode;
+            chip.setAttribute('aria-pressed', shuffleMode !== 'off' ? 'true' : 'false');
+            chip.textContent = shuffleMode === 'smart' ? 'Smart mix' : 'Shuffle';
+        }
+        const npShuffle = document.getElementById('mShuffleBtn');
+        if (npShuffle) {
+            npShuffle.dataset.mode = shuffleMode;
+            npShuffle.setAttribute('aria-pressed', shuffleMode !== 'off' ? 'true' : 'false');
+        }
+        const npLoop = document.getElementById('mLoopBtn');
+        if (npLoop) {
+            npLoop.dataset.mode = loopMode;
+            npLoop.setAttribute('aria-pressed', loopMode !== 'off' ? 'true' : 'false');
+        }
+    }
+
+    const shuffleChip = document.getElementById('mShuffleChip');
+    if (shuffleChip) {
+        shuffleChip.addEventListener('click', () => {
+            toggleShuffle();
+            mSyncModes();
+        });
+    }
+
+    // ---- Mode persistence (all platforms — desktop lost loop/shuffle on
+    // every reload too). Stored on toggle; restored by DIRECT assignment,
+    // mirroring the exact DOM writes the toggles perform. Never restore by
+    // cycling toggleShuffle: passing through 'smart' fires radio-
+    // recommendation fetches on every page load.
+    const origToggleShuffle = window.toggleShuffle;
+    window.toggleShuffle = function () {
+        const out = origToggleShuffle.apply(this, arguments);
+        try { localStorage.setItem('mShuffleMode', shuffleMode); } catch (e) {}
+        mSyncModes();
+        return out;
+    };
+    const origToggleLoopMode = window.toggleLoopMode;
+    window.toggleLoopMode = function () {
+        const out = origToggleLoopMode.apply(this, arguments);
+        try { localStorage.setItem('mLoopMode', loopMode); } catch (e) {}
+        mSyncModes();
+        return out;
+    };
+
+    (function restoreModes() {
+        let savedLoop = null, savedShuffle = null;
+        try {
+            savedLoop = localStorage.getItem('mLoopMode');
+            savedShuffle = localStorage.getItem('mShuffleMode');
+        } catch (e) {}
+
+        if (savedLoop && ['off', 'playlist', 'single'].includes(savedLoop) && savedLoop !== loopMode) {
+            loopMode = savedLoop;
+            const btn = document.getElementById('loopCoaster');
+            const icon = document.getElementById('loopIcon');
+            const label = document.getElementById('loopLabel');
+            if (btn) btn.dataset.loop = savedLoop;
+            if (icon) icon.innerHTML = loopSvgs[savedLoop];
+            if (label) {
+                if (savedLoop === 'single') updateLoopSongLabel();
+                else label.textContent = savedLoop === 'playlist' ? 'loop all' : 'no loop';
+            }
+        }
+
+        if (savedShuffle && ['off', 'shuffle', 'smart'].includes(savedShuffle) && savedShuffle !== shuffleMode) {
+            shuffleMode = savedShuffle;
+            const btn = document.getElementById('shuffleBtn');
+            const label = document.getElementById('shuffleLabel');
+            if (btn) btn.dataset.shuffle = savedShuffle;
+            if (label) {
+                label.textContent = savedShuffle === 'off' ? 'shuffle'
+                    : (savedShuffle === 'shuffle' ? 'shuffle on' : 'smart shuffle');
+            }
+            if (savedShuffle !== 'off') buildShuffleQueue();
+            else shuffleQueue = [];
+            // Restoring 'smart' deliberately does NOT fetch radio at boot;
+            // switchSong's own low-pool branch refills on the next change.
+        }
+        mSyncModes();
+    })();
+
+    // ---- Find in this crate: client-side row filter ----
+    const filterInput = document.getElementById('mFilterInput');
+    function applyRowFilter() {
+        if (!filterInput) return;
+        const q = filterInput.value.trim().toLowerCase();
+        document.querySelectorAll('#songList .song-list-item').forEach((row) => {
+            if (!q) {
+                row.classList.remove('m-filtered-out');
+                return;
+            }
+            const text = ((row.querySelector('.song-list-title') || {}).textContent || '')
+                + ' ' + ((row.querySelector('.song-list-artist') || {}).textContent || '');
+            row.classList.toggle('m-filtered-out', !text.toLowerCase().includes(q));
+        });
+    }
+    if (filterInput) filterInput.addEventListener('input', applyRowFilter);
 
     // ---- Transport
     if (dockPlay) dockPlay.addEventListener('click', () => toggleMusic());
@@ -5691,6 +5811,10 @@ document.addEventListener('DOMContentLoaded', () => {
             dock.style.transform = '';
             dock.classList.remove('m-dock-hidden');
             document.body.classList.remove('m-np-open', 'm-lyrics-open');
+            if (filterInput) {
+                filterInput.value = '';
+                applyRowFilter();
+            }
         }
         updateDockVisibility();
     });

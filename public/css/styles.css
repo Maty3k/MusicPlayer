@@ -7831,6 +7831,215 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
     .import-toast {
         bottom: calc(var(--m-dock-h) + 16px + var(--m-safe-b));
     }
+
+    /* ============================================================
+       Playlist screen: vertical tracklist replaces the 80px tile strip
+       ============================================================ */
+    .music-sidebar {
+        display: flex;
+        flex-direction: column;
+        max-height: 44vh;
+        max-height: 44dvh;
+        padding-top: 4px;
+    }
+
+    /* Hero header: big title, count, Play/Shuffle row, then the filter */
+    .sidebar-header-area {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        padding: 8px 15px 6px;
+    }
+
+    #playlistTitle {
+        font-size: 1.6rem;
+        font-weight: 800;
+    }
+
+    .m-hero-actions {
+        display: flex;
+        gap: 10px;
+        padding-top: 6px;
+        align-items: center;
+    }
+
+    #mPlayAll {
+        flex: 1;
+        min-height: 48px;
+        border: none;
+        border-radius: var(--m-r-pill);
+        background: linear-gradient(180deg, var(--m-gold), #b8895a);
+        color: var(--m-ink);
+        font-size: 1rem;
+        font-weight: 700;
+        font-family: inherit;
+        cursor: pointer;
+        box-shadow: 0 3px 12px rgba(212, 165, 116, 0.25);
+    }
+
+    #mPlayAll .m-when-playing {
+        display: none;
+    }
+
+    body.m-playing #mPlayAll .m-when-playing {
+        display: inline;
+    }
+
+    body.m-playing #mPlayAll .m-when-paused {
+        display: none;
+    }
+
+    #mShuffleChip {
+        min-height: 40px;
+        padding: 0 18px;
+        border-radius: var(--m-r-pill);
+        border: 1px solid var(--m-brass-border);
+        background: none;
+        color: var(--m-gold);
+        font-size: 0.9rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+    }
+
+    #mShuffleChip[aria-pressed="true"] {
+        background: var(--m-gold);
+        color: var(--m-ink);
+        border-color: var(--m-gold);
+    }
+
+    #mFilterInput {
+        display: block;
+        width: 100%;
+        min-height: 40px;
+        margin: 2px 0 4px;
+        padding: 0 12px;
+        font-size: 16px;
+        font-family: inherit;
+        color: var(--m-cream);
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid var(--m-brass-border);
+        border-radius: 10px;
+    }
+
+    #mFilterInput::placeholder {
+        color: rgba(212, 165, 116, 0.45);
+    }
+
+    /* The list: full-width 64px rows, vertical scroll */
+    .song-list {
+        display: flex;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overflow-x: hidden;
+        gap: 2px;
+        padding: 4px 8px calc(var(--m-dock-h) + 12px + var(--m-safe-b));
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .song-list-item {
+        flex-direction: row;
+        align-items: center;
+        width: 100%;
+        min-height: 64px;
+        padding: 8px 4px 8px 10px;
+        border-radius: var(--m-r-row);
+        text-align: left;
+        gap: 12px;
+        flex-shrink: 0;
+    }
+
+    .song-list-item.active {
+        background: var(--m-gold-wash);
+    }
+
+    .song-list-item.m-filtered-out {
+        display: none;
+    }
+
+    .song-list-vinyl {
+        width: 48px;
+        height: 48px;
+        flex: none;
+    }
+
+    .song-list-cover {
+        width: 24px;
+        height: 24px;
+    }
+
+    .song-list-info {
+        flex: 1;
+        min-width: 0;
+        width: auto;
+    }
+
+    .song-list-title {
+        font-size: 1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .song-list-artist {
+        font-size: 0.8rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .song-list-num {
+        display: none;
+    }
+
+    /* Revive the EQ bars the legacy block killed (its display:none
+       !important loses to this later-source !important) */
+    .song-list-item.active .song-list-playing-indicator {
+        display: flex !important;
+        position: static;
+    }
+
+    /* Corner send/delete buttons become one row kebab; delete moves
+       into the song sheet (no more accidental-tap X on every row) */
+    .song-actions {
+        position: static;
+        transform: none;
+        opacity: 1;
+        pointer-events: auto;
+        margin-left: auto;
+        background: none;
+        padding: 0;
+        gap: 0;
+    }
+
+    .song-delete-btn {
+        display: none;
+    }
+
+    .song-send-btn {
+        position: static;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: none;
+        border: none;
+        color: rgba(212, 165, 116, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .song-send-btn svg {
+        display: none;
+    }
+
+    .song-send-btn::after {
+        content: '\22EF';
+        font-size: 1.4rem;
+        line-height: 1;
+    }
 }
 
 @keyframes mSheetUp {

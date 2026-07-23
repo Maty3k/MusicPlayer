@@ -481,6 +481,15 @@
                     <button class="add-song-btn" onclick="showAddSongModal()" title="Add a song">+</button>
                 </div>
                 <div class="sidebar-track-count">{{ count($songs) }} tracks</div>
+                {{-- Phone-only hero actions + find-in-playlist (hidden by .m-only off-phone) --}}
+                <div class="m-hero-actions m-only">
+                    <button type="button" id="mPlayAll">
+                        <span class="m-when-paused">&#9654;&nbsp; Play</span>
+                        <span class="m-when-playing">&#9208;&nbsp; Pause</span>
+                    </button>
+                    <button type="button" id="mShuffleChip" aria-pressed="false">Shuffle</button>
+                </div>
+                <input class="m-only" type="search" id="mFilterInput" placeholder="Find in this crate" autocomplete="off">
             </div>
             <ul class="song-list" id="songList">
                 @if (count($songs) === 0)
