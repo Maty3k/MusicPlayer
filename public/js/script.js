@@ -2138,11 +2138,12 @@ async function saveAndPlaySong(song) {
     return true;
 }
 
-async function deleteSong(index) {
+async function deleteSong(index, opts) {
     const victim = songsData[index];
     if (!victim) return;
     const label = [victim.title, victim.artist].filter(Boolean).join(' — ');
-    if (!confirm(`Remove "${label}" from this playlist?`)) return;
+    // skipConfirm: the mobile song sheet already two-tap confirmed
+    if (!(opts && opts.skipConfirm) && !confirm(`Remove "${label}" from this playlist?`)) return;
 
     const response = await fetch('/save-music', {
         method: 'POST',
@@ -2589,11 +2590,32 @@ function onSendMenuOutsideClick(e) {
 function showSendMenu(btn, songIndex) {
     closeSendMenu();
     const isApp = !!window.ReactNativeWebView || new URLSearchParams(window.location.search).has('app');
+    // Phones get a bottom sheet (the widened app-mode branch); desktop
+    // keeps the anchored popover.
+    const useSheet = isApp || window.matchMedia('(max-width: 600px) and (pointer: coarse)').matches;
     const rect = btn.getBoundingClientRect();
     const menu = document.createElement('div');
     menu.className = 'send-menu';
+    if (useSheet) menu.classList.add('send-menu-sheet');
 
-    let html = '<div class="send-menu-title">Send to...</div>';
+    let html = '';
+    if (useSheet) {
+        const sheetSong = songsData[songIndex];
+        if (sheetSong) {
+            const sheetCover = safeUrl(sheetSong.cover);
+            html += `<div class="send-menu-song">
+                ${sheetCover
+                    ? `<img class="send-menu-song-cover" src="${escapeHtml(sheetCover)}" alt="">`
+                    : '<div class="send-menu-song-cover send-menu-song-cover-empty">&#9834;</div>'}
+                <div class="send-menu-song-meta">
+                    <div class="send-menu-song-title">${escapeHtml(sheetSong.title || '')}</div>
+                    <div class="send-menu-song-artist">${escapeHtml(sheetSong.artist || '')}</div>
+                </div>
+            </div>`;
+        }
+    }
+
+    html += '<div class="send-menu-title">Send to...</div>';
     for (const [id, meta] of Object.entries(playlistsMeta)) {
         if (id === activePlaylistId) continue;
         const idJs = JSON.stringify(String(id));
@@ -2605,20 +2627,35 @@ function showSendMenu(btn, songIndex) {
             </div>`;
     }
 
-    if (isApp) {
-        if (songsData.length > 1) {
-            html += '<div class="send-menu-divider"></div>';
-            html += `<div class="send-menu-item send-menu-delete" onclick="event.stopPropagation(); closeSendMenu(); deleteSong(${songIndex})">
-                <span class="send-menu-delete-icon">&#10005;</span>
-                <span class="send-menu-name" style="color:#e85d75">Delete from playlist</span>
-            </div>`;
+    if (useSheet) {
+        // Copy keeps the song here too — the non-destructive alternative
+        // the popover never offered (first call sites for copySongTo).
+        let copyRows = '';
+        for (const [id, meta] of Object.entries(playlistsMeta)) {
+            if (id === activePlaylistId) continue;
+            const idJs = JSON.stringify(String(id));
+            const colorAttr = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#888';
+            copyRows += `
+                <div class="send-menu-item" onclick="event.stopPropagation(); copySongTo(${escapeHtml(idJs)}, ${songIndex})" style="cursor:pointer">
+                    <span class="send-menu-dot" style="background:${colorAttr}"></span>
+                    <span class="send-menu-name">${escapeHtml(meta.name)}</span>
+                </div>`;
         }
+        if (copyRows) {
+            html += '<div class="send-menu-divider"></div>';
+            html += '<div class="send-menu-title">Keep a copy in...</div>' + copyRows;
+        }
+        html += '<div class="send-menu-divider"></div>';
+        html += `<div class="send-menu-item send-menu-delete" onclick="event.stopPropagation(); mArmDelete(this, ${songIndex})">
+            <span class="send-menu-delete-icon">&#10005;</span>
+            <span class="send-menu-name">Remove from this playlist</span>
+        </div>`;
         html += `<div class="send-menu-cancel" onclick="event.stopPropagation(); closeSendMenu()">Cancel</div>`;
     }
 
     menu.innerHTML = html;
 
-    if (isApp) {
+    if (useSheet) {
         const smBackdrop = document.createElement('div');
         smBackdrop.className = 'send-menu-backdrop';
         smBackdrop.onclick = function() { closeSendMenu(); };
@@ -2668,6 +2705,10 @@ async function copySongTo(toPlaylist, songIndex) {
             songItem.classList.add('copied-flash');
             setTimeout(() => songItem.classList.remove('copied-flash'), 600);
         }
+        if (window.mToast && window.matchMedia('(max-width: 600px)').matches) {
+            const toMeta = playlistsMeta[toPlaylist];
+            mToast('Copied to ' + (toMeta ? toMeta.name : 'playlist'));
+        }
     }
     closeSendMenu();
 }
@@ -2698,6 +2739,10 @@ async function moveSongTo(toPlaylist, songIndex) {
             const song = songsData[currentSongIndex];
             updateSongDisplay(song);
             playSongSource(song, true);
+        }
+        if (window.mToast && window.matchMedia('(max-width: 600px)').matches) {
+            const toMeta = playlistsMeta[toPlaylist];
+            mToast('Moved to ' + (toMeta ? toMeta.name : 'playlist'));
         }
     }
     closeSendMenu();
@@ -6005,6 +6050,83 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         openNp();
     };
+
+    // ============================================================
+    // Song sheet (phase 6): layer registration, two-tap delete, toasts
+    // ============================================================
+    window.mToast = function (text) {
+        document.querySelectorAll('.m-toast').forEach((t) => t.remove());
+        const toast = document.createElement('div');
+        toast.className = 'm-toast';
+        toast.textContent = text;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+    };
+
+    // Two-tap inline delete confirm: first tap arms the row for 3s
+    window.mArmDelete = function (row, songIndex) {
+        if (row.classList.contains('m-confirm-armed')) {
+            closeSendMenu();
+            deleteSong(songIndex, { skipConfirm: true });
+            if (window.mToast) mToast('Removed');
+            return;
+        }
+        row.classList.add('m-confirm-armed');
+        const nameEl = row.querySelector('.send-menu-name');
+        if (nameEl) {
+            row.dataset.origLabel = nameEl.textContent;
+            nameEl.textContent = 'Tap again to remove';
+        }
+        setTimeout(() => {
+            if (row.isConnected && row.classList.contains('m-confirm-armed')) {
+                row.classList.remove('m-confirm-armed');
+                const n = row.querySelector('.send-menu-name');
+                if (n && row.dataset.origLabel) n.textContent = row.dataset.origLabel;
+            }
+        }, 3000);
+    };
+
+    // The open sheet is a history layer: hardware back closes it first.
+    // The closing latch stops the backdrop onclick + document outside-click
+    // pair (same tick) from calling history.back() twice.
+    let songSheetOpen = false;
+    let songSheetClosing = false;
+    const origCloseSendMenu = window.closeSendMenu;
+    window.closeSendMenu = function () {
+        if (onPhone() && songSheetOpen && topLayerIs('songSheet')) {
+            if (!songSheetClosing) {
+                songSheetClosing = true;
+                history.back();
+            }
+            return;
+        }
+        songSheetOpen = false;
+        return origCloseSendMenu.apply(this, arguments);
+    };
+    const origShowSendMenu = window.showSendMenu;
+    window.showSendMenu = function () {
+        const out = origShowSendMenu.apply(this, arguments);
+        if (onPhone() && !songSheetOpen && document.querySelector('.send-menu-sheet')) {
+            songSheetOpen = true;
+            songSheetClosing = false;
+            openLayer('songSheet', () => {
+                songSheetClosing = false;
+                if (songSheetOpen) {
+                    songSheetOpen = false;
+                    origCloseSendMenu();
+                }
+            });
+        }
+        return out;
+    };
+
+    // NP header kebab: song options for the current track
+    const npKebab = document.getElementById('mNpKebab');
+    if (npKebab) {
+        npKebab.addEventListener('click', () => {
+            window.showSendMenu(npKebab, currentSongIndex);
+        });
+    }
 
     // ---- Transport
     if (dockPlay) dockPlay.addEventListener('click', () => toggleMusic());

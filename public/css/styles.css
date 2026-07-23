@@ -8403,6 +8403,159 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
     }
 }
 
+/* ---- Song-actions bottom sheet (phase 6). Gated by classes that only
+   the sheet branch of showSendMenu adds, so these are inert on desktop.
+   The retired RN app mode shares them — an upgrade from its unstyled
+   markup. ---- */
+.send-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+}
+
+.send-menu-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    z-index: 10001;
+    min-width: 0;
+    border-radius: 20px 20px 0 0;
+    border: none;
+    border-top: 1px solid rgba(212, 165, 116, 0.35);
+    background: #2a1f16;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    max-height: 70vh;
+    max-height: 70dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    animation: mSheetUp 240ms cubic-bezier(0.32, 0.72, 0.28, 1);
+}
+
+.send-menu-sheet::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(212, 165, 116, 0.4);
+    margin: -6px auto 10px;
+}
+
+.send-menu-sheet .send-menu-title {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #d4a574;
+    padding: 6px 6px 8px;
+}
+
+.send-menu-sheet .send-menu-item {
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+}
+
+.send-menu-sheet .send-menu-name {
+    font-size: 1rem;
+}
+
+.send-menu-song {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 2px 6px 12px;
+    border-bottom: 1px solid rgba(212, 165, 116, 0.15);
+    margin-bottom: 6px;
+}
+
+.send-menu-song-cover {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex: none;
+}
+
+.send-menu-song-cover-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(212, 165, 116, 0.12);
+    color: #d4a574;
+}
+
+.send-menu-song-meta {
+    min-width: 0;
+}
+
+.send-menu-song-title {
+    color: #f2e8d8;
+    font-size: 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.send-menu-song-artist {
+    color: rgba(212, 165, 116, 0.8);
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.send-menu-sheet .send-menu-delete .send-menu-name {
+    color: #e85d75;
+}
+
+.send-menu-sheet .send-menu-delete-icon {
+    color: #e85d75;
+}
+
+.send-menu-sheet .send-menu-delete.m-confirm-armed {
+    background: rgba(232, 93, 117, 0.12);
+    border-radius: 10px;
+}
+
+.send-menu-sheet .send-menu-cancel {
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(242, 232, 216, 0.55);
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.send-menu-sheet .send-menu-divider {
+    height: 1px;
+    background: rgba(212, 165, 116, 0.15);
+    margin: 6px 0;
+}
+
+.m-toast {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(64px + 16px + env(safe-area-inset-bottom, 0px));
+    z-index: 10006;
+    background: linear-gradient(180deg, #2c251d, #1e1a14);
+    border: 1px solid rgba(212, 165, 116, 0.35);
+    border-radius: 12px;
+    color: #f2e8d8;
+    padding: 10px 18px;
+    font-size: 0.85rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    animation: mSheetUp 200ms ease-out;
+}
+
 /* Touch devices of any width (phones AND touch tablets): hover-gated
    affordances must be visible/usable without a cursor. */
 @media (hover: none) and (pointer: coarse) {
