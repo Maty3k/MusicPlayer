@@ -7676,6 +7676,24 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
     }
 }
 
+/* Fast-path record swap: a 250ms flourish in place of the desktop
+   lift/drop ceremony. The class is only ever added on phones. */
+@keyframes mSwap {
+    0% {
+        transform: scale(0.96);
+        opacity: 0.4;
+    }
+
+    100% {
+        transform: none;
+        opacity: 1;
+    }
+}
+
+#vinyl.m-swap {
+    animation: mSwap 250ms ease-out;
+}
+
 /* Touch devices of any width (phones AND touch tablets): hover-gated
    affordances must be visible/usable without a cursor. */
 @media (hover: none) and (pointer: coarse) {
@@ -7700,7 +7718,8 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .add-song-modal-panel {
+    .add-song-modal-panel,
+    #vinyl.m-swap {
         animation: none;
     }
 }

@@ -88,6 +88,9 @@ async function animateRecordChange(newSong) {
     const platterVinyl = document.getElementById('platterVinyl');
 
     const isApp = !!window.ReactNativeWebView;
+    // Phones skip the ~1.25s lift/drop ceremony: track changes should feel
+    // instant. Evaluated call-time (never cached) so rotation/resize behaves.
+    const fastSwitch = isApp || window.matchMedia('(max-width: 600px)').matches;
 
     // Stop vinyl spinning during change
     vinyl.classList.remove('playing');
@@ -95,7 +98,7 @@ async function animateRecordChange(newSong) {
     if (miniTonearm) miniTonearm.classList.remove('playing');
     if (platterVinyl) platterVinyl.classList.remove('spinning');
 
-    if (!isApp) {
+    if (!fastSwitch) {
         // Move tonearm away
         tonearm.style.transition = 'transform 0.4s ease';
         tonearm.style.transform = 'rotate(-30deg)';
@@ -153,7 +156,15 @@ async function animateRecordChange(newSong) {
     const trackNum = document.getElementById('sleeveTrackNum');
     if (trackNum) trackNum.textContent = 'TRACK ' + String(currentSongIndex + 1).padStart(2, '0');
 
-    if (!isApp) {
+    if (fastSwitch && !isApp) {
+        // 250ms record-swap flourish in place of the full ceremony
+        vinyl.classList.remove('m-swap');
+        void vinyl.offsetWidth;
+        vinyl.classList.add('m-swap');
+        vinyl.addEventListener('animationend', () => vinyl.classList.remove('m-swap'), { once: true });
+    }
+
+    if (!fastSwitch) {
         // Prepare for drop-in
         vinyl.classList.remove('lifting');
         vinyl.classList.add('dropping');
@@ -175,6 +186,11 @@ async function animateRecordChange(newSong) {
     }
 
     // Reset mini turntable elements (they'll be set to playing by onPlayerStateChange when video plays)
+
+    // Every track-change path funnels through here, but updateMediaSession's
+    // only other call site is updateSongDisplay — without this the lock
+    // screen keeps showing the previous song after next/prev/switchSong.
+    updateMediaSession(newSong);
 }
 
 let songHistory = [];
@@ -241,8 +257,13 @@ async function switchSong(index) {
     });
 
     // Animate the record change
-    // Play vinyl crackle before song change
-    await playCrackleSound();
+    // Play vinyl crackle before song change. On phones the crackle still
+    // plays, but delays the track start by at most 300ms.
+    if (window.matchMedia('(max-width: 600px)').matches) {
+        await Promise.race([playCrackleSound(), new Promise(r => setTimeout(r, 300))]);
+    } else {
+        await playCrackleSound();
+    }
     await animateRecordChange(song);
 
     // Reset progress bar for new song
@@ -283,7 +304,8 @@ async function selectPlaylistFromCrate(playlistId) {
     if (playlistId === activePlaylistId) {
         if (!window.ReactNativeWebView) {
             if (clickedRecord) clickedRecord.classList.add('pulling');
-            await new Promise(resolve => setTimeout(resolve, 500));
+            const pullMs = window.matchMedia('(max-width: 600px)').matches ? 250 : 500;
+            await new Promise(resolve => setTimeout(resolve, pullMs));
         }
         vinylCrate.classList.add('hidden');
         playerView.classList.add('active');
@@ -380,7 +402,8 @@ async function selectPlaylistFromCrate(playlistId) {
 
     if (!window.ReactNativeWebView) {
         // Wait for pull animation
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const pullMs = window.matchMedia('(max-width: 600px)').matches ? 250 : 500;
+        await new Promise(resolve => setTimeout(resolve, pullMs));
     }
 
     // Transition to player view
@@ -738,8 +761,13 @@ async function playRadioSong(song) {
     document.querySelectorAll('.song-list-item:not(.radio-song-item)').forEach(item => item.classList.remove('active'));
 
     // Animate the record change
-    // Play vinyl crackle before song change
-    await playCrackleSound();
+    // Play vinyl crackle before song change. On phones the crackle still
+    // plays, but delays the track start by at most 300ms.
+    if (window.matchMedia('(max-width: 600px)').matches) {
+        await Promise.race([playCrackleSound(), new Promise(r => setTimeout(r, 300))]);
+    } else {
+        await playCrackleSound();
+    }
     await animateRecordChange(song);
 
     // Reset progress bar
@@ -988,11 +1016,30 @@ function formatTime(seconds) {
     return m + ':' + String(s).padStart(2, '0');
 }
 
+let mPositionStateTick = 0;
+
 function updateSleeveProgress() {
+    // While a finger is scrubbing the bar, the mobile module owns the fill
+    // preview — the 100ms tick must not fight it.
+    if (window.__mScrubbing) return;
     if (!ytPlayer || !ytPlayer.getCurrentTime || !ytPlayer.getDuration) return;
     const current = ytPlayer.getCurrentTime();
     const duration = ytPlayer.getDuration();
     if (!duration) return;
+
+    // Lock-screen scrubber position, ~once per second
+    if (++mPositionStateTick >= 10) {
+        mPositionStateTick = 0;
+        if ('mediaSession' in navigator && navigator.mediaSession.setPositionState) {
+            try {
+                navigator.mediaSession.setPositionState({
+                    duration: duration,
+                    position: Math.min(current, duration),
+                    playbackRate: 1,
+                });
+            } catch (e) {}
+        }
+    }
 
     const pct = Math.min((current / duration) * 100, 100);
     const fill = document.getElementById('sleeveProgressFill');
@@ -1927,8 +1974,14 @@ function updateMediaSession(song) {
     if (!('mediaSession' in navigator)) return;
     const safe = (fn) => () => { try { fn(); } catch (e) {} };
     try {
-        navigator.mediaSession.setActionHandler('play', safe(() => toggleMusic()));
-        navigator.mediaSession.setActionHandler('pause', safe(() => toggleMusic()));
+        // Idempotent: the OS may send 'play' while already playing (or the
+        // reverse) — blindly toggling would invert the intended state.
+        navigator.mediaSession.setActionHandler('play', safe(() => {
+            if (!ytPlayer || !ytPlayer.getPlayerState || ytPlayer.getPlayerState() !== 1) toggleMusic();
+        }));
+        navigator.mediaSession.setActionHandler('pause', safe(() => {
+            if (ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === 1) toggleMusic();
+        }));
         navigator.mediaSession.setActionHandler('previoustrack', safe(() => prevSong()));
         navigator.mediaSession.setActionHandler('nexttrack', safe(() => nextSong()));
         navigator.mediaSession.setActionHandler('seekto', (details) => {
