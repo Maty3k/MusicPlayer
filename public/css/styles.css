@@ -4235,10 +4235,6 @@ body {
     align-items: center;
 }
 
-.rp-btn.rp-play svg {
-    margin-left: 2px; /* optical centering for the play triangle */
-}
-
 .rp-btn {
     width: 42px;
     height: 42px;
@@ -8262,11 +8258,8 @@ html[data-theme="greenroom"] {
         justify-content: center;
     }
 
-    /* A right-pointing triangle's visual mass leans left of its box —
-       nudge it so it READS centered inside the round button */
-    #mDockPlay .m-ic-play svg {
-        margin-left: 2px;
-    }
+    /* The play-triangle SVG path is drawn symmetric in its viewBox —
+       no margin nudges anywhere, or it drifts off-center */
 
     #mDockPlay .m-ic-pause {
         display: none;
@@ -9098,7 +9091,6 @@ html[data-theme="greenroom"] {
     }
 
     #mPlayBtn .m-ic-play svg {
-        margin-left: 2px; /* optical centering: the triangle leans left */
         width: 24px;
         height: 24px;
     }
