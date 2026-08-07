@@ -9109,14 +9109,23 @@ html[data-theme="greenroom"] {
     }
 
     /* Controls float as glass chips on the card corner; the offset-nudge
-       cluster only appears in full-screen mode, where syncing matters */
+       cluster only appears in full-screen mode, where syncing matters.
+       In the preview the chip lives bottom-right, over the mask-faded
+       tail of the text — never on top of a readable line */
     .lyrics-controls {
         position: absolute;
-        top: 8px;
-        right: 8px;
+        top: auto;
+        bottom: 6px;
+        right: 6px;
         display: flex;
         gap: 6px;
         z-index: 3;
+    }
+
+    body.m-lyrics-open .lyrics-controls {
+        top: 8px;
+        right: 8px;
+        bottom: auto;
     }
 
     .lyrics-ctrl-btn,
