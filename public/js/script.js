@@ -2794,6 +2794,8 @@ function showSettingsModal() {
     if (lyricsToggle) lyricsToggle.checked = lyricsEnabled;
     const crackleToggle = document.getElementById('settingsCrackleToggle');
     if (crackleToggle) crackleToggle.checked = crackleEnabled;
+    // Sync the room-theme swatches
+    syncThemeSwatches();
     // Clear any leftover form status from a previous visit
     const nameStatus = document.getElementById('settingsNameStatus');
     if (nameStatus) nameStatus.textContent = '';
@@ -2802,6 +2804,36 @@ function showSettingsModal() {
     // Check Spotify status
     checkSpotifyStatus();
 }
+
+// Room themes are color-only: the head inline script applies the saved one
+// before first paint; this just switches at runtime. Keep the list in sync
+// with the html[data-theme] token sets in styles.css and the blade head map.
+const ROOM_THEMES = ['golden-hour', 'after-hours', 'velvet', 'greenroom'];
+
+function currentRoomTheme() {
+    return document.documentElement.getAttribute('data-theme') || 'golden-hour';
+}
+
+function syncThemeSwatches() {
+    const active = currentRoomTheme();
+    document.querySelectorAll('#themeSwatchRow .theme-swatch-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === active);
+    });
+}
+
+window.setRoomTheme = function (name) {
+    if (!ROOM_THEMES.includes(name)) name = 'golden-hour';
+    if (name === 'golden-hour') {
+        document.documentElement.removeAttribute('data-theme');
+    } else {
+        document.documentElement.setAttribute('data-theme', name);
+    }
+    const colors = window.__roomThemeColors || {};
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta && colors[name]) meta.setAttribute('content', colors[name]);
+    try { localStorage.setItem('musicTheme', name); } catch (e) { /* private mode */ }
+    syncThemeSwatches();
+};
 
 function setLyricsEnabledFromSettings(on) {
     if (on !== lyricsEnabled) toggleLyrics();

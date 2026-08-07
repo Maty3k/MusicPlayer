@@ -37,6 +37,21 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/styles.css') }}?v={{ filemtime(public_path('css/styles.css')) }}">
+    <script>
+        /* Room theme, applied before first paint so no default-color flash.
+           Kept in sync with ROOM_THEMES in script.js. */
+        (function () {
+            try {
+                window.__roomThemeColors = { 'golden-hour': '#1a1510', 'after-hours': '#14171e', 'velvet': '#201318', 'greenroom': '#171d13' };
+                var t = localStorage.getItem('musicTheme');
+                if (t && t !== 'golden-hour' && window.__roomThemeColors[t]) {
+                    document.documentElement.setAttribute('data-theme', t);
+                    var m = document.querySelector('meta[name="theme-color"]');
+                    if (m) m.setAttribute('content', window.__roomThemeColors[t]);
+                }
+            } catch (e) { /* private mode etc. — default theme */ }
+        })();
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js" defer></script>
 </head>
 <body>
@@ -1013,6 +1028,24 @@
                     <input type="checkbox" id="settingsCrackleToggle" onchange="setCrackleEnabledFromSettings(this.checked)">
                     <span class="settings-switch"></span>
                 </label>
+            </div>
+
+            <div class="add-song-form-group">
+                <label>Room theme</label>
+                <div class="theme-swatch-row" id="themeSwatchRow">
+                    <button type="button" class="theme-swatch-btn" data-theme="golden-hour" onclick="setRoomTheme('golden-hour')" title="Warm browns and brass — the original room">
+                        <span class="theme-swatch" style="--sw-wall:#2a2420;--sw-accent:#d4a574"></span>Golden Hour
+                    </button>
+                    <button type="button" class="theme-swatch-btn" data-theme="after-hours" onclick="setRoomTheme('after-hours')" title="Ink-blue walls, moonlit steel accents">
+                        <span class="theme-swatch" style="--sw-wall:#20242e;--sw-accent:#a8c0dc"></span>After Hours
+                    </button>
+                    <button type="button" class="theme-swatch-btn" data-theme="velvet" onclick="setRoomTheme('velvet')" title="Oxblood walls, rose-copper accents">
+                        <span class="theme-swatch" style="--sw-wall:#2e1a1e;--sw-accent:#d89aa0"></span>Velvet
+                    </button>
+                    <button type="button" class="theme-swatch-btn" data-theme="greenroom" onclick="setRoomTheme('greenroom')" title="Deep moss walls, sage accents">
+                        <span class="theme-swatch" style="--sw-wall:#232b21;--sw-accent:#b4c69a"></span>Greenroom
+                    </button>
+                </div>
             </div>
 
             <div class="add-song-form-group settings-spotify-group">

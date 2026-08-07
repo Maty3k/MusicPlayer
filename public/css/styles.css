@@ -7616,6 +7616,237 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
 }
 
 /* ============================================================
+   Room themes — color-only variants of the vinyl room.
+   The default (Golden Hour) is the untouched stylesheet: no
+   data-theme attribute, none of these rules match. A theme sets
+   data-theme on <html> (pre-paint inline script in the blade head)
+   and every rule below keys off [data-theme] so it outranks the
+   later MOBILE V2 block on specificity, not source order.
+   Design line: a theme repaints the ROOM — walls, floor, rug,
+   string-light color, and UI accent chrome. The hardware keeps
+   its brass and amber (turntable, amp VFD, clock): gear doesn't
+   change color when the walls do.
+   Adding a theme = one token set + one settings swatch. Nothing else.
+   ============================================================ */
+
+/* -- After Hours: the 2am listening bar. Ink-blue walls, moonlit steel. */
+html[data-theme="after-hours"] {
+    --th-body: #08090c;
+    --th-shell-a: #16181f; --th-shell-b: #0f1013; --th-shell-c: #08090a;
+    --th-wall-a: #20242e;  --th-wall-b: #171a21;
+    --th-floor-a: #14161c; --th-floor-b: #0e1013;
+    --th-rug-rgb: 90, 110, 139;
+    --th-accent-rgb: 168, 192, 220;   --th-accent: #a8c0dc;
+    --th-accent-hi-rgb: 207, 224, 242; --th-accent-hi: #cfe0f2;
+    --th-ink: #10151c;
+    --th-cream: #e8eef6;
+    --th-bulb-core: #f4f8ff; --th-bulb-mid: #cfe0f2; --th-bulb-rgb: 190, 210, 240;
+    /* Phone-shell tokens follow the room */
+    --m-walnut-hi: #262b36; --m-walnut: #1b1f28; --m-walnut-deep: #14171e;
+    --m-ink: #10151c; --m-cream: #e8eef6; --m-cream-dim: rgba(232, 238, 246, 0.55);
+    --m-gold: #a8c0dc; --m-gold-hi: #cfe0f2;
+    --m-brass-border: rgba(168, 192, 220, 0.35); --m-gold-wash: rgba(168, 192, 220, 0.10);
+}
+
+/* -- Velvet: oxblood walls, rose-copper accent. The jazz-club corner. */
+html[data-theme="velvet"] {
+    --th-body: #0c0708;
+    --th-shell-a: #1f1215; --th-shell-b: #150c0e; --th-shell-c: #0b0708;
+    --th-wall-a: #2e1a1e;  --th-wall-b: #211317;
+    --th-floor-a: #1c1114; --th-floor-b: #120c0e;
+    --th-rug-rgb: 150, 80, 90;
+    --th-accent-rgb: 216, 154, 160;   --th-accent: #d89aa0;
+    --th-accent-hi-rgb: 240, 196, 196; --th-accent-hi: #f0c4c4;
+    --th-ink: #1c0f12;
+    --th-cream: #f6e8ea;
+    --th-bulb-core: #fff0ec; --th-bulb-mid: #f4c8bc; --th-bulb-rgb: 255, 190, 170;
+    --m-walnut-hi: #382228; --m-walnut: #29191f; --m-walnut-deep: #201318;
+    --m-ink: #1c0f12; --m-cream: #f6e8ea; --m-cream-dim: rgba(246, 232, 234, 0.55);
+    --m-gold: #d89aa0; --m-gold-hi: #f0c4c4;
+    --m-brass-border: rgba(216, 154, 160, 0.35); --m-gold-wash: rgba(216, 154, 160, 0.10);
+}
+
+/* -- Greenroom: deep moss walls, sage accent. Backstage before the set. */
+html[data-theme="greenroom"] {
+    --th-body: #080b08;
+    --th-shell-a: #151a14; --th-shell-b: #0f130e; --th-shell-c: #080a08;
+    --th-wall-a: #232b21;  --th-wall-b: #181f17;
+    --th-floor-a: #161a13; --th-floor-b: #0f120d;
+    --th-rug-rgb: 100, 120, 80;
+    --th-accent-rgb: 180, 198, 154;   --th-accent: #b4c69a;
+    --th-accent-hi-rgb: 216, 230, 192; --th-accent-hi: #d8e6c0;
+    --th-ink: #131810;
+    --th-cream: #eef4e4;
+    --th-bulb-core: #fbfdec; --th-bulb-mid: #ece9b8; --th-bulb-rgb: 232, 236, 176;
+    --m-walnut-hi: #2b3327; --m-walnut: #1f2619; --m-walnut-deep: #171d13;
+    --m-ink: #131810; --m-cream: #eef4e4; --m-cream-dim: rgba(238, 244, 228, 0.55);
+    --m-gold: #b4c69a; --m-gold-hi: #d8e6c0;
+    --m-brass-border: rgba(180, 198, 154, 0.35); --m-gold-wash: rgba(180, 198, 154, 0.10);
+}
+
+/* ---- Room shell ---- */
+[data-theme] body { background: var(--th-body); }
+[data-theme] #music-section {
+    background: linear-gradient(180deg, var(--th-shell-a) 0%, var(--th-shell-b) 40%, var(--th-shell-c) 100%);
+}
+[data-theme] .room-wall {
+    background:
+        linear-gradient(180deg, var(--th-wall-a) 0%, var(--th-wall-b) 100%),
+        repeating-linear-gradient(90deg, transparent 0px, transparent 100px, rgba(255, 255, 255, 0.02) 100px, rgba(255, 255, 255, 0.02) 101px);
+}
+[data-theme] .room-floor {
+    background: linear-gradient(180deg, var(--th-floor-a) 0%, var(--th-floor-b) 100%);
+}
+[data-theme] .room-floor::before {
+    background: linear-gradient(90deg, transparent, rgba(var(--th-accent-rgb), 0.06), transparent);
+}
+[data-theme] .floor-rug {
+    background: radial-gradient(ellipse, rgba(var(--th-rug-rgb), 0.12) 0%, rgba(var(--th-rug-rgb), 0.06) 50%, transparent 70%);
+}
+[data-theme] .floor-rug::before { border-color: rgba(var(--th-rug-rgb), 0.08); }
+[data-theme] .ambient-overlay {
+    background:
+        radial-gradient(ellipse at 50% 30%, transparent 0%, transparent 40%, rgba(0, 0, 0, 0.4) 100%),
+        radial-gradient(ellipse at 50% 0%, rgba(var(--th-bulb-rgb), 0.03) 0%, transparent 50%);
+}
+
+/* ---- The light itself: string + hanging bulbs, dust in the beam ---- */
+[data-theme] .string-bulb {
+    background: radial-gradient(ellipse at top, var(--th-bulb-core) 0%, var(--th-bulb-mid) 40%, var(--th-accent) 100%);
+    animation-name: stringGlowThemed;
+}
+@keyframes stringGlowThemed {
+    0%, 100% { opacity: 0.7; box-shadow: 0 0 10px rgba(var(--th-bulb-rgb), 0.4), 0 0 20px rgba(var(--th-bulb-rgb), 0.2); }
+    50% { opacity: 1; box-shadow: 0 0 20px rgba(var(--th-bulb-rgb), 0.8), 0 0 40px rgba(var(--th-bulb-rgb), 0.4), 0 0 60px rgba(var(--th-bulb-rgb), 0.2); }
+}
+[data-theme] .light-bulb::after {
+    background: radial-gradient(ellipse at 30% 30%, var(--th-bulb-core) 0%, var(--th-bulb-mid) 30%, var(--th-accent) 60%, color-mix(in srgb, var(--th-accent) 60%, #000) 100%);
+    box-shadow: 0 0 30px rgba(var(--th-bulb-rgb), 0.5), 0 0 60px rgba(var(--th-bulb-rgb), 0.2);
+}
+[data-theme] .bulb-glow {
+    background: radial-gradient(ellipse at top, rgba(var(--th-bulb-rgb), 0.1) 0%, rgba(var(--th-bulb-rgb), 0.05) 40%, transparent 70%);
+}
+[data-theme] .dust-particles span { background: rgba(var(--th-bulb-rgb), 0.4); }
+
+/* ---- Homescreen accent chrome ---- */
+[data-theme] .greeting-text p { color: rgba(var(--th-accent-rgb), 0.55); }
+[data-theme] .source-filter { border-color: rgba(var(--th-accent-rgb), 0.15); }
+[data-theme] .source-filter-btn { color: rgba(var(--th-accent-rgb), 0.55); }
+[data-theme] .source-filter-btn:hover { color: var(--th-cream); }
+[data-theme] .source-filter-btn.active {
+    background: linear-gradient(180deg, rgba(var(--th-accent-rgb), 0.22), rgba(var(--th-accent-rgb), 0.1));
+    color: var(--th-cream);
+}
+[data-theme] .new-playlist-btn {
+    background: rgba(var(--th-accent-rgb), 0.08);
+    border-color: rgba(var(--th-accent-rgb), 0.45);
+    color: var(--th-accent);
+}
+[data-theme] .new-playlist-btn:hover {
+    background: rgba(var(--th-accent-rgb), 0.16);
+    border-color: var(--th-accent);
+}
+[data-theme] .crate-settings-btn { border-color: rgba(var(--th-accent-rgb), 0.3); }
+[data-theme] .stat-num { color: var(--th-accent); }
+[data-theme] .collection-stats-inline .stat-chip {
+    color: rgba(var(--th-accent-rgb), 0.55);
+    border-color: rgba(var(--th-accent-rgb), 0.12);
+}
+[data-theme] .record-card.now-playing::after {
+    color: var(--th-ink);
+    background: linear-gradient(180deg, var(--th-accent-hi), var(--th-accent));
+}
+@media (min-width: 601px) {
+    [data-theme] .record-card.now-playing .record-card-cover {
+        box-shadow:
+            0 0 0 2px rgba(var(--th-accent-hi-rgb), 0.9),
+            0 0 34px rgba(var(--th-accent-rgb), 0.3),
+            0 15px 50px rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* ---- Player view + shared chrome (accents only) ---- */
+[data-theme] .back-to-crate { border-color: rgba(var(--th-accent-rgb), 0.4); color: var(--th-accent); }
+[data-theme] .back-to-crate:hover { background: rgba(var(--th-accent-rgb), 0.15); border-color: var(--th-accent); }
+[data-theme] .song-list-item:hover { background: rgba(var(--th-accent-rgb), 0.06); border-color: rgba(var(--th-accent-rgb), 0.1); }
+[data-theme] .song-list-item.active {
+    background: linear-gradient(135deg, rgba(var(--th-accent-rgb), 0.12) 0%, rgba(var(--th-accent-rgb), 0.06) 100%);
+    border-color: rgba(var(--th-accent-rgb), 0.2);
+}
+[data-theme] .song-list-artist { color: rgba(var(--th-accent-rgb), 0.4); }
+[data-theme] .song-list-item.active .song-list-artist { color: rgba(var(--th-accent-rgb), 0.75); }
+[data-theme] .song-list-item.active .song-list-num { color: rgba(var(--th-accent-rgb), 0.6); }
+[data-theme] .song-list-playing-indicator span { background: var(--th-accent); }
+[data-theme] .sleeve-progress-times { color: rgba(var(--th-accent-rgb), 0.55); }
+[data-theme] .sleeve-progress-bar { background: rgba(var(--th-accent-rgb), 0.12); }
+[data-theme] .sleeve-progress-fill { background: linear-gradient(90deg, var(--th-accent), var(--th-accent-hi)); }
+[data-theme] .sleeve-progress:hover .sleeve-progress-fill {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--th-accent) 85%, #fff), color-mix(in srgb, var(--th-accent-hi) 85%, #fff));
+}
+[data-theme] .volume-slider { background: rgba(var(--th-accent-rgb), 0.2); }
+[data-theme] .volume-slider::-webkit-slider-thumb { background: var(--th-accent); }
+[data-theme] .volume-slider::-moz-range-thumb { background: var(--th-accent); }
+[data-theme] .add-song-btn-save {
+    background: linear-gradient(135deg, rgba(var(--th-accent-rgb), 0.25), rgba(var(--th-accent-rgb), 0.15));
+    border-color: rgba(var(--th-accent-rgb), 0.4);
+}
+[data-theme] .add-song-btn-save:hover {
+    background: linear-gradient(135deg, rgba(var(--th-accent-rgb), 0.35), rgba(var(--th-accent-rgb), 0.25));
+    border-color: var(--th-accent);
+    box-shadow: 0 4px 16px rgba(var(--th-accent-rgb), 0.2);
+}
+[data-theme] .add-song-btn-cancel {
+    background: rgba(var(--th-accent-rgb), 0.08);
+    border-color: rgba(var(--th-accent-rgb), 0.2);
+    color: rgba(var(--th-accent-rgb), 0.7);
+}
+[data-theme] .settings-source-btn { border-color: rgba(var(--th-accent-rgb), 0.2); }
+[data-theme] .settings-source-btn.active {
+    background: linear-gradient(135deg, rgba(var(--th-accent-rgb), 0.28), rgba(var(--th-accent-rgb), 0.15));
+    border-color: var(--th-accent);
+}
+/* Phone dock gradient stops that escape the --m-* tokens */
+[data-theme] #mPlayAll {
+    background: linear-gradient(180deg, var(--m-gold), color-mix(in srgb, var(--m-gold) 72%, #000));
+}
+[data-theme] #mTransport #mPlayBtn {
+    background: radial-gradient(circle at 35% 30%, var(--m-gold-hi), var(--m-gold) 55%, color-mix(in srgb, var(--m-gold) 65%, #000));
+}
+
+/* ---- Settings: theme swatch picker ---- */
+.theme-swatch-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.theme-swatch-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.68rem;
+    letter-spacing: 0.4px;
+    font-family: inherit;
+    padding: 6px 8px;
+    border-radius: 10px;
+}
+.theme-swatch-btn .theme-swatch {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--sw-wall) 0% 55%, var(--sw-accent) 55% 100%);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.theme-swatch-btn:hover .theme-swatch { border-color: rgba(255, 255, 255, 0.4); }
+.theme-swatch-btn.active { color: #fff; }
+.theme-swatch-btn.active .theme-swatch {
+    border-color: var(--sw-accent);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.18), inset 0 0 0 2px rgba(0, 0, 0, 0.35);
+}
+
+/* ============================================================
    ===== MOBILE V2 — must remain the LAST block in this file =====
    Phone redesign: Spotify-grade ergonomics, vinyl identity.
    Everything here is (a) the unscoped .m-only default hide, or
