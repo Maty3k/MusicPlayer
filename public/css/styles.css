@@ -8323,52 +8323,97 @@ html[data-theme="greenroom"] {
         padding: 0 0 calc(var(--m-dock-h) + 12px + var(--m-safe-b));
     }
 
+    /* The right panel mirrors the portrait NP design: title, lyrics
+       filling the height, progress — art comes from the backdrop and the
+       dock, not a stretched tile; transport lives in the dock */
+    .turntable-area {
+        width: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+    }
+
     .vinyl-sleeve {
-        width: min(100%, 560px);
+        width: min(100%, 640px);
         min-width: 0;
         height: auto;
         transform: none;
-        margin: 0;
+        margin: 0 auto;
         border-radius: 12px;
         border-right: none;
-        flex-direction: row;
-        flex-wrap: wrap;
+        display: flex;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        flex: 1 1 auto;
+        min-height: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
     }
 
+    .vinyl-sleeve::before,
     .vinyl-sleeve::after {
         display: none;
     }
 
     .sleeve-art {
-        width: 96px;
-        min-width: 96px;
-        flex: none;
-        aspect-ratio: 1;
+        display: none;
     }
 
     .sleeve-lyrics-zone {
-        flex: 1;
+        order: 2;
+        flex: 1 1 auto;
         min-width: 0;
-        max-height: 150px;
+        min-height: 0;
+        max-height: none;
         overflow: hidden;
+        position: relative;
     }
 
     .sleeve-lyrics {
         border-top: none;
-        border-left: 1px solid rgba(212, 165, 116, 0.1);
-        padding: 8px 12px;
-        -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 74%, transparent 99%);
-                mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 74%, transparent 99%);
+        border-left: none;
+        padding: 8px 14px;
+        -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 80%, transparent 100%);
+                mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 80%, transparent 100%);
     }
 
     .sleeve-lyrics .lyrics-line {
-        font-size: 0.85rem;
-        line-height: 1.65;
+        font-size: 0.95rem;
+        line-height: 1.7;
         font-weight: 500;
+    }
+
+    /* Offset nudging is a portrait full-screen affordance; in landscape
+       the pills just cluttered the lyric panel */
+    .lyrics-controls {
+        display: none;
+    }
+
+    /* Legacy per-row send/delete circles sat on top of the row text —
+       actions live in the portrait sheet, rows here just play */
+    .song-actions {
+        display: none;
+    }
+
+    /* Desktop mouse affordances: no sidebar collapsing/resizing on touch */
+    #sidebarCollapseBtn,
+    .sidebar-resize-handle {
+        display: none;
     }
 
     .sleeve-catalog {
         display: none;
+    }
+
+    /* Calm single-wash backdrop, same as portrait */
+    .music-main-backdrop img {
+        filter: blur(60px) saturate(1.35) brightness(0.42);
+        animation: none;
+    }
+
+    .music-main-backdrop::after {
+        background: linear-gradient(180deg, rgba(10, 8, 8, 0.12) 0%, rgba(10, 8, 8, 0.5) 70%, rgba(10, 8, 8, 0.75) 100%);
     }
 
     .sleeve-mobile-nowplaying {
@@ -8376,10 +8421,10 @@ html[data-theme="greenroom"] {
         align-items: baseline;
         gap: 8px;
         width: 100%;
-        order: 3;
+        order: 1;
         min-width: 0;
-        padding: 8px 12px 0;
-        border-top: 1px solid rgba(212, 165, 116, 0.12);
+        padding: 10px 14px 0;
+        border-top: none;
     }
 
     .sleeve-mobile-nowplaying .song-title {
@@ -8404,9 +8449,9 @@ html[data-theme="greenroom"] {
 
     .sleeve-progress {
         width: 100%;
-        order: 4;
+        order: 3;
         margin-top: 0;
-        padding: 6px 12px 12px;
+        padding: 6px 14px 10px;
     }
 
     /* The list scrolls under the dock — give it clearance */
