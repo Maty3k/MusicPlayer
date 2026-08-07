@@ -2516,7 +2516,7 @@ async function savePlaylistEdit() {
         if (colorChanged) {
             card.style.setProperty('--card-color', selectedEditColor);
             const badge = card.querySelector('.cover-badge');
-            if (badge) badge.style.background = selectedEditColor;
+            if (badge) badge.style.setProperty('--pl-color', selectedEditColor);
             const coverArt = card.querySelector('.cover-art');
             if (coverArt) coverArt.style.background = `linear-gradient(135deg, ${selectedEditColor} 0%, ${selectedEditColor}99 100%)`;
         }

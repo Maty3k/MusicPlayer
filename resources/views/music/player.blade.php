@@ -369,7 +369,7 @@
                                     <div class="cover-overlay"></div>
                                     <div class="cover-texture"></div>
                                 </div>
-                                <div class="cover-badge" style="background: {$color};">{$songCount}</div>
+                                <div class="cover-badge" style="--pl-color: {$color};">{$songCount}</div>
                                 <div class="cover-info">
                                     <div class="cover-title">{$plName}</div>
                                     <div class="cover-preview">{$preview}</div>
@@ -420,20 +420,20 @@
 
                     <div class="collection-stats">
                         <div class="stat-item">
-                            <span class="stat-icon">&#128191;</span>
+                            <span class="stat-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg></span>
                             <span class="stat-num">{{ $totalTracks }}</span>
                             <span class="stat-text">tracks</span>
                         </div>
                         <div class="stat-divider"></div>
                         <div class="stat-item">
-                            <span class="stat-icon">&#128193;</span>
+                            <span class="stat-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="6" width="17" height="13" rx="1.5"/><path d="M7 6v13M12 6v13M17 6v13" opacity="0.65"/></svg></span>
                             <span class="stat-num">{{ count($playlists) }}</span>
                             <span class="stat-text">playlists</span>
                         </div>
                         <div class="stat-divider"></div>
                         <div class="stat-item">
-                            <span class="stat-icon">&#10024;</span>
-                            <span class="stat-num">&#8734;</span>
+                            <span class="stat-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3.5c.7 4.6 2.9 6.8 7.5 7.5-4.6.7-6.8 2.9-7.5 7.5-.7-4.6-2.9-6.8-7.5-7.5 4.6-.7 6.8-2.9 7.5-7.5z"/><path d="M18.5 15.5c.3 1.9 1.2 2.8 3 3-1.8.3-2.7 1.2-3 3-.3-1.8-1.2-2.7-3-3 1.8-.2 2.7-1.1 3-3z" opacity="0.65"/></svg></span>
+                            <span class="stat-num stat-num-infinity">&#8734;</span>
                             <span class="stat-text">vibes</span>
                         </div>
                     </div>

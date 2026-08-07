@@ -643,6 +643,7 @@ body {
 
 /* Mini tonearm base (warm chrome pivot) */
 .mini-tonearm-base {
+    filter: drop-shadow(2px 3px 3px rgba(0, 0, 0, 0.45));
     position: absolute;
     right: 34px;
     top: 14px;
@@ -823,12 +824,12 @@ body {
     transform: none;
     font-size: 0.55rem;
     font-weight: 700;
-    letter-spacing: 1.5px;
+    letter-spacing: 1.2px;
     color: #1a1510;
     background: linear-gradient(180deg, #e8c496, #d4a574);
-    padding: 4px 9px;
+    padding: 5px 10px;
     border-radius: 999px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
     white-space: nowrap;
     z-index: 4;
     animation: none;
@@ -840,7 +841,11 @@ body {
 }
 
 .record-card:hover {
-    transform: translateY(-20px) scale(1.03);
+    transform: translateY(-10px) scale(1.02);
+}
+
+.record-card:hover .record-card-cover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 24px 48px rgba(0, 0, 0, 0.5);
 }
 
 .record-card:hover .vinyl-peek {
@@ -869,9 +874,11 @@ body {
     height: 170px;
     border-radius: 50%;
     background:
-        radial-gradient(circle at center, #0a0a0a 0%, #0a0a0a 12%, transparent 12%),
-        repeating-radial-gradient(circle at center, #151515 0px, #151515 2px, #0a0a0a 2px, #0a0a0a 5px);
-    box-shadow: -8px 8px 30px rgba(0,0,0,0.7);
+        radial-gradient(circle at center, #0d0b09 0%, #0d0b09 12%, transparent 12%),
+        repeating-radial-gradient(circle at center, #1c1712 0px, #1c1712 2px, #100d0a 2px, #100d0a 5px);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 225, 180, 0.10),
+        -8px 8px 30px rgba(0, 0, 0, 0.7);
     opacity: 0;
     transform: translateX(0) rotate(0);
     transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -907,10 +914,22 @@ body {
     position: relative;
     width: 180px;
     height: 180px;
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 15px 50px rgba(0,0,0,0.5);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5), 0 18px 42px rgba(0, 0, 0, 0.55);
+    transition: box-shadow 0.4s ease;
     z-index: 1;
+}
+
+/* Hairline inner ring keeps dark covers from melting into the dark room */
+.record-card-cover::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    pointer-events: none;
+    z-index: 3;
 }
 
 .cover-art {
@@ -928,7 +947,7 @@ body {
 .cover-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, transparent 0%, transparent 40%, rgba(0,0,0,0.8) 100%);
+    background: linear-gradient(180deg, transparent 0%, transparent 34%, rgba(0, 0, 0, 0.16) 52%, rgba(0, 0, 0, 0.5) 72%, rgba(0, 0, 0, 0.85) 100%);
 }
 
 .cover-info {
@@ -944,7 +963,8 @@ body {
     font-size: 1.15rem;
     font-weight: 600;
     color: #fff;
-    margin-bottom: 4px;
+    line-height: 1.25;
+    margin-bottom: 3px;
 }
 
 .cover-count {
@@ -990,16 +1010,16 @@ body {
 .collection-stats {
     display: flex;
     align-items: center;
-    gap: 40px;
-    padding: 20px 45px;
+    gap: 34px;
+    padding: 16px 42px;
     background: rgba(10, 8, 6, 0.8);
     border-radius: 40px;
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid rgba(255, 255, 255, 0.07);
     position: relative;
     z-index: 5;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .stat-item {
@@ -1008,22 +1028,32 @@ body {
 
 .stat-num {
     display: block;
-    font-size: 1.8rem;
+    font-size: 1.55rem;
     font-weight: 600;
+    letter-spacing: 0.5px;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
     color: #d4a574;
 }
 
 .stat-text {
-    font-size: 0.8rem;
-    color: #555;
+    font-size: 0.62rem;
+    color: rgba(242, 232, 216, 0.38);
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 1.8px;
 }
 
 .stat-divider {
     width: 1px;
-    height: 40px;
-    background: rgba(255,255,255,0.1);
+    height: 34px;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+/* The infinity glyph renders optically smaller than the digits — scale it
+   up so the three stat values share one visual weight */
+.stat-num-infinity {
+    font-size: 1.9rem;
+    line-height: 1;
 }
 
 /* Right Side */
@@ -1058,6 +1088,7 @@ body {
 
 .floor-rug::before {
     content: '';
+    filter: blur(4px); /* feather the ring so it reads as floor glow, not a scratch */
     position: absolute;
     top: 20%;
     left: 15%;
@@ -1411,7 +1442,7 @@ body {
 }
 
 .string-wire path {
-    stroke: #444;
+    stroke: rgba(122, 100, 78, 0.55);
     stroke-width: 2;
 }
 
@@ -1687,9 +1718,10 @@ body {
 
 .mini-pitch-value {
     font-size: 0.5rem;
-    color: #e0b888;
+    font-family: 'Courier New', ui-monospace, monospace;
+    color: #d8a55e;
     font-weight: 600;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
     text-align: center;
     font-variant-numeric: tabular-nums;
 }
@@ -2203,20 +2235,39 @@ body {
     pointer-events: none;
 }
 
+/* Glass pill with a playlist-color dot: the raw playlist color as a badge
+   background read as a default-UI-kit circle against the covers */
 .cover-badge {
     position: absolute;
     top: 8px;
     right: 8px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
+    min-width: 24px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: #fff;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    gap: 5px;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.92);
+    background: rgba(12, 10, 9, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.cover-badge::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--pl-color, #d4a574);
+    flex-shrink: 0;
 }
 
 .cover-preview {
@@ -2225,8 +2276,8 @@ body {
 
 .preview-track {
     font-size: 0.6rem;
-    color: rgba(255,255,255,0.5);
-    font-style: italic;
+    color: rgba(255, 255, 255, 0.52);
+    letter-spacing: 0.2px;
 }
 
 .card-reflection {
@@ -2244,9 +2295,14 @@ body {
 
 /* Stats improvements */
 .stat-icon {
+    display: flex;
+    justify-content: center;
+    color: rgba(212, 165, 116, 0.7);
+    margin-bottom: 6px;
+}
+
+.stat-icon svg {
     display: block;
-    font-size: 1.3rem;
-    margin-bottom: 5px;
 }
 
 .stat-item {
@@ -2730,9 +2786,9 @@ body {
     z-index: 5;
     width: 28px;
     height: 28px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    background: rgba(0, 0, 0, 0.5);
-    color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(20, 14, 8, 0.5);
+    color: rgba(232, 209, 176, 0.85);
     border-radius: 50%;
     cursor: pointer;
     display: flex;
@@ -5459,9 +5515,11 @@ body {
     }
 
     .cover-badge {
-        width: 22px;
-        height: 22px;
-        font-size: 0.6rem;
+        min-width: 22px;
+        height: 20px;
+        padding: 0 6px;
+        gap: 4px;
+        font-size: 0.58rem;
     }
 
     .cover-preview {
@@ -5607,7 +5665,32 @@ body {
     }
 
     .conveyor-row {
-        padding: 18px 0 6px;
+        padding: 14px 0 6px;
+    }
+
+    .cover-info {
+        padding: 10px 12px;
+    }
+
+    .preview-track {
+        letter-spacing: 0;
+    }
+}
+
+/* On compact cards (tablet width or short window) the full NOW PLAYING
+   pill spans the cover and buries the count badge — fold it to the round
+   note chip the phone uses */
+@media (max-width: 900px), (max-height: 860px) {
+    .record-card.now-playing::after {
+        content: '\266A';
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        letter-spacing: 0;
+        border-radius: 50%;
     }
 }
 
@@ -6666,7 +6749,7 @@ body {
 }
 .conveyor-row {
     overflow: hidden;
-    padding: 24px 0 6px;   /* top: hover-lift room; bottom: shadow/reflection whisper */
+    padding: 16px 0 6px;   /* top: hover-lift room (10px lift + growth); bottom: shadow whisper */
 }
 .conveyor-track {
     display: flex;
@@ -6787,7 +6870,9 @@ body {
     background: rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(212, 165, 116, 0.15);
     border-radius: 999px;
-    margin: 0 auto 18px;
+    /* No block margins: the stray bottom margin lifted the pill off the
+       toolbar's center line, misaligning it with the buttons beside it */
+    margin: 0 auto;
     align-self: center;
 }
 .source-filter-btn {
@@ -6827,16 +6912,16 @@ body {
         margin: 0 auto 2px;
     }
 
-    /* The rows' 24px hover-room padding is invisible — swallow most of it so
+    /* The rows' 16px hover-room padding is invisible — swallow most of it so
        the toolbar reads as attached to the grid it controls */
     .records-conveyor {
-        margin-top: -18px;
+        margin-top: -10px;
         margin-bottom: -4px;
     }
 
-    /* Guaranteed title bed: faint mid wash into a firm warm-black base */
+    /* Guaranteed title bed: gradual wash into a firm warm-black base */
     .cover-overlay {
-        background: linear-gradient(180deg, transparent 0%, transparent 32%, rgba(0, 0, 0, 0.38) 62%, rgba(0, 0, 0, 0.9) 100%);
+        background: linear-gradient(180deg, transparent 0%, transparent 32%, rgba(0, 0, 0, 0.16) 48%, rgba(0, 0, 0, 0.42) 64%, rgba(0, 0, 0, 0.9) 100%);
     }
 
     .cover-info {
@@ -6864,21 +6949,21 @@ body {
     }
 
     .cover-badge {
-        width: 26px;
-        height: 26px;
-        font-size: 0.7rem;
+        min-width: 26px;
+        height: 24px;
+        font-size: 0.66rem;
         top: 10px;
         right: 10px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
     }
 
     /* The playing sleeve: warm ring + glow, its record resting part-way
        out of the sleeve, and the hover pencil dropped below the pill */
     .record-card.now-playing .record-card-cover {
         box-shadow:
-            0 0 0 2px rgba(232, 196, 150, 0.9),
-            0 0 34px rgba(212, 165, 116, 0.3),
-            0 15px 50px rgba(0, 0, 0, 0.5);
+            0 0 0 1px rgba(232, 196, 150, 0.7),
+            0 0 0 4px rgba(232, 196, 150, 0.16),
+            0 0 28px rgba(212, 165, 116, 0.22),
+            0 15px 40px rgba(0, 0, 0, 0.5);
     }
 
     .record-card.now-playing .vinyl-peek {
@@ -7388,10 +7473,10 @@ body.auth-page {
 }
 
 .new-playlist-btn {
-    background: rgba(212, 165, 116, 0.08);
-    border: 1px dashed rgba(212, 165, 116, 0.45);
+    background: linear-gradient(180deg, rgba(212, 165, 116, 0.14), rgba(212, 165, 116, 0.06));
+    border: 1px solid rgba(212, 165, 116, 0.32);
     color: #d4a574;
-    padding: 8px 18px;
+    padding: 9px 18px;
     border-radius: 999px;
     font-size: 0.72rem;
     font-weight: 600;
@@ -7400,11 +7485,12 @@ body.auth-page {
     font-family: inherit;
     cursor: pointer;
     transition: all 0.2s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .new-playlist-btn:hover {
-    background: rgba(212, 165, 116, 0.16);
-    border-color: #d4a574;
+    background: linear-gradient(180deg, rgba(212, 165, 116, 0.22), rgba(212, 165, 116, 0.12));
+    border-color: rgba(212, 165, 116, 0.6);
 }
 
 .playlist-delete-btn {
@@ -7738,16 +7824,19 @@ html[data-theme="greenroom"] {
     color: var(--th-cream);
 }
 [data-theme] .new-playlist-btn {
-    background: rgba(var(--th-accent-rgb), 0.08);
-    border-color: rgba(var(--th-accent-rgb), 0.45);
+    background: linear-gradient(180deg, rgba(var(--th-accent-rgb), 0.14), rgba(var(--th-accent-rgb), 0.06));
+    border-color: rgba(var(--th-accent-rgb), 0.32);
     color: var(--th-accent);
 }
 [data-theme] .new-playlist-btn:hover {
-    background: rgba(var(--th-accent-rgb), 0.16);
-    border-color: var(--th-accent);
+    background: linear-gradient(180deg, rgba(var(--th-accent-rgb), 0.22), rgba(var(--th-accent-rgb), 0.12));
+    border-color: rgba(var(--th-accent-rgb), 0.6);
 }
 [data-theme] .crate-settings-btn { border-color: rgba(var(--th-accent-rgb), 0.3); }
 [data-theme] .stat-num { color: var(--th-accent); }
+[data-theme] .stat-icon { color: rgba(var(--th-accent-rgb), 0.7); }
+[data-theme] .cover-badge::before { background: var(--pl-color, var(--th-accent)); }
+[data-theme] .playlist-edit-btn { color: rgba(var(--th-accent-rgb), 0.9); }
 [data-theme] .collection-stats-inline .stat-chip {
     color: rgba(var(--th-accent-rgb), 0.55);
     border-color: rgba(var(--th-accent-rgb), 0.12);
@@ -7759,9 +7848,10 @@ html[data-theme="greenroom"] {
 @media (min-width: 601px) {
     [data-theme] .record-card.now-playing .record-card-cover {
         box-shadow:
-            0 0 0 2px rgba(var(--th-accent-hi-rgb), 0.9),
-            0 0 34px rgba(var(--th-accent-rgb), 0.3),
-            0 15px 50px rgba(0, 0, 0, 0.5);
+            0 0 0 1px rgba(var(--th-accent-hi-rgb), 0.7),
+            0 0 0 4px rgba(var(--th-accent-hi-rgb), 0.16),
+            0 0 28px rgba(var(--th-accent-rgb), 0.22),
+            0 15px 40px rgba(0, 0, 0, 0.5);
     }
 }
 
@@ -7977,9 +8067,26 @@ html[data-theme="greenroom"] {
         min-height: 40px;
     }
 
+    /* Visually a 36px warm glass chip; the inset -6px pseudo keeps the
+       effective tap target at ~48px without the disc swallowing the art */
     .playlist-edit-btn {
-        width: 40px;
-        height: 40px;
+        width: 36px;
+        height: 36px;
+        background: rgba(20, 14, 8, 0.45);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    .playlist-edit-btn::after {
+        content: '';
+        position: absolute;
+        inset: -6px;
+    }
+
+    .playlist-edit-btn svg {
+        width: 15px;
+        height: 15px;
     }
 
     /* ---- Battery trims: GPU-hungry mood layers off on phones.
@@ -8126,13 +8233,13 @@ html[data-theme="greenroom"] {
 
     #mDockPlay,
     #mDockNext {
-        width: 48px;
-        height: 48px;
+        width: 44px;
+        height: 44px;
         flex: none;
-        background: none;
-        border: none;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--m-brass-border);
         color: var(--m-gold-hi);
-        font-size: 1.3rem;
+        font-size: 1.15rem;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -8965,17 +9072,20 @@ html[data-theme="greenroom"] {
         outline: 2px solid var(--m-gold);
         outline-offset: 2px;
         border-radius: 10px;
+        /* Soft emission so the ring matches the desktop glow, in any theme */
+        box-shadow: 0 0 20px color-mix(in srgb, var(--m-gold) 30%, transparent);
     }
 
     .record-card.now-playing::after {
         content: '\266A';
         position: absolute;
-        /* Under the count badge (top-right stack) — the top-left corner
-           belongs to the always-visible edit pencil on touch screens */
+        /* Under the count badge (top-right stack, shared right inset) — the
+           top-left corner belongs to the always-visible edit pencil */
         top: 36px;
-        right: 9px;
+        right: 8px;
         left: auto;
         bottom: auto;
+        border: 1px solid rgba(255, 255, 255, 0.2);
         width: 22px;
         height: 22px;
         display: flex;
@@ -8988,7 +9098,7 @@ html[data-theme="greenroom"] {
         letter-spacing: 0;
         /* The desktop pill sets padding/shadow — reset for the round chip */
         padding: 0;
-        box-shadow: none;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
         animation: none;
     }
 
@@ -9019,6 +9129,9 @@ html[data-theme="greenroom"] {
         padding: 8px 16px;
         gap: 16px;
         min-height: 44px;
+        /* Short crates leave leftover height — pool it above the stats bar
+           instead of as a dead band between stats and the dock */
+        margin-top: auto;
     }
 
     .stat-num {
