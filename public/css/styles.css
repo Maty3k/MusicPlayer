@@ -8475,7 +8475,7 @@ html[data-theme="greenroom"] {
 
     #mPlayAll {
         flex: 1;
-        min-height: 48px;
+        min-height: 44px;
         border: none;
         border-radius: var(--m-r-pill);
         background: var(--m-gold);
@@ -8937,12 +8937,18 @@ html[data-theme="greenroom"] {
         border-radius: 50%;
     }
 
+    /* Shuffle/loop carry a tiny caption naming the current mode — three
+       silent states each were unreadable from the icon alone */
     #mTransport #mShuffleBtn,
     #mTransport #mLoopBtn {
-        width: 44px;
-        height: 44px;
+        width: 52px;
+        height: auto;
+        min-height: 48px;
+        flex-direction: column;
+        gap: 3px;
         color: var(--m-cream-dim);
         position: relative;
+        border-radius: 12px;
     }
 
     #mTransport #mShuffleBtn[aria-pressed="true"],
@@ -8950,41 +8956,38 @@ html[data-theme="greenroom"] {
         color: var(--m-gold);
     }
 
-    #mShuffleBtn[data-mode="smart"]::after {
-        content: '\2726';
-        position: absolute;
-        top: 2px;
-        right: 2px;
-        font-size: 0.6rem;
-        color: var(--m-gold-hi);
+    #mTransport #mShuffleBtn::after,
+    #mTransport #mLoopBtn::after {
+        font-size: 0.52rem;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        line-height: 1;
+        color: inherit;
+        content: 'off';
     }
+
+    #mTransport #mShuffleBtn[data-mode="shuffle"]::after { content: 'on'; }
+    #mTransport #mShuffleBtn[data-mode="smart"]::after { content: 'smart'; }
+    #mTransport #mLoopBtn::after { content: 'all'; }
+    #mTransport #mLoopBtn[data-mode="off"]::after { content: 'off'; }
+    #mTransport #mLoopBtn[data-mode="single"]::after { content: 'one'; }
 
     #mLoopBtn .m-loop-one {
         display: none;
-        position: absolute;
-        top: 3px;
-        right: 3px;
-        font-size: 0.6rem;
-        font-weight: 800;
-        color: var(--m-gold-hi);
-    }
-
-    #mLoopBtn[data-mode="single"] .m-loop-one {
-        display: block;
     }
 
     #mTransport #mPrevBtn,
     #mTransport #mNextBtn {
-        width: 56px;
-        height: 56px;
-        font-size: 1.5rem;
+        width: 52px;
+        height: 52px;
         color: var(--m-cream);
     }
 
     /* Flat, modern play button — one solid gold disc, soft emission */
     #mTransport #mPlayBtn {
-        width: 68px;
-        height: 68px;
+        width: 60px;
+        height: 60px;
         border-radius: 50%;
         background: var(--m-gold);
         color: var(--m-ink);
@@ -9006,6 +9009,13 @@ html[data-theme="greenroom"] {
 
     #mPlayBtn .m-ic-play svg {
         margin-left: 2px; /* optical centering: the triangle leans left */
+        width: 24px;
+        height: 24px;
+    }
+
+    #mPlayBtn .m-ic-pause svg {
+        width: 22px;
+        height: 22px;
     }
 
     #mPlayBtn .m-ic-pause {
