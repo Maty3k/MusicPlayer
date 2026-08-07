@@ -8435,14 +8435,30 @@ html[data-theme="greenroom"] {
         height: auto;
         min-height: 0;
         padding-top: 4px;
+        /* One clean vertical wash — the desktop wood-grain stripe texture
+           reads as banding on a phone panel */
+        background: linear-gradient(180deg, var(--m-walnut-deep) 0%, var(--m-ink) 100%);
+        border-right: none;
     }
 
-    /* Hero header: big title, count, Play/Shuffle row, then the filter */
+    /* Hero header: big title, count, Play/Shuffle row, then the filter —
+       with room to breathe between the rows */
     .sidebar-header-area {
         flex-direction: column;
         align-items: stretch;
-        gap: 4px;
-        padding: 8px 15px 6px;
+        gap: 10px;
+        padding: 12px 16px 14px;
+        margin-bottom: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .sidebar-header-row {
+        gap: 12px;
+    }
+
+    .sidebar-header-row .add-song-btn,
+    .sidebar-header-row .scan-songs-btn {
+        flex-shrink: 0;
     }
 
     #playlistTitle {
@@ -8452,8 +8468,8 @@ html[data-theme="greenroom"] {
 
     .m-hero-actions {
         display: flex;
-        gap: 10px;
-        padding-top: 6px;
+        gap: 12px;
+        padding-top: 2px;
         align-items: center;
     }
 

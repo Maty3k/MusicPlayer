@@ -368,7 +368,7 @@ async function selectPlaylistFromCrate(playlistId) {
 
         // Update track count
         const trackCountEl = document.querySelector('.sidebar-track-count');
-        if (trackCountEl) trackCountEl.textContent = songsData.length + ' tracks';
+        if (trackCountEl) trackCountEl.textContent = songsData.length + (songsData.length === 1 ? ' track' : ' tracks');
 
         // Update the record player with first song
         const currentSong = songsData[currentSongIndex] || {};
@@ -2066,7 +2066,7 @@ function rebuildSongList() {
 
 function updateTrackCount() {
     const trackCountEl = document.querySelector('.sidebar-track-count');
-    if (trackCountEl) trackCountEl.textContent = songsData.length + ' tracks';
+    if (trackCountEl) trackCountEl.textContent = songsData.length + (songsData.length === 1 ? ' track' : ' tracks');
     // Update crate badge
     const crateCard = document.querySelector(`.record-card[data-playlist="${activePlaylistId}"]`);
     if (crateCard) {

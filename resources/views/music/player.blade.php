@@ -499,7 +499,7 @@
                     </button>
                     <button class="add-song-btn" onclick="showAddSongModal()" title="Add a song">+</button>
                 </div>
-                <div class="sidebar-track-count">{{ count($songs) }} tracks</div>
+                <div class="sidebar-track-count">{{ count($songs) }} {{ count($songs) === 1 ? 'track' : 'tracks' }}</div>
                 {{-- Phone-only hero actions + find-in-playlist (hidden by .m-only off-phone) --}}
                 <div class="m-hero-actions m-only">
                     <button type="button" id="mPlayAll">
