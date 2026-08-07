@@ -4245,6 +4245,9 @@ body {
         radial-gradient(circle at 40% 35%, #504840 0%, #3a3228 30%, #282420 70%, #1e1a16 100%);
     color: rgba(255,235,200,0.75);
     font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -7895,13 +7898,8 @@ html[data-theme="greenroom"] {
     background: linear-gradient(135deg, rgba(var(--th-accent-rgb), 0.28), rgba(var(--th-accent-rgb), 0.15));
     border-color: var(--th-accent);
 }
-/* Phone dock gradient stops that escape the --m-* tokens */
-[data-theme] #mPlayAll {
-    background: linear-gradient(180deg, var(--m-gold), color-mix(in srgb, var(--m-gold) 72%, #000));
-}
-[data-theme] #mTransport #mPlayBtn {
-    background: radial-gradient(circle at 35% 30%, var(--m-gold-hi), var(--m-gold) 55%, color-mix(in srgb, var(--m-gold) 65%, #000));
-}
+/* #mPlayAll and #mPlayBtn are flat var(--m-gold) fills now — they follow
+   the theme tokens directly, no escape rules needed */
 
 /* ---- Settings: theme swatch picker ---- */
 .theme-swatch-row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -8252,12 +8250,20 @@ html[data-theme="greenroom"] {
         background: var(--m-gold-wash);
     }
 
+    /* Icon spans hold SVGs now — flex keeps them optically centered */
+    #mDockPlay .m-ic-play,
+    #mDockPlay .m-ic-pause {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
     #mDockPlay .m-ic-pause {
         display: none;
     }
 
     body.m-playing #mDockPlay .m-ic-pause {
-        display: inline;
+        display: flex;
     }
 
     body.m-playing #mDockPlay .m-ic-play {
@@ -8341,8 +8347,14 @@ html[data-theme="greenroom"] {
         border-top: none;
         border-left: 1px solid rgba(212, 165, 116, 0.1);
         padding: 8px 12px;
-        mask-image: none;
-        -webkit-mask-image: none;
+        -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 74%, transparent 99%);
+                mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 74%, transparent 99%);
+    }
+
+    .sleeve-lyrics .lyrics-line {
+        font-size: 0.85rem;
+        line-height: 1.65;
+        font-weight: 500;
     }
 
     .sleeve-catalog {
@@ -8450,13 +8462,20 @@ html[data-theme="greenroom"] {
         min-height: 48px;
         border: none;
         border-radius: var(--m-r-pill);
-        background: linear-gradient(180deg, var(--m-gold), #b8895a);
+        background: var(--m-gold);
         color: var(--m-ink);
         font-size: 1rem;
         font-weight: 700;
         font-family: inherit;
         cursor: pointer;
-        box-shadow: 0 3px 12px rgba(212, 165, 116, 0.25);
+        box-shadow: 0 3px 12px color-mix(in srgb, var(--m-gold) 25%, transparent);
+    }
+
+    #mPlayAll .m-when-paused,
+    #mPlayAll .m-when-playing {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
     }
 
     #mPlayAll .m-when-playing {
@@ -8464,7 +8483,7 @@ html[data-theme="greenroom"] {
     }
 
     body.m-playing #mPlayAll .m-when-playing {
-        display: inline;
+        display: inline-flex;
     }
 
     body.m-playing #mPlayAll .m-when-paused {
@@ -8655,6 +8674,9 @@ html[data-theme="greenroom"] {
         align-items: center;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
+        /* The dock hides while the sheet is open — its clearance padding
+           would just leave a dead band under the transport */
+        padding-bottom: calc(10px + var(--m-safe-b));
         background: linear-gradient(180deg, var(--m-walnut-deep), var(--m-ink));
         transform: translateY(103%);
         /* While closed: no paint, no compositor layer — but NEVER
@@ -8738,22 +8760,53 @@ html[data-theme="greenroom"] {
         max-width: 240px;
     }
 
-    /* Deck as hero: real turntable, control bay hidden, platter centered */
+    /* Deck as hero: bare spinning record, everything fits one screen —
+       the column flexes so the lyrics zone absorbs leftover height and
+       the sheet never scrolls */
     .turntable-area {
-        gap: 14px;
+        gap: 10px;
         padding: 4px 16px 8px;
         position: relative;
         z-index: 2;
         width: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
     }
 
+    /* Minimal hero: just the record itself. The wood cabinet, tonearm,
+       LED, and feet were visual weight the small screen can't afford */
     .record-player {
         order: 1;
-        width: min(92vw, 340px);
-        height: 290px;
+        width: min(66vw, 252px);
+        height: min(66vw, 252px);
+        flex: none;
     }
 
     .record-player-right {
+        display: none;
+    }
+
+    .record-player-body {
+        background: none;
+        border: none;
+        box-shadow: none;
+        border-radius: 0;
+    }
+
+    .record-player-body::before,
+    .record-player-body::after,
+    #tonearm,
+    .tonearm,
+    .tonearm-base,
+    .tonearm-rest,
+    .tonearm-counterweight,
+    .strobe-dots,
+    .deck-foot,
+    #bigPlayerLed,
+    .record-player-led {
         display: none;
     }
 
@@ -8761,16 +8814,9 @@ html[data-theme="greenroom"] {
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%);
-    }
-
-    .tonearm {
-        right: 6px;
-        top: 34px;
-    }
-
-    .tonearm-base {
-        right: 16px;
-        top: 16px;
+        background: none;
+        border: none;
+        box-shadow: none;
     }
 
     /* Sleeve becomes a flat info card: title/artist, seek, catalog line,
@@ -8787,6 +8833,8 @@ html[data-theme="greenroom"] {
         border-bottom: none;
         box-shadow: none;
         margin-bottom: 0;
+        flex: 1 1 auto;
+        min-height: 0;
     }
 
     .vinyl-sleeve::before {
@@ -8836,12 +8884,10 @@ html[data-theme="greenroom"] {
         height: 20px;
     }
 
+    /* SIDE A / TRACK NN was skeuomorphic filler the one-page layout
+       doesn't have room for */
     .sleeve-catalog {
-        order: 3;
-        display: flex;
-        justify-content: space-between;
-        padding: 2px 0 0;
-        border-top: none;
+        display: none;
     }
 
     .sleeve-lyrics-zone {
@@ -8919,25 +8965,31 @@ html[data-theme="greenroom"] {
         color: var(--m-cream);
     }
 
-    /* The play button is a turntable start/stop switch: brass radial
-       circle with an inner shadow */
+    /* Flat, modern play button — one solid gold disc, soft emission */
     #mTransport #mPlayBtn {
-        width: 72px;
-        height: 72px;
+        width: 68px;
+        height: 68px;
         border-radius: 50%;
-        background: radial-gradient(circle at 35% 30%, var(--m-gold-hi), var(--m-gold) 55%, #a87a4e);
+        background: var(--m-gold);
         color: var(--m-ink);
-        font-size: 1.5rem;
-        box-shadow:
-            inset 0 -3px 8px rgba(0, 0, 0, 0.35),
-            inset 0 2px 3px rgba(255, 255, 255, 0.35),
-            0 4px 16px rgba(212, 165, 116, 0.3);
+        box-shadow: 0 8px 24px color-mix(in srgb, var(--m-gold) 35%, transparent);
+        transition: transform 120ms ease, box-shadow 120ms ease;
     }
 
     #mTransport #mPlayBtn:active {
-        box-shadow:
-            inset 0 3px 8px rgba(0, 0, 0, 0.4),
-            0 2px 8px rgba(212, 165, 116, 0.2);
+        transform: scale(0.95);
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--m-gold) 25%, transparent);
+    }
+
+    #mPlayBtn .m-ic-play,
+    #mPlayBtn .m-ic-pause {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #mPlayBtn .m-ic-play svg {
+        margin-left: 2px; /* optical centering: the triangle leans left */
     }
 
     #mPlayBtn .m-ic-pause {
@@ -8945,26 +8997,81 @@ html[data-theme="greenroom"] {
     }
 
     body.m-playing #mPlayBtn .m-ic-pause {
-        display: inline;
+        display: flex;
     }
 
     body.m-playing #mPlayBtn .m-ic-play {
         display: none;
     }
 
-    /* Volume: brass range slider (hidden on iOS — hardware-locked there) */
+    /* Volume: slim brass groove instead of the chunky native slider
+       (hidden on iOS — hardware-locked there) */
     #mVolume {
         order: 4;
         display: flex;
-        width: min(80vw, 300px);
-        padding: 0 0 10px;
+        width: min(70vw, 280px);
+        padding: 0 0 calc(6px + var(--m-safe-b));
+        flex: none;
     }
 
     #mVolumeRange {
+        -webkit-appearance: none;
+        appearance: none;
         width: 100%;
-        height: 32px;
-        accent-color: var(--m-gold);
+        height: 28px;
         background: transparent;
+    }
+
+    #mVolumeRange::-webkit-slider-runnable-track {
+        height: 4px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--m-gold) 20%, transparent);
+    }
+
+    #mVolumeRange::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        margin-top: -6px;
+        border-radius: 50%;
+        border: none;
+        background: var(--m-gold);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    #mVolumeRange::-moz-range-track {
+        height: 4px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--m-gold) 20%, transparent);
+    }
+
+    #mVolumeRange::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: none;
+        background: var(--m-gold);
+    }
+
+    /* The blurred-cover backdrop must not scroll with the sheet — as an
+       inset:0 absolute child of a scrollable sheet it covered only the
+       first viewport-height and read as a stretched smear. Fixed inside
+       the transformed sheet = pinned to the sheet box = always full-bleed */
+    .music-main-backdrop {
+        position: fixed;
+    }
+
+    /* One calm wash instead of stacked overlays: less saturation boost
+       (no garish hue splotches), no breathing animation, and a single
+       top-to-bottom scrim replacing the patchy radial vignette bands */
+    .music-main-backdrop img {
+        filter: blur(60px) saturate(1.35) brightness(0.42);
+        transform: scale(1.5);
+        animation: none;
+    }
+
+    .music-main-backdrop::after {
+        background: linear-gradient(180deg, rgba(10, 8, 8, 0.1) 0%, rgba(10, 8, 8, 0.45) 62%, rgba(10, 8, 8, 0.78) 100%);
     }
 
     /* ============================================================
@@ -8973,18 +9080,83 @@ html[data-theme="greenroom"] {
        tap-to-seek, auto-scroll, and offset persistence stay untouched.
        ============================================================ */
     .sleeve-lyrics-zone {
-        max-height: 24vh;
-        max-height: 24dvh;
+        flex: 1 1 auto;
+        min-height: 96px;
         overflow: hidden;
         position: relative;
-        border-radius: 14px;
-        background: rgba(0, 0, 0, 0.18);
+        background: transparent; /* the backdrop is the card — no box-in-box */
+    }
+
+    /* Lines fade out at the card edges instead of chopping mid-glyph */
+    .sleeve-lyrics {
+        padding: 14px 16px;
+        -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 10%, #000 76%, transparent 99%);
+                mask-image: linear-gradient(180deg, transparent 0, #000 10%, #000 76%, transparent 99%);
+    }
+
+    /* Calmer lyric type: the 1rem/2.2 600-weight desktop scale read as
+       goofy oversized slabs inside a 24vh phone card */
+    .sleeve-lyrics .lyrics-line {
+        font-size: 0.92rem;
+        line-height: 1.75;
+        font-weight: 500;
+        letter-spacing: 0.1px;
+    }
+
+    .sleeve-lyrics .lyrics-line.active {
+        transform: scale(1.03);
+        text-shadow: 0 0 14px rgba(212, 165, 116, 0.35);
+    }
+
+    /* Controls float as glass chips on the card corner; the offset-nudge
+       cluster only appears in full-screen mode, where syncing matters */
+    .lyrics-controls {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        display: flex;
+        gap: 6px;
+        z-index: 3;
+    }
+
+    .lyrics-ctrl-btn,
+    .lyrics-ctrl-sync {
+        background: rgba(20, 14, 8, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-radius: 999px;
+        color: rgba(232, 209, 176, 0.85);
+    }
+
+    #lyricsOffsetMinus,
+    #lyricsOffsetValue,
+    #lyricsOffsetPlus,
+    .lyrics-ctrl-toggle {
+        display: none;
+    }
+
+    body.m-lyrics-open #lyricsOffsetMinus,
+    body.m-lyrics-open #lyricsOffsetPlus,
+    body.m-lyrics-open .lyrics-ctrl-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    body.m-lyrics-open #lyricsOffsetValue {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-variant-numeric: tabular-nums;
     }
 
     #mLyricsExpand {
         min-width: 44px;
         min-height: 36px;
         display: flex;
+        align-items: center;
+        justify-content: center;
         transition: transform 200ms ease-out;
     }
 
@@ -9017,8 +9189,16 @@ html[data-theme="greenroom"] {
     }
 
     body.m-lyrics-open .sleeve-lyrics .lyrics-line {
-        font-size: 1.15rem;
-        line-height: 1.9;
+        font-size: 1.05rem;
+        line-height: 1.85;
+    }
+
+    /* The nudge chips float over the card's top edge — start the lyric
+       column below them so the first line is never covered */
+    body.m-lyrics-open .sleeve-lyrics {
+        padding-top: 62px;
+        -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 8%, #000 82%, transparent 100%);
+                mask-image: linear-gradient(180deg, transparent 0, #000 8%, #000 82%, transparent 100%);
     }
 
     /* ============================================================

@@ -503,6 +503,11 @@ if (collapseBtn && sidebar) {
 // Loop mode: 'off', 'playlist', 'single'
 let loopMode = 'playlist';
 
+// Transport icons as inline SVG — Android renders bare glyph characters
+// (▶ ⏸ ⏭) with emoji presentation, so never write those into the DOM.
+const PLAY_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8.2 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg>';
+const PAUSE_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg>';
+
 const loopSvgs = {
     off: `<svg class="loop-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/>
@@ -973,7 +978,7 @@ function onPlayerStateChange(event) {
         if (led) led.classList.add('on');
         if (eqVis) eqVis.classList.add('active');
         if (playBtn) {
-            if (isApp) { playBtn.textContent = '||'; } else { playBtn.innerHTML = '&#9208;'; }
+            if (isApp) { playBtn.textContent = '||'; } else { playBtn.innerHTML = PAUSE_SVG; }
             playBtn.classList.add('playing');
         }
         startSleeveProgress();
@@ -986,7 +991,7 @@ function onPlayerStateChange(event) {
         if (led) led.classList.remove('on');
         if (eqVis) eqVis.classList.remove('active');
         if (playBtn) {
-            if (isApp) { playBtn.textContent = '\u25B6'; } else { playBtn.innerHTML = '&#9654;'; }
+            if (isApp) { playBtn.textContent = '\u25B6'; } else { playBtn.innerHTML = PLAY_SVG; }
             playBtn.classList.remove('playing');
         }
         stopSleeveProgress();
@@ -999,7 +1004,7 @@ function onPlayerStateChange(event) {
         if (led) led.classList.remove('on');
         if (eqVis) eqVis.classList.remove('active');
         if (playBtn) {
-            if (isApp) { playBtn.textContent = '\u25B6'; } else { playBtn.innerHTML = '&#9654;'; }
+            if (isApp) { playBtn.textContent = '\u25B6'; } else { playBtn.innerHTML = PLAY_SVG; }
             playBtn.classList.remove('playing');
         }
         stopSleeveProgress();
@@ -1449,7 +1454,7 @@ function updateAmpDisplay() {
     const song = currentRadioSong || songsData[currentSongIndex];
     const el = document.getElementById('ampDisplayText');
     if (!song || !el) return;
-    const text = (currentRadioSong ? '📻 ' : '') + song.artist + ' - ' + song.title;
+    const text = (currentRadioSong ? 'RADIO · ' : '') + song.artist + ' - ' + song.title;
     el.textContent = text;
     el.classList.remove('scrolling');
     // Check if text overflows the display
@@ -1833,7 +1838,7 @@ function renderAddSearchResults(results, status = '') {
                 <span class="search-result-title">${escapeHtml(parsed.title)}</span>
                 <span class="search-result-artist">${escapeHtml(parsed.artist)}</span>
             </span>
-            <span class="search-result-play">&#9654;</span>
+            <span class="search-result-play">${PLAY_SVG}</span>
         </button>`;
     });
     box.innerHTML = html;

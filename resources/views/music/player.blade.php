@@ -376,7 +376,7 @@
                                 </div>
                                 <div class="cover-glow"></div>
                             </div>
-                            <div class="play-hint"><span>&#9654;</span></div>
+                            <div class="play-hint"><span><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M8.2 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></span></div>
                             <button class="playlist-edit-btn" onclick="event.stopPropagation(); showPlaylistEditModal('{$pid}')" title="Edit playlist">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
                                     <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
@@ -394,7 +394,7 @@
                             <button class="source-filter-btn"        data-source-filter="spotify" onclick="setSourceFilter('spotify')">Spotify</button>
                         </div>
                         <button class="new-playlist-btn" onclick="showPlaylistCreateModal()">+ New playlist</button>
-                        <button class="new-playlist-btn crate-settings-btn" onclick="showSettingsModal()" title="Settings">&#9881; Settings</button>
+                        <button class="new-playlist-btn crate-settings-btn" onclick="showSettingsModal()" title="Settings"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg>Settings</button>
                     </div>
                     <div class="records-conveyor" id="recordsConveyor">
                         <div class="conveyor-rows">
@@ -484,7 +484,7 @@
             <div class="sidebar-header-area">
                 <div class="sidebar-header-row">
                     <div class="music-sidebar-title" id="playlistTitle">{{ $activePlaylist['name'] ?? 'My Records' }}</div>
-                    <button class="add-song-btn settings-gear-btn" onclick="showSettingsModal()" title="Settings &amp; Spotify">&#9881;</button>
+                    <button class="add-song-btn settings-gear-btn" onclick="showSettingsModal()" title="Settings &amp; Spotify"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg></button>
                         <button class="scan-songs-btn" onclick="showScanModal()" title="Scan for songs">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
                                 <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -503,8 +503,8 @@
                 {{-- Phone-only hero actions + find-in-playlist (hidden by .m-only off-phone) --}}
                 <div class="m-hero-actions m-only">
                     <button type="button" id="mPlayAll">
-                        <span class="m-when-paused">&#9654;&nbsp; Play</span>
-                        <span class="m-when-playing">&#9208;&nbsp; Pause</span>
+                        <span class="m-when-paused"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M8.2 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg>Play</span>
+                        <span class="m-when-playing"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg>Pause</span>
                     </button>
                     <button type="button" id="mShuffleChip" aria-pressed="false">Shuffle</button>
                 </div>
@@ -558,12 +558,12 @@
             {{-- Phone-only Now Playing header: grab bar, collapse chevron,
                  "PLAYING FROM" context, song-options kebab --}}
             <div id="mNpHeader" class="m-only">
-                <button type="button" id="mNpCollapse" aria-label="Close now playing">&#x2304;</button>
+                <button type="button" id="mNpCollapse" aria-label="Close now playing"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9.5 6 6 6-6"/></svg></button>
                 <div class="m-np-from">
                     <span class="m-np-from-label">Playing from</span>
                     <span id="mNpFromName"></span>
                 </div>
-                <button type="button" id="mNpKebab" aria-label="Song options">&#8943;</button>
+                <button type="button" id="mNpKebab" aria-label="Song options"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
                 <div class="m-grab"></div>
             </div>
             <div class="music-main-backdrop" id="musicBackdrop">
@@ -617,8 +617,8 @@
                         <button type="button" class="lyrics-ctrl-btn" id="lyricsOffsetMinus" title="Lyrics show later (fix lyrics that run ahead)">&minus;</button>
                         <button type="button" class="lyrics-ctrl-sync" id="lyricsOffsetValue" title="Sync offset for this song — click to reset">0s</button>
                         <button type="button" class="lyrics-ctrl-btn" id="lyricsOffsetPlus" title="Lyrics show sooner (fix lyrics that lag behind)">+</button>
-                        <button type="button" class="lyrics-ctrl-btn lyrics-ctrl-toggle" id="lyricsToggleBtn" title="Lyrics on/off">&#9834;</button>
-                        <button type="button" class="lyrics-ctrl-btn m-only" id="mLyricsExpand" aria-label="Expand lyrics">&#9650;</button>
+                        <button type="button" class="lyrics-ctrl-btn lyrics-ctrl-toggle" id="lyricsToggleBtn" title="Lyrics on/off"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 17.4V6.2l8-1.7v11.2"/><circle cx="7.2" cy="17.4" r="2.3"/><circle cx="15.2" cy="15.7" r="2.3"/></svg></button>
+                        <button type="button" class="lyrics-ctrl-btn m-only" id="mLyricsExpand" aria-label="Expand lyrics"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14.5 6-6 6 6"/></svg></button>
                     </div>
                 </div>
                 {{-- Phone-only now-playing line (desktop shows this in the control bay) --}}
@@ -650,11 +650,15 @@
                         <path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>
                     </svg>
                 </button>
-                <button type="button" id="mPrevBtn" aria-label="Previous">&#9198;</button>
-                <button type="button" id="mPlayBtn" aria-label="Play or pause">
-                    <span class="m-ic-play">&#9654;</span><span class="m-ic-pause">&#9208;</span>
+                <button type="button" id="mPrevBtn" aria-label="Previous">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><rect x="5" y="5.4" width="2.4" height="13.2" rx="1.1"/><path d="M18.6 6.3a1.1 1.1 0 0 0-1.7-.93l-8 5.7a1.1 1.1 0 0 0 0 1.86l8 5.7a1.1 1.1 0 0 0 1.7-.93z"/></svg>
                 </button>
-                <button type="button" id="mNextBtn" aria-label="Next">&#9197;</button>
+                <button type="button" id="mPlayBtn" aria-label="Play or pause">
+                    <span class="m-ic-play"><svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M8.2 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></span><span class="m-ic-pause"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg></span>
+                </button>
+                <button type="button" id="mNextBtn" aria-label="Next">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M5.4 6.3a1.1 1.1 0 0 1 1.7-.93l8 5.7a1.1 1.1 0 0 1 0 1.86l-8 5.7a1.1 1.1 0 0 1-1.7-.93z"/><rect x="16.6" y="5.4" width="2.4" height="13.2" rx="1.1"/></svg>
+                </button>
                 <button type="button" id="mLoopBtn" data-mode="playlist" aria-pressed="true" aria-label="Loop mode">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
                         <path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>
@@ -694,9 +698,9 @@
                             <div class="song-album">{{ $current['album'] ?? '' }}</div>
                         </div>
                         <div class="record-player-controls">
-                            <button class="rp-btn" onclick="prevSong()" title="Previous">&#9198;</button>
-                            <button class="rp-btn rp-play" id="playBtn" onclick="toggleMusic()">&#9654;</button>
-                            <button class="rp-btn" onclick="nextSong()" title="Next">&#9197;</button>
+                            <button class="rp-btn" onclick="prevSong()" title="Previous"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="5" y="5.4" width="2.4" height="13.2" rx="1.1"/><path d="M18.6 6.3a1.1 1.1 0 0 0-1.7-.93l-8 5.7a1.1 1.1 0 0 0 0 1.86l8 5.7a1.1 1.1 0 0 0 1.7-.93z"/></svg></button>
+                            <button class="rp-btn rp-play" id="playBtn" onclick="toggleMusic()"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8.2 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></button>
+                            <button class="rp-btn" onclick="nextSong()" title="Next"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M5.4 6.3a1.1 1.1 0 0 1 1.7-.93l8 5.7a1.1 1.1 0 0 1 0 1.86l-8 5.7a1.1 1.1 0 0 1-1.7-.93z"/><rect x="16.6" y="5.4" width="2.4" height="13.2" rx="1.1"/></svg></button>
                         </div>
                         <div class="pitch-slider" id="pitchSlider">
                             <div class="pitch-track" id="pitchTrack">
@@ -756,9 +760,11 @@
             </span>
         </button>
         <button type="button" id="mDockPlay" aria-label="Play or pause">
-            <span class="m-ic-play">&#9654;</span><span class="m-ic-pause">&#9208;</span>
+            <span class="m-ic-play"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8.2 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></span><span class="m-ic-pause"><svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg></span>
         </button>
-        <button type="button" id="mDockNext" aria-label="Next">&#9197;</button>
+        <button type="button" id="mDockNext" aria-label="Next">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M5.4 6.3a1.1 1.1 0 0 1 1.7-.93l8 5.7a1.1 1.1 0 0 1 0 1.86l-8 5.7a1.1 1.1 0 0 1-1.7-.93z"/><rect x="16.6" y="5.4" width="2.4" height="13.2" rx="1.1"/></svg>
+        </button>
     </div>
 
     <!-- Add Song Modal -->
