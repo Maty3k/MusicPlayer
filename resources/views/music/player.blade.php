@@ -332,7 +332,7 @@
                         $coverMain  = $coverUrl ? '<img src="' . htmlspecialchars($coverUrl) . '" alt="" class="cover-main">' : '';
                         $preview    = '';
                         if ($firstSong) {
-                            $preview = '<span class="preview-track">' . htmlspecialchars(substr($firstSong['title'], 0, 18)) . (strlen($firstSong['title']) > 18 ? '...' : '') . '</span>';
+                            $preview = '<span class="preview-track">' . htmlspecialchars(substr($firstSong['title'], 0, 48)) . (strlen($firstSong['title']) > 48 ? '...' : '') . '</span>';
                         }
                         echo <<<HTML
                         <div class="record-card{$nowPlaying}"

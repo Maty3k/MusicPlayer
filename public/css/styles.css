@@ -1398,7 +1398,7 @@ body {
 /* String Lights */
 .string-lights {
     position: absolute;
-    top: 3%;
+    top: 1%;
     left: 3%;
     right: 3%;
     height: 80px;
@@ -5607,7 +5607,7 @@ body {
     }
 
     .conveyor-row {
-        padding: 18px 0 12px;
+        padding: 18px 0 6px;
     }
 }
 
@@ -6662,11 +6662,11 @@ body {
 .conveyor-rows {
     display: flex;
     flex-direction: column;
-    gap: clamp(4px, 0.8vh, 12px);
+    gap: 0; /* the rows' own hover-room padding IS the visual gap — keep it near the column gap */
 }
 .conveyor-row {
     overflow: hidden;
-    padding: 26px 0 12px;   /* vertical breathing room for hover-lift */
+    padding: 24px 0 6px;   /* top: hover-lift room; bottom: shadow/reflection whisper */
 }
 .conveyor-track {
     display: flex;
@@ -6758,7 +6758,7 @@ body {
     align-items: center;
     gap: 18px;
     flex-wrap: wrap;
-    margin: 0 auto 14px;
+    margin: 0 auto;
 }
 .collection-stats-inline {
     display: inline-flex;
@@ -6827,6 +6827,13 @@ body {
         margin: 0 auto 2px;
     }
 
+    /* The rows' 24px hover-room padding is invisible — swallow most of it so
+       the toolbar reads as attached to the grid it controls */
+    .records-conveyor {
+        margin-top: -18px;
+        margin-bottom: -4px;
+    }
+
     /* Guaranteed title bed: faint mid wash into a firm warm-black base */
     .cover-overlay {
         background: linear-gradient(180deg, transparent 0%, transparent 32%, rgba(0, 0, 0, 0.38) 62%, rgba(0, 0, 0, 0.9) 100%);
@@ -6849,6 +6856,7 @@ body {
     }
 
     .preview-track {
+        display: block; /* inline spans can't clip — block makes the ellipsis real */
         font-size: clamp(0.62rem, 0.25vw + 0.5rem, 0.72rem);
         white-space: nowrap;
         overflow: hidden;
@@ -6888,6 +6896,12 @@ body {
 @media (min-width: 901px) and (min-height: 861px) {
     .room-center {
         --record-size: clamp(180px, 12.5vw + 24px, 264px);
+    }
+
+    /* On tall viewports the centered column climbs into the string-lights
+       band — ease the title down clear of the bulbs */
+    .greeting-text {
+        margin-top: clamp(0px, 14vh - 76px, 48px);
     }
 
     .record-card-cover {
@@ -8042,8 +8056,11 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
 }
 
 @media (max-width: 600px) {
-    /* Content that can end up under the dock gets clearance */
+    /* Content that can end up under the dock gets clearance. Stretch to the
+       full room height: room-content's align-items:center floats a short
+       column mid-screen, leaving a dead band above the title */
     .room-center {
+        align-self: stretch;
         padding-bottom: calc(var(--m-dock-h) + 12px + var(--m-safe-b));
     }
 
@@ -8674,6 +8691,13 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
     /* The interleaved conveyor rows collapse into ONE grid: both
        wrappers become display:contents (rows alone would yield a
        2-cell grid) and order:var(--ord) restores creation order. */
+    /* The desktop polish block pulls the conveyor up to swallow hover
+       padding; the phone grid has neither, so restore neutral margins */
+    .records-conveyor {
+        margin-top: 0;
+        margin-bottom: 0;
+    }
+
     .conveyor-rows {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -8715,8 +8739,11 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
     .record-card.now-playing::after {
         content: '\266A';
         position: absolute;
-        top: 6px;
-        left: 6px;
+        /* Under the count badge (top-right stack) — the top-left corner
+           belongs to the always-visible edit pencil on touch screens */
+        top: 36px;
+        right: 9px;
+        left: auto;
         bottom: auto;
         width: 22px;
         height: 22px;
@@ -8734,19 +8761,14 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
         animation: none;
     }
 
-    /* Compact toolbar: one scrollable pill row */
+    /* Compact toolbar: filter on its own line, action buttons wrap below —
+       everything visible, nothing hangs off the screen edge */
     .collection-toolbar {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        justify-content: flex-start;
-        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px 10px;
         padding: 0 16px;
-        scrollbar-width: none;
         max-width: 100%;
-    }
-
-    .collection-toolbar::-webkit-scrollbar {
-        display: none;
     }
 
     .new-playlist-btn,
