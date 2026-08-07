@@ -4235,6 +4235,10 @@ body {
     align-items: center;
 }
 
+.rp-btn.rp-play svg {
+    margin-left: 2px; /* optical centering for the play triangle */
+}
+
 .rp-btn {
     width: 42px;
     height: 42px;
@@ -8258,6 +8262,12 @@ html[data-theme="greenroom"] {
         justify-content: center;
     }
 
+    /* A right-pointing triangle's visual mass leans left of its box —
+       nudge it so it READS centered inside the round button */
+    #mDockPlay .m-ic-play svg {
+        margin-left: 2px;
+    }
+
     #mDockPlay .m-ic-pause {
         display: none;
     }
@@ -8453,12 +8463,22 @@ html[data-theme="greenroom"] {
     }
 
     .sidebar-header-row {
-        gap: 12px;
+        gap: 16px;
     }
 
     .sidebar-header-row .add-song-btn,
     .sidebar-header-row .scan-songs-btn {
         flex-shrink: 0;
+    }
+
+    /* The title hogs the row — give the button cluster clear separation
+       and let the long name truncate instead of squeezing the circles */
+    .sidebar-header-row .music-sidebar-title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-right: 6px;
     }
 
     #playlistTitle {
@@ -8476,6 +8496,9 @@ html[data-theme="greenroom"] {
     #mPlayAll {
         flex: 1;
         min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         border: none;
         border-radius: var(--m-r-pill);
         background: var(--m-gold);
