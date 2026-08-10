@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\PlayerController;
+use App\Http\Controllers\RecommendationsController;
 use App\Http\Controllers\ScanCoverController;
 use App\Http\Controllers\SetupCheckController;
 use App\Http\Controllers\SearchYoutubeController;
@@ -94,4 +95,5 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/spotify-resolve', SpotifyResolveController::class)->middleware('throttle:20,1');
     Route::post('/search-youtube', SearchYoutubeController::class)->middleware('throttle:20,1');
     Route::post('/scan-cover', ScanCoverController::class)->middleware('throttle:10,1');
+    Route::post('/recommendations', RecommendationsController::class)->middleware('throttle:5,1');
 });

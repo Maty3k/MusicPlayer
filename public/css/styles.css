@@ -2311,6 +2311,125 @@ body {
     align-items: center;
 }
 
+/* ============================================================
+   Discover shelf — recommendation rows at the end of the song list.
+   Rows reuse .song-list-item so they inherit desktop and phone styling.
+   ============================================================ */
+.discover-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 10px 6px;
+    margin-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.discover-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: rgba(212, 165, 116, 0.65);
+    margin-right: auto;
+}
+
+.discover-src {
+    display: inline-flex;
+    gap: 4px;
+    padding: 3px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(212, 165, 116, 0.15);
+    border-radius: 999px;
+}
+
+.discover-src-btn {
+    background: none;
+    border: none;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: rgba(212, 165, 116, 0.55);
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.discover-src-btn.active {
+    background: linear-gradient(180deg, rgba(212, 165, 116, 0.22), rgba(212, 165, 116, 0.1));
+    color: #f2e8d8;
+}
+
+.discover-refresh-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid rgba(212, 165, 116, 0.3);
+    background: rgba(212, 165, 116, 0.06);
+    color: rgba(212, 165, 116, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.discover-refresh-btn:hover {
+    border-color: rgba(212, 165, 116, 0.6);
+    color: #e8c9a0;
+}
+
+.discover-note {
+    padding: 10px 10px 14px;
+    font-size: 0.72rem;
+    color: rgba(242, 232, 216, 0.4);
+    letter-spacing: 0.4px;
+}
+
+.discover-item {
+    opacity: 0.96;
+}
+
+.discover-reason {
+    font-size: 0.62rem;
+    color: rgba(242, 232, 216, 0.45);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.discover-add-btn {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    border-radius: 50%;
+    border: 1px solid rgba(212, 165, 116, 0.35);
+    background: rgba(212, 165, 116, 0.08);
+    color: #d4a574;
+    font-size: 1rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-family: inherit;
+}
+
+.discover-add-btn:hover {
+    background: rgba(212, 165, 116, 0.18);
+    border-color: #d4a574;
+}
+
+.discover-add-btn.saved {
+    color: #9ecb8f;
+    border-color: rgba(158, 203, 143, 0.5);
+    background: rgba(158, 203, 143, 0.08);
+    cursor: default;
+}
+
 /* Music Player View */
 .music-player-view {
     display: flex;
@@ -7840,6 +7959,23 @@ html[data-theme="greenroom"] {
 [data-theme] .stat-icon { color: rgba(var(--th-accent-rgb), 0.7); }
 [data-theme] .cover-badge::before { background: var(--pl-color, var(--th-accent)); }
 [data-theme] .playlist-edit-btn { color: rgba(var(--th-accent-rgb), 0.9); }
+[data-theme] .discover-label { color: rgba(var(--th-accent-rgb), 0.65); }
+[data-theme] .discover-src { border-color: rgba(var(--th-accent-rgb), 0.15); }
+[data-theme] .discover-src-btn { color: rgba(var(--th-accent-rgb), 0.55); }
+[data-theme] .discover-src-btn.active {
+    background: linear-gradient(180deg, rgba(var(--th-accent-rgb), 0.22), rgba(var(--th-accent-rgb), 0.1));
+    color: var(--th-cream);
+}
+[data-theme] .discover-refresh-btn {
+    border-color: rgba(var(--th-accent-rgb), 0.3);
+    background: rgba(var(--th-accent-rgb), 0.06);
+    color: rgba(var(--th-accent-rgb), 0.8);
+}
+[data-theme] .discover-add-btn {
+    border-color: rgba(var(--th-accent-rgb), 0.35);
+    background: rgba(var(--th-accent-rgb), 0.08);
+    color: var(--th-accent);
+}
 [data-theme] .collection-stats-inline .stat-chip {
     color: rgba(var(--th-accent-rgb), 0.55);
     border-color: rgba(var(--th-accent-rgb), 0.12);

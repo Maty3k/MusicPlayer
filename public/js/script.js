@@ -12,7 +12,7 @@
         }
         return csrfToken || '';
     }
-    const ORIGIN_ENDPOINTS = /^\/(save-music|spotify|spotify-resolve|search-youtube|scan-cover|settings|upload-song)(\/|\?|$)/;
+    const ORIGIN_ENDPOINTS = /^\/(save-music|spotify|spotify-resolve|search-youtube|scan-cover|settings|upload-song|recommendations)(\/|\?|$)/;
     window.getCsrfToken = getCsrfToken; // for the upload XHR, which bypasses fetch
     const origFetch = window.fetch.bind(window);
     window.fetch = function (input, init) {
@@ -703,37 +703,36 @@ function processRadioPlaylist(videoIds, sourceVideoId) {
     fetchRadioMetadata(toFetch);
 }
 
+// Fetch one video's oEmbed metadata and shape it as a song object
+// (shared by the radio pool and the Discover shelf).
+async function fetchOembedSong(videoId) {
+    try {
+        const resp = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        // Parse "Artist - Title" format, fallback to full title
+        let title = data.title || 'Unknown';
+        let artist = data.author_name || 'Unknown';
+        const dashIdx = title.indexOf(' - ');
+        if (dashIdx > 0) {
+            artist = title.substring(0, dashIdx).trim();
+            title = title.substring(dashIdx + 3).trim();
+        }
+        // Clean common junk suffixes from YouTube titles
+        title = title
+            .replace(/\s*[([](official\s*)?(music\s*)?(video|audio|visualizer|visualiser|lyrics?|lyric\s*video|lyrics\s*video)[)\]]/gi, '')
+            .replace(/\s*[([]official[)\]]/gi, '')
+            .trim();
+        return { title, artist, cover: data.thumbnail_url || '', youtube_id: videoId };
+    } catch (e) {
+        return null;
+    }
+}
+
 async function fetchRadioMetadata(videoIds) {
-    let fetched = 0;
     for (const videoId of videoIds) {
-        try {
-            const resp = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
-            if (resp.ok) {
-                const data = await resp.json();
-                // Parse "Artist - Title" format, fallback to full title
-                let title = data.title || 'Unknown';
-                let artist = data.author_name || 'Unknown';
-                const dashIdx = title.indexOf(' - ');
-                if (dashIdx > 0) {
-                    artist = title.substring(0, dashIdx).trim();
-                    title = title.substring(dashIdx + 3).trim();
-                }
-                // Clean common suffixes from title
-                title = title.replace(/\s*\(official\s*(music\s*)?video\)/i, '')
-                             .replace(/\s*\[official\s*(music\s*)?video\]/i, '')
-                             .replace(/\s*\(lyric(s)?\s*video\)/i, '')
-                             .replace(/\s*\[lyric(s)?\s*video\]/i, '')
-                             .replace(/\s*\(audio\)/i, '')
-                             .replace(/\s*\[audio\]/i, '');
-                radioPool.push({
-                    title,
-                    artist,
-                    cover: data.thumbnail_url || '',
-                    youtube_id: videoId
-                });
-                fetched++;
-            }
-        } catch(e) { /* skip failed fetches */ }
+        const song = await fetchOembedSong(videoId);
+        if (song) radioPool.push(song);
     }
     isFetchingRadio = false;
     showRadioLoading(false);
@@ -862,6 +861,254 @@ async function saveRadioSong() {
             }
         }
     }
+}
+
+// ============================================================
+// DISCOVER — recommendations shelf at the end of the song list.
+// Two sources: 'mix' harvests YouTube Mixes seeded from library songs
+// (works with zero config, same engine as smart shuffle) and 'ai' asks
+// the server's Gemini-backed /recommendations endpoint (enabled only
+// when GEMINI_API_KEY is set). Rows preview via playRadioSong and save
+// via the same add path as radio songs.
+// ============================================================
+let discoverMix = [];        // {title, artist, cover, youtube_id}
+let discoverAI = [];         // {title, artist, reason, youtube_id?, cover?}
+let discoverSource = 'mix';
+let discoverLoading = false;
+let discoverStarted = false;
+let aiRecsEnabled = false;
+let discoverProbePlayer = null;
+
+// Harvest one YouTube Mix ('RD' + videoId) via an invisible probe player;
+// resolves with the mix's video ids (or [] on any failure).
+function discoverProbeMix(videoId) {
+    return new Promise((resolve) => {
+        if (typeof YT === 'undefined' || !YT.Player) { resolve([]); return; }
+        let probeDiv = document.getElementById('discoverProbe');
+        if (probeDiv) probeDiv.remove();
+        probeDiv = document.createElement('div');
+        probeDiv.id = 'discoverProbe';
+        probeDiv.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;top:-9999px';
+        document.body.appendChild(probeDiv);
+
+        const finish = (ids) => {
+            try { if (discoverProbePlayer) discoverProbePlayer.destroy(); } catch (e) {}
+            discoverProbePlayer = null;
+            resolve(ids);
+        };
+
+        try {
+            discoverProbePlayer = new YT.Player('discoverProbe', {
+                height: '1',
+                width: '1',
+                playerVars: { listType: 'playlist', list: 'RD' + videoId, autoplay: 0, mute: 1 },
+                events: {
+                    onReady: function (event) {
+                        let attempts = 0;
+                        const poll = setInterval(() => {
+                            attempts++;
+                            try {
+                                const playlist = event.target.getPlaylist();
+                                if (playlist && playlist.length > 1) {
+                                    clearInterval(poll);
+                                    finish(playlist);
+                                } else if (attempts > 20) {
+                                    clearInterval(poll);
+                                    finish([]);
+                                }
+                            } catch (e) {
+                                clearInterval(poll);
+                                finish([]);
+                            }
+                        }, 500);
+                    },
+                    onError: function () { finish([]); }
+                }
+            });
+        } catch (e) {
+            finish([]);
+        }
+    });
+}
+
+async function fetchDiscoverSongs() {
+    if (discoverLoading) return;
+    const seeds = songsData
+        .filter(s => s.youtube_id)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 2);
+    if (seeds.length === 0) return;
+
+    discoverLoading = true;
+    rebuildSongList();
+
+    const harvested = [];
+    for (const seed of seeds) {
+        const ids = await discoverProbeMix(seed.youtube_id);
+        harvested.push(...ids);
+    }
+
+    const libraryIds = new Set(songsData.map(s => s.youtube_id));
+    const seen = new Set();
+    const fresh = harvested.filter(id => {
+        if (!id || libraryIds.has(id) || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+    }).slice(0, 10);
+
+    const pool = [];
+    for (const id of fresh) {
+        const song = await fetchOembedSong(id);
+        if (song) pool.push(song);
+    }
+
+    discoverMix = pool;
+    discoverLoading = false;
+    rebuildSongList();
+}
+
+async function fetchAiRecommendations() {
+    try {
+        const resp = await fetch('/recommendations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({}),
+        });
+        const data = await resp.json();
+        if (data.enabled) {
+            aiRecsEnabled = true;
+            discoverAI = Array.isArray(data.suggestions) ? data.suggestions : [];
+            rebuildSongList();
+        }
+    } catch (e) { /* endpoint unavailable — mix source still works */ }
+}
+
+function startDiscover() {
+    if (discoverStarted) return;
+    discoverStarted = true;
+    fetchDiscoverSongs();
+    fetchAiRecommendations();
+}
+
+window.refreshDiscover = function () {
+    if (discoverSource === 'ai') {
+        discoverAI = [];
+        rebuildSongList();
+        fetchAiRecommendations();
+    } else {
+        discoverMix = [];
+        fetchDiscoverSongs();
+    }
+};
+
+window.setDiscoverSource = function (src) {
+    discoverSource = src === 'ai' ? 'ai' : 'mix';
+    rebuildSongList();
+};
+
+// AI suggestions arrive as title/artist only — resolve to a playable
+// video on demand through the server's YouTube search.
+async function resolveDiscoverItem(item) {
+    if (item.youtube_id) return true;
+    if (item._resolving) return false;
+    item._resolving = true;
+    try {
+        const resp = await fetch('/search-youtube', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ query: `${item.artist} ${item.title}` }),
+        });
+        const data = await resp.json();
+        const hit = data.success && Array.isArray(data.results) ? data.results[0] : null;
+        if (hit && hit.videoId) {
+            item.youtube_id = hit.videoId;
+            if (!item.cover) item.cover = hit.thumbnail || '';
+            return true;
+        }
+    } catch (e) { /* fall through */ }
+    finally { item._resolving = false; }
+    return false;
+}
+
+function currentDiscoverList() {
+    return discoverSource === 'ai' ? discoverAI : discoverMix;
+}
+
+window.discoverPlay = async function (i) {
+    const item = currentDiscoverList()[i];
+    if (!item) return;
+    if (!(await resolveDiscoverItem(item))) return;
+    playRadioSong({ title: item.title, artist: item.artist, cover: item.cover || '', youtube_id: item.youtube_id });
+};
+
+window.discoverAdd = async function (i, btn) {
+    const item = currentDiscoverList()[i];
+    if (!item || item._saved) return;
+    if (!(await resolveDiscoverItem(item))) return;
+    const song = { title: item.title, artist: item.artist, album: '', cover: item.cover || '', youtube_id: item.youtube_id };
+    const response = await fetch('/save-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', song }),
+    });
+    const result = await response.json();
+    if (result.success) {
+        item._saved = true;
+        songsData.push(song);
+        if (shuffleMode !== 'off') buildShuffleQueue();
+        updateTrackCount();
+        rebuildSongList();
+    }
+};
+
+function renderDiscoverSection() {
+    const list = currentDiscoverList();
+    const srcChips = aiRecsEnabled
+        ? `<span class="discover-src">
+             <button type="button" class="discover-src-btn${discoverSource === 'mix' ? ' active' : ''}" onclick="setDiscoverSource('mix')">Mix</button>
+             <button type="button" class="discover-src-btn${discoverSource === 'ai' ? ' active' : ''}" onclick="setDiscoverSource('ai')">AI</button>
+           </span>`
+        : '';
+    let html = `
+        <li class="discover-header" id="discoverHeader">
+            <span class="discover-label">Discover</span>
+            ${srcChips}
+            <button type="button" class="discover-refresh-btn" onclick="refreshDiscover()" title="New suggestions" aria-label="New suggestions">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+            </button>
+        </li>`;
+
+    if (discoverLoading && discoverSource === 'mix') {
+        html += `<li class="discover-note">finding songs&hellip;</li>`;
+        return html;
+    }
+    if (list.length === 0) {
+        html += `<li class="discover-note">${discoverSource === 'ai' ? 'Thinking&hellip; refresh in a moment' : 'Nothing found — try refresh'}</li>`;
+        return html;
+    }
+
+    html += list.map((item, i) => {
+        const cover = item.cover
+            ? `<img class="song-list-cover" src="${escapeHtml(safeUrl(item.cover))}" alt="" loading="lazy">`
+            : `<div class="song-list-cover song-list-cover-empty">&#9834;</div>`;
+        const sub = discoverSource === 'ai' && item.reason
+            ? `<div class="discover-reason">${escapeHtml(item.reason)}</div>`
+            : `<div class="song-list-artist">${escapeHtml(item.artist)}</div>`;
+        return `
+        <li class="song-list-item discover-item" onclick="discoverPlay(${i})">
+            <div class="song-list-vinyl">
+                <div class="song-list-vinyl-groove"></div>
+                ${cover}
+                <div class="song-list-vinyl-hole"></div>
+            </div>
+            <div class="song-list-info">
+                <div class="song-list-title">${escapeHtml(item.title)}</div>
+                ${sub}
+            </div>
+            <button type="button" class="discover-add-btn${item._saved ? ' saved' : ''}" onclick="event.stopPropagation(); discoverAdd(${i}, this)" title="Add to playlist" aria-label="Add to playlist">${item._saved ? '&#10003;' : '+'}</button>
+        </li>`;
+    }).join('');
+    return html;
 }
 
 function playNextByLoop() {
@@ -2060,9 +2307,33 @@ function rebuildSongList() {
     // The innerHTML swap resets scroll — a delete halfway down a long list
     // must not fling the user back to the top.
     const scrollTop = songList.scrollTop;
-    songList.innerHTML = songsData.map((song, index) => buildSongListItem(song, index)).join('');
+    songList.innerHTML = songsData.map((song, index) => buildSongListItem(song, index)).join('')
+        + renderDiscoverSection();
     songList.scrollTop = scrollTop;
+
+    // Discover starts working only once the user actually scrolls it into
+    // view — no probe players or API calls for a shelf nobody looked at.
+    const header = document.getElementById('discoverHeader');
+    if (header && !discoverStarted && 'IntersectionObserver' in window) {
+        const obs = new IntersectionObserver((entries) => {
+            if (entries.some(e => e.isIntersecting)) {
+                obs.disconnect();
+                startDiscover();
+            }
+        }, { root: null, threshold: 0.1 });
+        obs.observe(header);
+    } else if (header && !discoverStarted) {
+        startDiscover();
+    }
 }
+
+// The first paint is server-rendered without the Discover shelf — one
+// client rebuild appends it (identical row markup, scroll preserved).
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof songsData !== 'undefined' && Array.isArray(songsData) && songsData.length > 0) {
+        rebuildSongList();
+    }
+});
 
 function updateTrackCount() {
     const trackCountEl = document.querySelector('.sidebar-track-count');
