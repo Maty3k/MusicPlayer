@@ -3306,22 +3306,29 @@ body {
     color: #d4a574;
 }
 
+/* The one primary CTA in the app: a solid gold pill with dark text,
+   matching the hero Play/Pause pill so every affirmative action reads
+   the same across screens and modals. */
 .add-song-btn-save {
-    padding: 10px 24px;
-    background: linear-gradient(135deg, rgba(212, 165, 116, 0.25), rgba(212, 165, 116, 0.15));
-    border: 1px solid rgba(212, 165, 116, 0.4);
-    color: #f2e8d8;
-    border-radius: 8px;
+    padding: 11px 24px;
+    background: linear-gradient(180deg, #e8c496, #d4a574);
+    border: none;
+    color: #241a12;
+    border-radius: 999px;
     cursor: pointer;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 700;
     transition: all 0.2s;
 }
 
 .add-song-btn-save:hover {
-    background: linear-gradient(135deg, rgba(212, 165, 116, 0.35), rgba(212, 165, 116, 0.25));
-    border-color: #d4a574;
-    box-shadow: 0 4px 16px rgba(212, 165, 116, 0.2);
+    background: linear-gradient(180deg, #f0d0a2, #ddb07e);
+    box-shadow: 0 4px 16px rgba(212, 165, 116, 0.3);
+}
+
+.add-song-btn-save:disabled {
+    opacity: 0.5;
+    cursor: default;
 }
 
 /* ============================================================
@@ -8175,13 +8182,12 @@ html[data-theme="greenroom"] {
 [data-theme] .volume-slider::-webkit-slider-thumb { background: var(--th-accent); }
 [data-theme] .volume-slider::-moz-range-thumb { background: var(--th-accent); }
 [data-theme] .add-song-btn-save {
-    background: linear-gradient(135deg, rgba(var(--th-accent-rgb), 0.25), rgba(var(--th-accent-rgb), 0.15));
-    border-color: rgba(var(--th-accent-rgb), 0.4);
+    background: linear-gradient(180deg, var(--th-accent-hi), var(--th-accent));
+    color: var(--th-ink);
 }
 [data-theme] .add-song-btn-save:hover {
-    background: linear-gradient(135deg, rgba(var(--th-accent-rgb), 0.35), rgba(var(--th-accent-rgb), 0.25));
-    border-color: var(--th-accent);
-    box-shadow: 0 4px 16px rgba(var(--th-accent-rgb), 0.2);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--th-accent-hi) 80%, #fff), var(--th-accent));
+    box-shadow: 0 4px 16px rgba(var(--th-accent-rgb), 0.3);
 }
 [data-theme] .add-song-btn-cancel {
     background: rgba(var(--th-accent-rgb), 0.08);
@@ -9141,7 +9147,7 @@ html[data-theme="greenroom"] {
         font-weight: 700;
         letter-spacing: 0.18em;
         text-transform: uppercase;
-        color: var(--m-gold);
+        color: var(--m-cream-dim);
     }
 
     #mNpFromName {
@@ -9438,7 +9444,7 @@ html[data-theme="greenroom"] {
         margin-top: -6px;
         border-radius: 50%;
         border: none;
-        background: var(--m-gold);
+        background: var(--m-cream);
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
     }
 
@@ -9453,7 +9459,7 @@ html[data-theme="greenroom"] {
         height: 16px;
         border-radius: 50%;
         border: none;
-        background: var(--m-gold);
+        background: var(--m-cream);
     }
 
     /* The blurred-cover backdrop must not scroll with the sheet — as an
@@ -9718,6 +9724,7 @@ html[data-theme="greenroom"] {
 
     .greeting-text h1 {
         font-size: 1.4rem;
+        letter-spacing: 1.5px; /* tame the wide desktop tracking on the small phone title */
     }
 
     .greeting-text p {
@@ -9728,9 +9735,9 @@ html[data-theme="greenroom"] {
         padding: 8px 16px;
         gap: 16px;
         min-height: 44px;
-        /* Short crates leave leftover height — pool it above the stats bar
-           instead of as a dead band between stats and the dock */
-        margin-top: auto;
+        /* Sit directly under the grid; leftover height falls below as
+           ordinary scroll padding, not a dead band mid-screen */
+        margin-top: 20px;
     }
 
     .stat-num {

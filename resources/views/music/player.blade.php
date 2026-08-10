@@ -1143,7 +1143,7 @@
         <div class="add-song-modal-panel">
             <button class="add-song-modal-close" onclick="hideSpotifyImportModal()">&times;</button>
             <div class="add-song-modal-header">
-                <div class="add-song-modal-icon">&#9835;</div>
+                <div class="add-song-modal-icon">&#9834;</div>
                 <h2 class="add-song-modal-title">Import songs</h2>
             </div>
 
