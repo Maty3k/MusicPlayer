@@ -564,6 +564,7 @@ let shuffleQueue = [];
 let radioPool = [];         // Array of {title, artist, cover, youtube_id}
 let smartShuffleNextIsRadio = false;
 let currentRadioSong = null; // null = playlist song playing, object = radio song playing
+let currentRadioSongSaved = false; // has the playing radio song been added to the library?
 let radioProbePlayer = null;
 let isFetchingRadio = false;
 
@@ -718,10 +719,15 @@ async function fetchOembedSong(videoId) {
             artist = title.substring(0, dashIdx).trim();
             title = title.substring(dashIdx + 3).trim();
         }
-        // Clean common junk suffixes from YouTube titles
+        // Clean common junk suffixes from YouTube titles. Only strip
+        // qualified tokens ('official video', 'lyric video', 'audio') — a
+        // BARE '(Video)'/'(Lyrics)' may be part of the real release name, so
+        // it's preserved (matches the pre-refactor behavior; a saved title
+        // must not silently lose part of its name).
         title = title
-            .replace(/\s*[([](official\s*)?(music\s*)?(video|audio|visualizer|visualiser|lyrics?|lyric\s*video|lyrics\s*video)[)\]]/gi, '')
-            .replace(/\s*[([]official[)\]]/gi, '')
+            .replace(/\s*[([]\s*official\s*(music\s*)?(video|audio|lyric\s*video)?\s*[)\]]/gi, '')
+            .replace(/\s*[([]\s*(lyrics?|music)\s*video\s*[)\]]/gi, '')
+            .replace(/\s*[([]\s*audio\s*[)\]]/gi, '')
             .trim();
         return { title, artist, cover: data.thumbnail_url || '', youtube_id: videoId };
     } catch (e) {
@@ -760,6 +766,7 @@ async function playRadioSong(song) {
     isChangingSong = true;
 
     currentRadioSong = song;
+    currentRadioSongSaved = false;
 
     // Remove previous radio item, add new one
     removeRadioSidebarItem();
@@ -795,6 +802,9 @@ function addRadioSidebarItem(song) {
     const li = document.createElement('li');
     li.className = 'song-list-item radio-song-item active';
     const radioCover = safeUrl(song.cover);
+    const saveBtn = currentRadioSongSaved
+        ? '<button class="song-save-btn" disabled title="Added to playlist">&#10003;</button>'
+        : '<button class="song-save-btn" onclick="event.stopPropagation(); saveRadioSong()" title="Add to playlist">+</button>';
     li.innerHTML = `
         <div class="song-list-vinyl">
             <div class="song-list-vinyl-groove"></div>
@@ -818,7 +828,7 @@ function addRadioSidebarItem(song) {
             </svg>
         </span>
         <div class="song-actions">
-            <button class="song-save-btn" onclick="event.stopPropagation(); saveRadioSong()" title="Add to playlist">+</button>
+            ${saveBtn}
         </div>
     `;
     songList.insertBefore(li, songList.firstChild);
@@ -848,18 +858,10 @@ async function saveRadioSong() {
 
     if (result.success) {
         songsData.push(song);
+        currentRadioSongSaved = true;
         if (shuffleMode !== 'off') buildShuffleQueue();
-        rebuildSongList();
         updateTrackCount();
-        // Re-add radio item since rebuild cleared it, then show saved state
-        if (currentRadioSong) {
-            addRadioSidebarItem(currentRadioSong);
-            const saveBtn = document.querySelector('.radio-song-item .song-save-btn');
-            if (saveBtn) {
-                saveBtn.textContent = '✓';
-                saveBtn.disabled = true;
-            }
-        }
+        rebuildSongList(); // re-adds the radio row in its saved (✓) state
     }
 }
 
@@ -877,7 +879,26 @@ let discoverSource = 'mix';
 let discoverLoading = false;
 let discoverStarted = false;
 let aiRecsEnabled = false;
+let aiRecsLoaded = false;    // an AI fetch has reached a terminal state
+let discoverMixUnavailable = false; // YT IFrame API never came up (e.g. RN app)
 let discoverProbePlayer = null;
+
+// Resolve once the YouTube IFrame API is usable. The api script loads
+// asynchronously, so an early Discover trigger must wait for it; in the
+// React Native app shell the native proxy is used and YT never loads, so
+// this resolves false quickly rather than hanging.
+function whenYouTubeReady(timeoutMs = 8000) {
+    return new Promise((resolve) => {
+        if (typeof YT !== 'undefined' && YT.Player) { resolve(true); return; }
+        if (window.ReactNativeWebView) { resolve(false); return; }
+        loadYouTubeAPI();
+        const start = Date.now();
+        const iv = setInterval(() => {
+            if (typeof YT !== 'undefined' && YT.Player) { clearInterval(iv); resolve(true); }
+            else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(false); }
+        }, 200);
+    });
+}
 
 // Harvest one YouTube Mix ('RD' + videoId) via an invisible probe player;
 // resolves with the mix's video ids (or [] on any failure).
@@ -937,10 +958,20 @@ async function fetchDiscoverSongs() {
         .filter(s => s.youtube_id)
         .sort(() => Math.random() - 0.5)
         .slice(0, 2);
-    if (seeds.length === 0) return;
 
     discoverLoading = true;
     rebuildSongList();
+
+    // No YouTube-sourced seeds, or the IFrame API isn't available here —
+    // mark Mix unavailable so the shelf shows a truthful note, not a spinner.
+    const ytReady = seeds.length > 0 && await whenYouTubeReady();
+    if (!ytReady) {
+        discoverMixUnavailable = true;
+        discoverLoading = false;
+        rebuildSongList();
+        return;
+    }
+    discoverMixUnavailable = false;
 
     const harvested = [];
     for (const seed of seeds) {
@@ -978,6 +1009,7 @@ async function fetchAiRecommendations() {
         if (data.enabled) {
             aiRecsEnabled = true;
             discoverAI = Array.isArray(data.suggestions) ? data.suggestions : [];
+            aiRecsLoaded = true; // terminal: show real results or a truthful empty note
             rebuildSongList();
         }
     } catch (e) { /* endpoint unavailable — mix source still works */ }
@@ -993,10 +1025,12 @@ function startDiscover() {
 window.refreshDiscover = function () {
     if (discoverSource === 'ai') {
         discoverAI = [];
+        aiRecsLoaded = false;
         rebuildSongList();
         fetchAiRecommendations();
     } else {
         discoverMix = [];
+        rebuildSongList(); // fetchDiscoverSongs may early-out; clear the stale rows now
         fetchDiscoverSongs();
     }
 };
@@ -1043,21 +1077,28 @@ window.discoverPlay = async function (i) {
 
 window.discoverAdd = async function (i, btn) {
     const item = currentDiscoverList()[i];
-    if (!item || item._saved) return;
-    if (!(await resolveDiscoverItem(item))) return;
-    const song = { title: item.title, artist: item.artist, album: '', cover: item.cover || '', youtube_id: item.youtube_id };
-    const response = await fetch('/save-music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add', song }),
-    });
-    const result = await response.json();
-    if (result.success) {
-        item._saved = true;
-        songsData.push(song);
-        if (shuffleMode !== 'off') buildShuffleQueue();
-        updateTrackCount();
-        rebuildSongList();
+    if (!item || item._saved || item._saving) return;
+    // Guard the whole resolve+POST window: a resolved Mix item would
+    // otherwise let a double-tap fire two adds before _saved is set.
+    item._saving = true;
+    try {
+        if (!(await resolveDiscoverItem(item))) return;
+        const song = { title: item.title, artist: item.artist, album: '', cover: item.cover || '', youtube_id: item.youtube_id };
+        const response = await fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'add', song }),
+        });
+        const result = await response.json();
+        if (result.success) {
+            item._saved = true;
+            songsData.push(song);
+            if (shuffleMode !== 'off') buildShuffleQueue();
+            updateTrackCount();
+            rebuildSongList();
+        }
+    } finally {
+        item._saving = false;
     }
 };
 
@@ -1078,12 +1119,20 @@ function renderDiscoverSection() {
             </button>
         </li>`;
 
-    if (discoverLoading && discoverSource === 'mix') {
-        html += `<li class="discover-note">finding songs&hellip;</li>`;
-        return html;
-    }
     if (list.length === 0) {
-        html += `<li class="discover-note">${discoverSource === 'ai' ? 'Thinking&hellip; refresh in a moment' : 'Nothing found — try refresh'}</li>`;
+        let note;
+        if (discoverSource === 'ai') {
+            // 'Thinking' only until a fetch has actually settled; after that
+            // an empty list is a real "nothing" state, not a pending one.
+            note = aiRecsLoaded ? 'No suggestions right now — try refresh' : 'Thinking&hellip;';
+        } else if (discoverLoading) {
+            note = 'finding songs&hellip;';
+        } else if (discoverMixUnavailable) {
+            note = 'Add a YouTube song to get mix suggestions';
+        } else {
+            note = 'Nothing found — try refresh';
+        }
+        html += `<li class="discover-note">${note}</li>`;
         return html;
     }
 
@@ -2309,6 +2358,12 @@ function rebuildSongList() {
     const scrollTop = songList.scrollTop;
     songList.innerHTML = songsData.map((song, index) => buildSongListItem(song, index)).join('')
         + renderDiscoverSection();
+    // The innerHTML swap wipes the now-playing radio row — re-add it so a
+    // discover fetch resolving mid-playback can't hide what's playing.
+    if (currentRadioSong) {
+        document.querySelectorAll('#songList .song-list-item').forEach(item => item.classList.remove('active'));
+        addRadioSidebarItem(currentRadioSong);
+    }
     songList.scrollTop = scrollTop;
 
     // Discover starts working only once the user actually scrolls it into
@@ -6146,7 +6201,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyRowFilter() {
         if (!filterInput) return;
         const q = filterInput.value.trim().toLowerCase();
-        document.querySelectorAll('#songList .song-list-item').forEach((row) => {
+        // "Find in this crate" only filters library songs — Discover rows
+        // (and the shelf header/note) aren't part of the crate.
+        document.querySelectorAll('#songList .song-list-item:not(.discover-item)').forEach((row) => {
             if (!q) {
                 row.classList.remove('m-filtered-out');
                 return;

@@ -28,6 +28,8 @@ class RecommendationsController extends Controller
         }
 
         // Distinct "artist – title" pairs across every playlist the user owns.
+        // The full set drives the owned-song filter; only a capped sample is
+        // sent to the model (so large libraries still filter every owned song).
         $library = $request->user()->playlists()
             ->with('songs:id,playlist_id,title,artist')
             ->get()
@@ -35,14 +37,15 @@ class RecommendationsController extends Controller
             ->map(fn ($s) => ['title' => trim((string) $s->title), 'artist' => trim((string) $s->artist)])
             ->filter(fn ($s) => $s['title'] !== '')
             ->unique(fn ($s) => mb_strtolower($s['artist'].'|'.$s['title']))
-            ->take(self::MAX_LIBRARY_SONGS)
             ->values();
 
         if ($library->count() < 3) {
             return response()->json(['success' => true, 'enabled' => true, 'suggestions' => []]);
         }
 
-        $list = $library
+        $prompted = $library->take(self::MAX_LIBRARY_SONGS);
+
+        $list = $prompted
             ->map(fn ($s) => $s['artist'] !== '' ? "{$s['artist']} – {$s['title']}" : $s['title'])
             ->implode("\n");
 
@@ -55,16 +58,20 @@ Recommend exactly 10 real, existing songs this listener would love but does NOT 
 [{"title": "Song Title", "artist": "Artist Name", "reason": "why it fits, max 12 words"}]
 PROMPT;
 
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='.urlencode($apiKey);
+        // Key goes in the header, never the URL — a ConnectionException message
+        // or proxy request log would otherwise capture ?key=SECRET.
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
         try {
-            $response = Http::timeout(30)->post($url, [
-                'contents' => [['parts' => [['text' => $prompt]]]],
-                'generationConfig' => [
-                    'temperature' => 0.9,
-                    'maxOutputTokens' => 1200,
-                ],
-            ]);
+            $response = Http::withHeaders(['x-goog-api-key' => $apiKey])
+                ->timeout(30)
+                ->post($url, [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    'generationConfig' => [
+                        'temperature' => 0.9,
+                        'maxOutputTokens' => 1200,
+                    ],
+                ]);
         } catch (ConnectionException) {
             $response = null;
         }

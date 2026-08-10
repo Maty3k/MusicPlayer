@@ -108,6 +108,61 @@ class RecommendationsTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_api_key_is_sent_as_header_not_in_url(): void
+    {
+        config(['services.gemini.key' => 'secret-key-123']);
+
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [['content' => ['parts' => [['text' => '[]']]]]],
+            ]),
+        ]);
+
+        $this->actingAs($this->userWithLibrary())->postJson('/recommendations')->assertOk();
+
+        Http::assertSent(function ($request) {
+            return ! str_contains($request->url(), 'secret-key-123')
+                && $request->hasHeader('x-goog-api-key', 'secret-key-123');
+        });
+    }
+
+    public function test_owned_songs_beyond_prompt_cap_are_still_filtered(): void
+    {
+        config(['services.gemini.key' => 'test-key']);
+
+        $user = $this->verifiedUser();
+        $playlist = $user->playlists()->create([
+            'slug' => 'big', 'name' => 'Big', 'color' => '#d4a574',
+            'current_index' => 0, 'source' => 'user', 'position' => 0,
+        ]);
+        // 130 distinct songs — more than the 120-song prompt cap.
+        for ($i = 0; $i < 130; $i++) {
+            $playlist->songs()->create([
+                'position' => $i, 'title' => "Track {$i}", 'artist' => "Artist {$i}",
+                'album' => '', 'cover' => '', 'youtube_id' => sprintf('vid%08d', $i),
+                'mp3_url' => '', 'spotify_id' => '',
+            ]);
+        }
+
+        // The model "recommends" a song the user owns at position 128 (outside
+        // the prompt sample but inside the library).
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [['content' => ['parts' => [['text' => json_encode([
+                    ['title' => 'Track 128', 'artist' => 'Artist 128', 'reason' => 'owned, must be filtered'],
+                    ['title' => 'Brand New', 'artist' => 'Someone Else', 'reason' => 'genuinely new'],
+                ])]]]]],
+            ]),
+        ]);
+
+        $suggestions = $this->actingAs($user)->postJson('/recommendations')
+            ->assertOk()->json('suggestions');
+
+        $titles = array_column($suggestions, 'title');
+        $this->assertNotContains('Track 128', $titles);
+        $this->assertContains('Brand New', $titles);
+    }
+
     public function test_model_garbage_is_not_echoed_back(): void
     {
         config(['services.gemini.key' => 'test-key']);
