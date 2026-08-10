@@ -9975,10 +9975,71 @@ html[data-theme="greenroom"] {
     }
 }
 
+/* ============================================================
+   Motion layer — premium micro-interactions for the phone UI.
+   Additive and phone-scoped; every piece is switched off under
+   prefers-reduced-motion in the block that follows.
+   ============================================================ */
+@keyframes npRise {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes btnPop {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(1.09); }
+    100% { transform: scale(1); }
+}
+
+@media (max-width: 600px) {
+    /* Now Playing opens with a gentle staggered rise of its parts —
+       record, then title, seek, lyrics, transport. Re-runs each time
+       the sheet opens (the rule starts matching on body.m-np-open). */
+    body.m-np-open .record-player          { animation: npRise 460ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+    body.m-np-open .sleeve-mobile-nowplaying { animation: npRise 460ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both; }
+    body.m-np-open .sleeve-progress        { animation: npRise 460ms cubic-bezier(0.22, 1, 0.36, 1) 140ms both; }
+    body.m-np-open .sleeve-lyrics-zone     { animation: npRise 460ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both; }
+    body.m-np-open #mTransport             { animation: npRise 460ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both; }
+
+    /* The record breathes with playback: it rests smaller and fills the
+       platter when playing — like a record settling as the needle drops. */
+    .record-player-platter {
+        transition: transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    body.m-np-open:not(.m-playing) .record-player-platter {
+        transform: translate(-50%, -50%) scale(0.88);
+    }
+
+    /* The play button pops the moment playback starts. */
+    body.m-playing #mPlayBtn { animation: btnPop 280ms ease-out; }
+
+    /* Tactile press feedback across the touch surfaces. */
+    .song-list-item { transition: transform 140ms ease, background 0.2s; }
+    .song-list-item:active { transform: scale(0.975); }
+    .record-card-cover { transition: transform 200ms ease, box-shadow 0.4s ease; }
+    .record-card:active .record-card-cover { transform: scale(0.97); }
+    #mDockInfo { transition: transform 140ms ease; }
+    #mDockInfo:active { transform: scale(0.99); }
+    #mPlayAll:active, #mShuffleChip:active { transform: scale(0.97); }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .add-song-modal-panel,
     #vinyl.m-swap,
-    #mDockArtWrap {
+    #mDockArtWrap,
+    body.m-np-open .record-player,
+    body.m-np-open .sleeve-mobile-nowplaying,
+    body.m-np-open .sleeve-progress,
+    body.m-np-open .sleeve-lyrics-zone,
+    body.m-np-open #mTransport,
+    body.m-playing #mPlayBtn {
         animation: none;
     }
+    /* No auto-scaling record or press transforms when motion is reduced. */
+    .record-player-platter { transition: none; }
+    body.m-np-open:not(.m-playing) .record-player-platter { transform: translate(-50%, -50%); }
+    .song-list-item:active,
+    .record-card:active .record-card-cover,
+    #mDockInfo:active,
+    #mPlayAll:active,
+    #mShuffleChip:active { transform: none; }
 }
