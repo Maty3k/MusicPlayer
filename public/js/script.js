@@ -3653,9 +3653,13 @@ function disconnectSpotify() {
 // Import modal
 function showSpotifyImportModal() {
     spotifyImportData = null;
+    importSelection = [];
+    const pasteEl = document.getElementById('pasteImportInput');
+    if (pasteEl) pasteEl.value = '';
     document.getElementById('spotifyImportUrl').value = '';
     document.getElementById('spotifyImportPreview').style.display = 'none';
     document.getElementById('spotifyImportLoading').style.display = 'none';
+    setImportTab('paste'); // no-setup path first; Spotify link is a tab away
     document.getElementById('spotifyImportModal').classList.add('active');
 
     // Load user playlists if connected
@@ -3758,58 +3762,219 @@ function hideImportLoading() {
     document.getElementById('spotifyImportLoading').style.display = 'none';
 }
 
-function showImportPreview(data) {
-    hideImportLoading();
-    spotifyImportData = data.songs || [];
+// ---- Unified import checklist (Spotify link + paste list) ----------------
+// Every import path fills importSelection and renders one reviewable list.
+let importSelection = []; // {title, artist, album, cover, spotify_id, youtube_id, matchLabel, checked}
 
-    const info = document.getElementById('spotifyImportInfo');
-    info.innerHTML = `<div><strong>${escapeHtml(data.name || 'Playlist')}</strong><br><span style="font-size:0.75rem;color:var(--app-text-dim)">${Number(data.total) || 0} tracks</span></div>`;
-
-    const tracks = document.getElementById('spotifyImportTracks');
-    tracks.innerHTML = spotifyImportData.slice(0, 50).map((s, i) =>
-        `<div class="spotify-import-track"><span class="spotify-import-track-title">${escapeHtml(s.title)}</span> &mdash; ${escapeHtml(s.artist)}</div>`
-    ).join('') + (spotifyImportData.length > 50 ? `<div class="spotify-import-track" style="opacity:0.5">+ ${spotifyImportData.length - 50} more...</div>` : '');
-
-    document.getElementById('spotifyImportPreview').style.display = '';
+function activeImportTab() {
+    const active = document.querySelector('#importTabs .import-tab.active');
+    return active ? active.dataset.tab : 'paste';
 }
 
-async function importSpotifyPlaylist() {
-    if (!spotifyImportData || spotifyImportData.length === 0) return;
+function setImportTab(tab) {
+    document.querySelectorAll('#importTabs .import-tab').forEach(b =>
+        b.classList.toggle('active', b.dataset.tab === tab));
+    resetImportPreview();
+}
 
-    // Add each song to the current playlist
-    for (const s of spotifyImportData) {
-        const song = {
-            title: s.title,
-            artist: s.artist,
-            album: s.album || '',
-            cover: s.cover || '',
-            youtube_id: '',
-            mp3_url: '',
-            spotify_id: s.spotify_id || ''
-        };
+// Restore the input view for the active tab (also the "Back" target).
+function resetImportPreview() {
+    importSelection = [];
+    const prev = document.getElementById('spotifyImportPreview');
+    if (prev) prev.style.display = 'none';
+    hideImportLoading();
+    const tab = activeImportTab();
+    document.getElementById('importTabs').style.display = '';
+    document.getElementById('importPastePane').style.display = tab === 'paste' ? '' : 'none';
+    document.getElementById('importSpotifyPane').style.display = tab === 'spotify' ? '' : 'none';
+}
 
-        await fetch('/save-music', {
+function renderImportChecklist(title) {
+    hideImportLoading();
+    const info = document.getElementById('spotifyImportInfo');
+    const tracks = document.getElementById('spotifyImportTracks');
+    const matched = importSelection.filter(s => s.youtube_id !== null).length;
+    const noMatch = importSelection.length - matched;
+    info.innerHTML = `<div><strong>${escapeHtml(title || 'Import')}</strong><br>`
+        + `<span style="font-size:0.75rem;color:var(--app-text-dim)">${importSelection.length} songs`
+        + (noMatch > 0 ? ` &middot; ${noMatch} without a match` : '') + `</span></div>`;
+
+    tracks.innerHTML = importSelection.map((s, i) => {
+        const disabled = s.youtube_id === null && s.needsMatch;
+        const sub = s.matchLabel
+            ? `<span class="import-track-match">${escapeHtml(s.matchLabel)}</span>`
+            : `<span class="import-track-sub">${escapeHtml(s.artist || '')}</span>`;
+        return `<label class="import-check-row${disabled ? ' no-match' : ''}">
+            <input type="checkbox" ${s.checked && !disabled ? 'checked' : ''} ${disabled ? 'disabled' : ''} onchange="importSelection[${i}].checked=this.checked; updateImportAddBtn()">
+            <span class="import-track-body">
+                <span class="import-track-title">${escapeHtml(s.title)}</span>
+                ${sub}
+            </span>
+        </label>`;
+    }).join('');
+
+    // Collapse the input view — the checklist takes over until Back.
+    document.getElementById('importTabs').style.display = 'none';
+    document.getElementById('importPastePane').style.display = 'none';
+    document.getElementById('importSpotifyPane').style.display = 'none';
+    document.getElementById('spotifyImportPreview').style.display = '';
+    updateImportAddBtn();
+}
+
+function updateImportAddBtn() {
+    // Addable = checked and playable. Spotify tracks use '' (resolve on play);
+    // an unmatched paste line uses null and can't be added.
+    const n = importSelection.filter(s => s.checked && s.youtube_id !== null).length;
+    const btn = document.getElementById('importAddBtn');
+    if (btn) {
+        btn.textContent = n > 0 ? `Add ${n} song${n === 1 ? '' : 's'}` : 'Add songs';
+        btn.disabled = n === 0;
+    }
+}
+
+// Spotify preview: tracks are exact; YouTube id resolves lazily on play, so
+// they need no per-song match here (youtube_id '' is playable via resolve).
+function showImportPreview(data) {
+    hideImportLoading();
+    const songs = (data.songs || []).slice(0, 200);
+    importSelection = songs.map(s => ({
+        title: s.title, artist: s.artist, album: s.album || '', cover: s.cover || '',
+        spotify_id: s.spotify_id || '', youtube_id: '', matchLabel: '', needsMatch: false, checked: true,
+    }));
+    renderImportChecklist(data.name || 'Playlist');
+}
+
+// Paste list: parse "Artist - Title" lines, resolve each to a YouTube video
+// so the user can review matches before adding.
+async function resolvePasteList() {
+    const raw = (document.getElementById('pasteImportInput').value || '').trim();
+    if (!raw) return;
+    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 50);
+    if (lines.length === 0) return;
+
+    const parsed = lines.map(line => {
+        const m = line.split(/\s+[-–—]\s+/); // "Artist - Title" (hyphen/en/em dash)
+        if (m.length >= 2) return { artist: m[0].trim(), title: m.slice(1).join(' - ').trim(), query: line };
+        return { artist: '', title: line, query: line };
+    });
+
+    const loading = document.getElementById('spotifyImportLoading');
+    const loadingText = document.getElementById('spotifyImportLoadingText');
+    loading.style.display = '';
+    document.getElementById('spotifyImportPreview').style.display = 'none';
+    document.getElementById('importTabs').style.display = 'none';
+    document.getElementById('importPastePane').style.display = 'none';
+
+    // Resolve with limited concurrency to stay friendly to the throttle.
+    importSelection = new Array(parsed.length);
+    let done = 0;
+    const CONCURRENCY = 4;
+    let cursor = 0;
+    async function worker() {
+        while (cursor < parsed.length) {
+            const idx = cursor++;
+            const p = parsed[idx];
+            let match = null;
+            try {
+                const resp = await fetch('/search-youtube', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ query: p.query }),
+                });
+                const data = await resp.json();
+                match = data.success && Array.isArray(data.results) ? data.results[0] : null;
+            } catch (e) { /* leave unmatched */ }
+            importSelection[idx] = match ? {
+                title: p.title, artist: p.artist, album: '', cover: match.thumbnail || '',
+                spotify_id: '', youtube_id: match.videoId, needsMatch: true,
+                matchLabel: `▸ ${match.title}${match.channel ? ' · ' + match.channel : ''}`, checked: true,
+            } : {
+                title: p.title, artist: p.artist, album: '', cover: '',
+                spotify_id: '', youtube_id: null, needsMatch: true,
+                matchLabel: 'No match found', checked: false,
+            };
+            done++;
+            if (loadingText) loadingText.textContent = `Matching ${done}/${parsed.length}…`;
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, parsed.length) }, worker));
+
+    renderImportChecklist('Pasted list');
+}
+
+async function confirmImportSelection() {
+    const songs = importSelection
+        .filter(s => s.checked && s.youtube_id !== null)
+        .map(s => ({
+            title: s.title, artist: s.artist, album: s.album || '', cover: s.cover || '',
+            youtube_id: s.youtube_id || '', mp3_url: '', spotify_id: s.spotify_id || '',
+        }));
+    if (songs.length === 0) return;
+    const result = await bulkAddSongs(songs);
+    if (result && result.success) hideSpotifyImportModal();
+}
+
+// Add many songs in ONE request (bulk import path). Reloads the playlist
+// from the server afterward so songsData reflects exactly what was stored
+// (dedupe means the count may be lower than what was sent).
+async function bulkAddSongs(songs) {
+    if (!Array.isArray(songs) || songs.length === 0) return { success: false };
+    let result;
+    try {
+        const resp = await fetch('/save-music', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'add', song })
+            body: JSON.stringify({ action: 'addBatch', songs }),
         });
-
-        songsData.push(song);
+        result = await resp.json();
+    } catch (e) {
+        showBulkToast('Import failed — check your connection');
+        return { success: false };
+    }
+    if (!result.success) {
+        showBulkToast(result.error || 'Import failed');
+        return { success: false };
     }
 
-    currentSongIndex = songsData.length - spotifyImportData.length;
+    // Reload the active playlist's songs so local state matches the DB.
+    try {
+        const all = await fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'getAll' }),
+        }).then(r => r.json());
+        const active = all && all.playlists && all.playlists[all.activePlaylist];
+        if (active && Array.isArray(active.songs)) {
+            songsData.length = 0;
+            active.songs.forEach(s => songsData.push(s));
+        }
+    } catch (e) { /* local state stays as-is; a reload will reconcile */ }
+
     if (shuffleMode !== 'off') buildShuffleQueue();
     rebuildSongList();
     updateTrackCount();
 
-    // Display the first imported song
-    const firstSong = songsData[currentSongIndex];
-    if (firstSong) {
-        updateSongDisplay(firstSong);
-        playSongSource(firstSong, true);
-    }
+    const msg = result.skipped > 0
+        ? `Added ${result.added} · skipped ${result.skipped} already in playlist`
+        : `Added ${result.added} song${result.added === 1 ? '' : 's'}`;
+    showBulkToast(msg);
+    return result;
+}
 
-    hideSpotifyImportModal();
+// Reuse the mobile toast when present; otherwise a lightweight fallback.
+function showBulkToast(msg) {
+    if (typeof window.mToast === 'function') { window.mToast(msg); return; }
+    let t = document.getElementById('bulkToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'bulkToast';
+        t.className = 'bulk-toast';
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._hide);
+    t._hide = setTimeout(() => t.classList.remove('show'), 3200);
 }
 
 // ============================================================

@@ -785,6 +785,14 @@
                 <input type="text" id="addSongSearch" placeholder="Song or artist — or paste a YouTube link" autocomplete="off" oninput="onAddSearchInput()" onkeydown="onAddSearchKeydown(event)">
             </div>
             <div class="add-song-search-results" id="addSongSearchResults"></div>
+            {{-- Bulk import: paste a whole list or a Spotify playlist link
+                 instead of searching one song at a time. --}}
+            <button type="button" class="bulk-import-btn" onclick="hideAddSongModal(); showSpotifyImportModal();">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                    <path d="M4 6h16M4 12h16M4 18h10"/><path d="M17 15l3 3-3 3" transform="translate(0 -3)"/>
+                </svg>
+                <span>Import many at once &mdash; paste a list or Spotify link</span>
+            </button>
             {{-- Phones can't drag-and-drop: a direct path to the hidden
                  multi-file input, skipping the source-mode burial. --}}
             <button type="button" id="mUploadBtn" class="m-only upload-audio-btn" onclick="document.getElementById('addSongFile').click()">
@@ -1136,32 +1144,50 @@
             <button class="add-song-modal-close" onclick="hideSpotifyImportModal()">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon">&#9835;</div>
-                <h2 class="add-song-modal-title">Import from Spotify</h2>
+                <h2 class="add-song-modal-title">Import songs</h2>
             </div>
 
-            <div class="add-song-form-group">
-                <label for="spotifyImportUrl">Public playlist URL</label>
-                <div class="spotify-import-url-row">
-                    <input type="text" id="spotifyImportUrl" placeholder="https://open.spotify.com/playlist/...">
-                    <button type="button" class="add-song-btn-save" onclick="fetchSpotifyPlaylistUrl()">Fetch</button>
+            <div class="import-tabs" id="importTabs">
+                <button type="button" class="import-tab active" data-tab="paste" onclick="setImportTab('paste')">Paste a list</button>
+                <button type="button" class="import-tab" data-tab="spotify" onclick="setImportTab('spotify')">Spotify link</button>
+            </div>
+
+            <div class="import-pane" id="importPastePane">
+                <div class="add-song-form-group">
+                    <label for="pasteImportInput">One song per line &mdash; &ldquo;Artist &ndash; Title&rdquo;</label>
+                    <textarea id="pasteImportInput" class="import-textarea" rows="6" placeholder="Laufey &ndash; From the Start&#10;Don Toliver &ndash; No Pole&#10;Clairo &ndash; Pretty Girl"></textarea>
+                </div>
+                <p class="settings-hint">Paste from anywhere &mdash; up to 50 at a time. Each line is matched to a YouTube video you can review before adding.</p>
+                <div class="add-song-modal-buttons">
+                    <button type="button" class="add-song-btn-save" onclick="resolvePasteList()">Find matches</button>
                 </div>
             </div>
 
-            <div id="spotifyUserPlaylists" class="add-song-form-group" style="display:none">
-                <label>Your playlists</label>
-                <div class="spotify-playlists-list" id="spotifyPlaylistsList"></div>
+            <div class="import-pane" id="importSpotifyPane" style="display:none">
+                <div class="add-song-form-group">
+                    <label for="spotifyImportUrl">Public playlist URL</label>
+                    <div class="spotify-import-url-row">
+                        <input type="text" id="spotifyImportUrl" placeholder="https://open.spotify.com/playlist/...">
+                        <button type="button" class="add-song-btn-save" onclick="fetchSpotifyPlaylistUrl()">Fetch</button>
+                    </div>
+                </div>
+                <p class="settings-hint" id="spotifyImportHint">Paste any public Spotify playlist link. Songs stream from YouTube; each one resolves the first time you play it.</p>
+                <div id="spotifyUserPlaylists" class="add-song-form-group" style="display:none">
+                    <label>Your playlists</label>
+                    <div class="spotify-playlists-list" id="spotifyPlaylistsList"></div>
+                </div>
             </div>
 
             <div id="spotifyImportLoading" class="spotify-import-loading" style="display:none">
-                <span class="spotify-spinner"></span> Loading tracks&hellip;
+                <span class="spotify-spinner"></span> <span id="spotifyImportLoadingText">Loading tracks&hellip;</span>
             </div>
 
             <div id="spotifyImportPreview" class="spotify-import-preview" style="display:none">
                 <div class="spotify-import-info" id="spotifyImportInfo"></div>
-                <div class="spotify-import-tracks" id="spotifyImportTracks"></div>
+                <div class="spotify-import-tracks import-checklist" id="spotifyImportTracks"></div>
                 <div class="add-song-modal-buttons">
-                    <button type="button" class="add-song-btn-cancel" onclick="hideSpotifyImportModal()">Cancel</button>
-                    <button type="button" class="add-song-btn-save" onclick="importSpotifyPlaylist()">Add to current playlist</button>
+                    <button type="button" class="add-song-btn-cancel" onclick="resetImportPreview()">Back</button>
+                    <button type="button" class="add-song-btn-save" id="importAddBtn" onclick="confirmImportSelection()">Add songs</button>
                 </div>
             </div>
         </div>

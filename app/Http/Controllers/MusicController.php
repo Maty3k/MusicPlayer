@@ -24,6 +24,7 @@ class MusicController extends Controller
             'switch' => DB::transaction(fn () => $this->switchSong($request, $user)),
             'switchPlaylist' => DB::transaction(fn () => $this->switchPlaylist($request, $user)),
             'add' => DB::transaction(fn () => $this->addSong($request, $user)),
+            'addBatch' => DB::transaction(fn () => $this->addBatch($request, $user)),
             'delete' => DB::transaction(fn () => $this->deleteSong($request, $user)),
             'rename' => DB::transaction(fn () => $this->renamePlaylist($request, $user)),
             'recolor' => DB::transaction(fn () => $this->recolorPlaylist($request, $user)),
@@ -148,6 +149,97 @@ class MusicController extends Controller
         $playlist->update(['current_index' => $newIndex]);
 
         return ['success' => true, 'index' => $newIndex];
+    }
+
+    /** Max songs a single batch-import request may add. */
+    private const BATCH_LIMIT = 200;
+
+    /**
+     * Add many songs to the current playlist in one transaction — the bulk
+     * import path (paste-a-list, Spotify playlist). Skips entries already in
+     * the playlist (same youtube_id, or same title+artist) so re-running an
+     * import doesn't duplicate. Returns how many were added vs skipped.
+     */
+    private function addBatch(Request $request, User $user): array
+    {
+        $songs = $request->input('songs');
+        if (! is_array($songs) || $songs === []) {
+            return ['success' => false, 'error' => 'No songs to import'];
+        }
+        if (count($songs) > self::BATCH_LIMIT) {
+            return ['success' => false, 'error' => 'Too many songs at once (max '.self::BATCH_LIMIT.')'];
+        }
+
+        $activeSlug = $this->activeSlug($user);
+        $playlist = $this->findPlaylist($user, $activeSlug);
+
+        if (! preg_match('/^[A-Za-z0-9_-]{1,64}$/', $activeSlug)
+            || ($playlist === null && $activeSlug !== 'favorites')) {
+            return ['success' => false, 'error' => 'Invalid active playlist'];
+        }
+        if ($playlist === null) {
+            $playlist = $user->playlists()->create([
+                'slug' => 'favorites',
+                'name' => 'Favorites',
+                'color' => '#d4a574',
+                'current_index' => 0,
+                'source' => 'user',
+                'position' => ((int) ($user->playlists()->max('position') ?? -1)) + 1,
+            ]);
+        }
+
+        // Existing songs, keyed for dedupe (by youtube_id and by title|artist).
+        $existing = $playlist->songs()->get(['title', 'artist', 'youtube_id']);
+        $haveYt = $existing->pluck('youtube_id')->filter()->map(fn ($v) => (string) $v)->flip();
+        $haveKey = $existing
+            ->mapWithKeys(fn ($s) => [mb_strtolower(trim($s->title).'|'.trim($s->artist)) => true]);
+
+        $position = $playlist->songs()->count();
+        $added = 0;
+        $skipped = 0;
+        $seenYt = [];
+        $seenKey = [];
+
+        foreach ($songs as $song) {
+            if (! is_array($song) || empty($song['title'])) {
+                $skipped++;
+                continue;
+            }
+            $title = (string) $song['title'];
+            $artist = (string) ($song['artist'] ?? '');
+            // Client-supplied ids (from search results) — accept only the
+            // canonical 11-char YouTube form, blank anything else so a crafted
+            // value can never reach the player/iframe.
+            $yt = (string) ($song['youtube_id'] ?? '');
+            $yt = preg_match('/^[A-Za-z0-9_-]{11}$/', $yt) ? $yt : '';
+            $key = mb_strtolower(trim($title).'|'.trim($artist));
+
+            $dupeYt = $yt !== '' && ($haveYt->has($yt) || isset($seenYt[$yt]));
+            $dupeKey = isset($haveKey[$key]) || isset($seenKey[$key]);
+            if ($dupeYt || $dupeKey) {
+                $skipped++;
+                continue;
+            }
+
+            $playlist->songs()->create([
+                'position' => $position,
+                'title' => $title,
+                'artist' => $artist,
+                'album' => (string) ($song['album'] ?? ''),
+                'cover' => $this->sanitizeUrl($song['cover'] ?? ''),
+                'youtube_id' => $yt,
+                'mp3_url' => $this->sanitizeUrl($song['mp3_url'] ?? ''),
+                'spotify_id' => (string) ($song['spotify_id'] ?? ''),
+            ]);
+            if ($yt !== '') {
+                $seenYt[$yt] = true;
+            }
+            $seenKey[$key] = true;
+            $position++;
+            $added++;
+        }
+
+        return ['success' => true, 'added' => $added, 'skipped' => $skipped, 'total' => $position];
     }
 
     /** Delete a song and reindex; legacy 3-branch currentIndex adjustment. */

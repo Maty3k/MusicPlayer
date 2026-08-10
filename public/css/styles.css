@@ -3620,6 +3620,152 @@ body {
 }
 .spotify-import-track-title { color: #f2e8d8; font-weight: 500; }
 
+/* ============================================================
+   Bulk import — the "Import many" entry button, tabbed modal,
+   paste textarea, and the reviewable match checklist.
+   ============================================================ */
+.bulk-import-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    width: 100%;
+    margin: 12px 0 4px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(212, 165, 116, 0.3);
+    background: rgba(212, 165, 116, 0.07);
+    color: #d4a574;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+.bulk-import-btn:hover {
+    background: rgba(212, 165, 116, 0.14);
+    border-color: rgba(212, 165, 116, 0.55);
+}
+.bulk-import-btn svg { flex-shrink: 0; }
+
+.import-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 16px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(212, 165, 116, 0.15);
+    border-radius: 999px;
+}
+.import-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 999px;
+    color: rgba(212, 165, 116, 0.6);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.import-tab.active {
+    background: linear-gradient(180deg, rgba(212, 165, 116, 0.22), rgba(212, 165, 116, 0.1));
+    color: #f2e8d8;
+}
+
+.import-textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 120px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(212, 165, 116, 0.25);
+    background: rgba(0, 0, 0, 0.25);
+    color: #f2e8d8;
+    font-family: inherit;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.import-textarea:focus {
+    outline: none;
+    border-color: rgba(212, 165, 116, 0.55);
+}
+.import-textarea::placeholder {
+    color: rgba(242, 232, 216, 0.3);
+}
+
+.import-checklist {
+    max-height: 46vh;
+}
+.import-check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    cursor: pointer;
+}
+.import-check-row.no-match {
+    opacity: 0.5;
+    cursor: default;
+}
+.import-check-row input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    accent-color: #d4a574;
+}
+.import-track-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.import-track-title {
+    font-size: 0.85rem;
+    color: #f2e8d8;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.import-track-match,
+.import-track-sub {
+    font-size: 0.68rem;
+    color: rgba(242, 232, 216, 0.45);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.no-match .import-track-match { color: rgba(232, 93, 117, 0.7); }
+
+.bulk-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 84px;
+    transform: translate(-50%, 20px);
+    z-index: 12000;
+    max-width: 92vw;
+    padding: 12px 18px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #2c251d, #1e1a14);
+    border: 1px solid rgba(212, 165, 116, 0.35);
+    color: #f2e8d8;
+    font-size: 0.85rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+}
+.bulk-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
 .music-main {
     flex: 1;
     display: flex;
@@ -7976,6 +8122,19 @@ html[data-theme="greenroom"] {
     background: rgba(var(--th-accent-rgb), 0.08);
     color: var(--th-accent);
 }
+[data-theme] .bulk-import-btn {
+    border-color: rgba(var(--th-accent-rgb), 0.3);
+    background: rgba(var(--th-accent-rgb), 0.07);
+    color: var(--th-accent);
+}
+[data-theme] .import-tabs { border-color: rgba(var(--th-accent-rgb), 0.15); }
+[data-theme] .import-tab { color: rgba(var(--th-accent-rgb), 0.6); }
+[data-theme] .import-tab.active {
+    background: linear-gradient(180deg, rgba(var(--th-accent-rgb), 0.22), rgba(var(--th-accent-rgb), 0.1));
+    color: var(--th-cream);
+}
+[data-theme] .import-textarea:focus { border-color: rgba(var(--th-accent-rgb), 0.55); }
+[data-theme] .import-check-row input[type="checkbox"] { accent-color: var(--th-accent); }
 [data-theme] .collection-stats-inline .stat-chip {
     color: rgba(var(--th-accent-rgb), 0.55);
     border-color: rgba(var(--th-accent-rgb), 0.12);
