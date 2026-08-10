@@ -12,7 +12,7 @@
         }
         return csrfToken || '';
     }
-    const ORIGIN_ENDPOINTS = /^\/(save-music|spotify|spotify-resolve|search-youtube|scan-cover|settings|upload-song|recommendations)(\/|\?|$)/;
+    const ORIGIN_ENDPOINTS = /^\/(save-music|spotify|spotify-resolve|search-youtube|youtube-playlist|scan-cover|settings|upload-song|recommendations)(\/|\?|$)/;
     window.getCsrfToken = getCsrfToken; // for the upload XHR, which bypasses fetch
     const origFetch = window.fetch.bind(window);
     window.fetch = function (input, init) {
@@ -3786,7 +3786,48 @@ function resetImportPreview() {
     const tab = activeImportTab();
     document.getElementById('importTabs').style.display = '';
     document.getElementById('importPastePane').style.display = tab === 'paste' ? '' : 'none';
+    document.getElementById('importYoutubePane').style.display = tab === 'youtube' ? '' : 'none';
     document.getElementById('importSpotifyPane').style.display = tab === 'spotify' ? '' : 'none';
+}
+
+// YouTube playlist: server scrapes the playlist page (no keys) and returns
+// every track already resolved to a youtube_id.
+async function fetchYoutubePlaylist() {
+    const url = (document.getElementById('youtubeImportUrl').value || '').trim();
+    if (!url) return;
+
+    const loading = document.getElementById('spotifyImportLoading');
+    const loadingText = document.getElementById('spotifyImportLoadingText');
+    if (loadingText) loadingText.textContent = 'Loading playlist…';
+    loading.style.display = '';
+    document.getElementById('spotifyImportPreview').style.display = 'none';
+    document.getElementById('importTabs').style.display = 'none';
+    document.getElementById('importYoutubePane').style.display = 'none';
+
+    let data;
+    try {
+        const resp = await fetch('/youtube-playlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ url }),
+        });
+        data = await resp.json();
+    } catch (e) {
+        data = { success: false, error: 'Could not reach the server' };
+    }
+
+    if (!data.success || !Array.isArray(data.songs) || data.songs.length === 0) {
+        hideImportLoading();
+        resetImportPreview();
+        showBulkToast(data.error || 'No tracks found in that playlist');
+        return;
+    }
+
+    importSelection = data.songs.slice(0, 200).map(s => ({
+        title: s.title, artist: s.artist || '', album: '', cover: s.cover || '',
+        spotify_id: '', youtube_id: s.youtube_id, needsMatch: true, matchLabel: '', checked: true,
+    }));
+    renderImportChecklist(data.name || 'YouTube playlist');
 }
 
 function renderImportChecklist(title) {

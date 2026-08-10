@@ -1149,6 +1149,7 @@
 
             <div class="import-tabs" id="importTabs">
                 <button type="button" class="import-tab active" data-tab="paste" onclick="setImportTab('paste')">Paste a list</button>
+                <button type="button" class="import-tab" data-tab="youtube" onclick="setImportTab('youtube')">YouTube link</button>
                 <button type="button" class="import-tab" data-tab="spotify" onclick="setImportTab('spotify')">Spotify link</button>
             </div>
 
@@ -1161,6 +1162,17 @@
                 <div class="add-song-modal-buttons">
                     <button type="button" class="add-song-btn-save" onclick="resolvePasteList()">Find matches</button>
                 </div>
+            </div>
+
+            <div class="import-pane" id="importYoutubePane" style="display:none">
+                <div class="add-song-form-group">
+                    <label for="youtubeImportUrl">YouTube playlist URL</label>
+                    <div class="spotify-import-url-row">
+                        <input type="text" id="youtubeImportUrl" placeholder="https://youtube.com/playlist?list=...">
+                        <button type="button" class="add-song-btn-save" onclick="fetchYoutubePlaylist()">Fetch</button>
+                    </div>
+                </div>
+                <p class="settings-hint">Paste a public YouTube playlist link &mdash; every track imports with no setup. Review the list before adding.</p>
             </div>
 
             <div class="import-pane" id="importSpotifyPane" style="display:none">
