@@ -39,6 +39,7 @@ class MusicController extends Controller
             'setCover' => DB::transaction(fn () => $this->setCover($request, $user)),
             'recordPlay' => DB::transaction(fn () => $this->recordPlay($request, $user)),
             'favorite' => DB::transaction(fn () => $this->favorite($request, $user)),
+            'searchLibrary' => $this->searchLibrary($request, $user),
             'stats' => $this->stats($user),
             'getAll' => $this->getAll($user),
             default => ['success' => false, 'error' => 'Invalid action'],
@@ -624,6 +625,41 @@ class MusicController extends Controller
         return $fav === null
             ? []
             : $fav->songs->map(fn (Song $s) => $s->frontendKey())->unique()->values()->all();
+    }
+
+    /**
+     * Search every song in the user's library (across all playlists) by
+     * title/artist — the global "find any song" box. Returns matches with their
+     * home playlist + position so the client can jump to and play them.
+     */
+    private function searchLibrary(Request $request, User $user): array
+    {
+        $q = trim((string) $request->input('q', ''));
+        if (mb_strlen($q) < 2) {
+            return ['success' => true, 'results' => []];
+        }
+        // Escape LIKE wildcards so a literal % or _ in the query matches itself.
+        $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $q).'%';
+
+        $songs = Song::whereIn('playlist_id', $user->playlists()->select('id'))
+            ->where(fn ($query) => $query->where('title', 'like', $like)->orWhere('artist', 'like', $like))
+            ->with('playlist:id,slug,name,color')
+            ->orderBy('title')
+            ->limit(40)
+            ->get();
+
+        $results = $songs
+            ->filter(fn (Song $s) => $s->playlist !== null)
+            ->map(fn (Song $s) => $s->toFrontend() + [
+                'position' => (int) $s->position,
+                'playlistSlug' => $s->playlist->slug,
+                'playlistName' => $s->playlist->name,
+                'playlistColor' => $s->playlist->color,
+            ])
+            ->values()
+            ->all();
+
+        return ['success' => true, 'results' => $results];
     }
 
     /**

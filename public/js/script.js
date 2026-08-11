@@ -3412,6 +3412,93 @@ async function toggleFavorite(index) {
 
 
 // ============================================================
+// GLOBAL LIBRARY SEARCH — find any song across all playlists
+// ============================================================
+
+let librarySearchTimer = null;
+let librarySearchResults = [];
+
+function showSearchModal() {
+    const modal = document.getElementById('searchModal');
+    if (!modal) return;
+    modal.classList.add('active');
+    const input = document.getElementById('librarySearchInput');
+    if (input) { input.value = ''; setTimeout(() => input.focus(), 60); }
+    const results = document.getElementById('searchResults');
+    if (results) results.innerHTML = '<div class="search-hint">Type to search across all your playlists.</div>';
+    librarySearchResults = [];
+}
+
+function hideSearchModal() {
+    const modal = document.getElementById('searchModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function runLibrarySearch() {
+    const input = document.getElementById('librarySearchInput');
+    const results = document.getElementById('searchResults');
+    if (!input || !results) return;
+    const q = input.value.trim();
+    if (librarySearchTimer) clearTimeout(librarySearchTimer);
+    if (q.length < 2) {
+        results.innerHTML = '<div class="search-hint">Type to search across all your playlists.</div>';
+        return;
+    }
+    librarySearchTimer = setTimeout(async () => {
+        try {
+            const res = await fetch('/save-music', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'searchLibrary', q })
+            });
+            const data = await res.json();
+            // Ignore a stale response if the query moved on.
+            if (input.value.trim() !== q) return;
+            renderSearchResults(data && data.results ? data.results : [], q);
+        } catch (e) {
+            results.innerHTML = '<div class="search-hint">Search failed. Try again.</div>';
+        }
+    }, 220);
+}
+
+function renderSearchResults(list, q) {
+    const results = document.getElementById('searchResults');
+    if (!results) return;
+    librarySearchResults = list;
+    if (!list.length) {
+        results.innerHTML = `<div class="search-hint">No songs match “${escapeHtml(q)}”.</div>`;
+        return;
+    }
+    // Click by array index — never inline the slug into the onclick attribute.
+    results.innerHTML = list.map((r, i) => {
+        const cover = safeUrl(r.cover);
+        const coverHtml = cover
+            ? `<img class="search-result-cover" src="${escapeHtml(cover)}" alt="" loading="lazy">`
+            : `<div class="search-result-cover search-result-cover-empty">${STATS_EMPTY_COVER}</div>`;
+        const artist = r.artist ? `<span class="search-result-artist">${escapeHtml(r.artist)}</span>` : '';
+        const color = /^#[0-9a-fA-F]{6}$/.test(r.playlistColor || '') ? r.playlistColor : '#d4a574';
+        return `<button type="button" class="search-result" onclick="playSearchResult(${i})">
+            ${coverHtml}
+            <span class="search-result-info">
+                <span class="search-result-title">${escapeHtml(r.title)}</span>
+                ${artist}
+            </span>
+            <span class="search-result-pl" style="--pl-color:${color}">${escapeHtml(r.playlistName)}</span>
+        </button>`;
+    }).join('');
+}
+
+// Jump to a search hit: load its playlist (opens the player), then play it.
+async function playSearchResult(i) {
+    const r = librarySearchResults[i];
+    if (!r) return;
+    hideSearchModal();
+    await selectPlaylistFromCrate(String(r.playlistSlug));
+    switchSong(parseInt(r.position, 10));
+}
+
+
+// ============================================================
 // LISTENING STATS — "Your listening" panel
 // ============================================================
 
