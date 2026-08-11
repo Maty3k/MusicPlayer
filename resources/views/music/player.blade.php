@@ -1435,6 +1435,7 @@
         let playlistsMeta = @json((object) $meta);
         let recentlyPlayed = @json($recentlyPlayed);
         let recentSongs = @json($recentSongs);
+        let favoriteKeys = new Set(@json($favoriteKeys));
     </script>
     <!-- gif.js encoder for the Vinyl GIF Maker (client-side GIF encoding + worker) -->
     <script src="{{ asset('vendor/gif.js/gif.js') }}?v={{ filemtime(public_path('vendor/gif.js/gif.js')) }}" defer></script>

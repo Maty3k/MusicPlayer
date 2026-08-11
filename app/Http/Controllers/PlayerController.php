@@ -21,6 +21,12 @@ class PlayerController extends Controller
             $playlists[$playlist->slug] = $playlist->toFrontend();
         }
 
+        // Identity keys of the user's favorites, for the song-row heart state.
+        $favPlaylist = $user->playlists->firstWhere('slug', 'favorites');
+        $favoriteKeys = $favPlaylist
+            ? $favPlaylist->songs->map(fn ($s) => $s->frontendKey())->unique()->values()->all()
+            : [];
+
         $active = $user->activePlaylist();
         $activePlaylistId = $active?->slug ?? 'favorites';
         $activePlaylist = $playlists[$activePlaylistId] ?? ['name' => 'Favorites', 'songs' => [], 'currentIndex' => 0, 'color' => '#d4a574'];
@@ -37,6 +43,7 @@ class PlayerController extends Controller
             'current' => $current,
             'recentlyPlayed' => $user->recently_played ?? array_keys($playlists),
             'recentSongs' => $user->recentSongs(),
+            'favoriteKeys' => $favoriteKeys,
         ]);
     }
 }

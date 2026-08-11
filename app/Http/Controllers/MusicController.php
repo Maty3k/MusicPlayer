@@ -38,6 +38,7 @@ class MusicController extends Controller
             'copySong' => DB::transaction(fn () => $this->copySong($request, $user)),
             'setCover' => DB::transaction(fn () => $this->setCover($request, $user)),
             'recordPlay' => DB::transaction(fn () => $this->recordPlay($request, $user)),
+            'favorite' => DB::transaction(fn () => $this->favorite($request, $user)),
             'stats' => $this->stats($user),
             'getAll' => $this->getAll($user),
             default => ['success' => false, 'error' => 'Invalid action'],
@@ -542,6 +543,89 @@ class MusicController extends Controller
         return 'tt:'.md5(mb_strtolower(trim($title).'|'.trim($artist)));
     }
 
+    /** The 'favorites' playlist slug — the heart button's target. */
+    private const FAVORITES_SLUG = 'favorites';
+
+    /**
+     * Toggle a song in the user's Favorites playlist (the heart button). Adds
+     * it if absent, removes it if already there — matched by the shared song
+     * key so the same track is recognised across playlists. Returns the new
+     * favorited state.
+     */
+    private function favorite(Request $request, User $user): array
+    {
+        $song = $request->input('song');
+        if (! is_array($song) || empty($song['title'])) {
+            return ['success' => false, 'error' => 'Missing song data'];
+        }
+
+        $title = mb_substr((string) $song['title'], 0, 300);
+        $artist = mb_substr((string) ($song['artist'] ?? ''), 0, 300);
+        $yt = (string) ($song['youtube_id'] ?? '');
+        $yt = preg_match('/^[A-Za-z0-9_-]{11}$/', $yt) ? $yt : '';
+        $spotify = mb_substr((string) ($song['spotify_id'] ?? ''), 0, 40);
+        $mp3 = $this->sanitizeUrl($song['mp3_url'] ?? '');
+        $key = Song::keyFor($yt, $spotify, $mp3, $title, $artist);
+
+        $fav = $this->findPlaylist($user, self::FAVORITES_SLUG);
+
+        // Already a favorite? Remove it (unfavorite).
+        if ($fav !== null) {
+            foreach ($fav->songs as $existing) {
+                if ($existing->frontendKey() === $key) {
+                    $existing->delete();
+                    $this->reindexSongs($fav);
+                    $count = $fav->songs()->count();
+                    if ((int) $fav->current_index >= $count) {
+                        $fav->update(['current_index' => max(0, $count - 1)]);
+                    }
+
+                    return ['success' => true, 'favorited' => false, 'key' => $key];
+                }
+            }
+        }
+
+        // Not a favorite yet — add it (creating the Favorites playlist if needed).
+        if ($fav === null) {
+            $fav = $user->playlists()->create([
+                'slug' => self::FAVORITES_SLUG,
+                'name' => 'Favorites',
+                'color' => '#d4a574',
+                'current_index' => 0,
+                'source' => 'user',
+                'position' => ((int) ($user->playlists()->max('position') ?? -1)) + 1,
+            ]);
+        }
+
+        $fav->songs()->create([
+            'position' => $fav->songs()->count(),
+            'title' => $title,
+            'artist' => $artist,
+            'album' => mb_substr((string) ($song['album'] ?? ''), 0, 300),
+            'cover' => $this->sanitizeUrl($song['cover'] ?? ''),
+            'youtube_id' => $yt,
+            'mp3_url' => $mp3,
+            'spotify_id' => $spotify,
+        ]);
+
+        return ['success' => true, 'favorited' => true, 'key' => $key];
+    }
+
+    /**
+     * Identity keys of every song in the user's Favorites playlist — the client
+     * fills the heart when a row's key is in this set.
+     *
+     * @return array<int, string>
+     */
+    private function favoriteKeys(User $user): array
+    {
+        $fav = $this->findPlaylist($user, self::FAVORITES_SLUG);
+
+        return $fav === null
+            ? []
+            : $fav->songs->map(fn (Song $s) => $s->frontendKey())->unique()->values()->all();
+    }
+
     /**
      * Listening stats for the profile panel: top songs and top artists by
      * lifetime play_count, plus totals and a 7-day distinct-song count. Scoped
@@ -594,6 +678,7 @@ class MusicController extends Controller
             'activePlaylist' => $this->activeSlug($user),
             'recentlyPlayed' => $user->recently_played ?? [],
             'recentSongs' => $user->recentSongs(),
+            'favoriteKeys' => $this->favoriteKeys($user),
             'playlists' => $playlists,
         ];
     }

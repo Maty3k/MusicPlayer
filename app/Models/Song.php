@@ -15,6 +15,37 @@ class Song extends Model
     }
 
     /**
+     * Stable per-song identity used to match a song across playlists (favorites
+     * membership, recently-played). MUST mirror the client songPlayKey() in
+     * script.js exactly so both sides agree on what "the same song" is.
+     */
+    public static function keyFor(string $yt, string $spotify, string $mp3, string $title, string $artist): string
+    {
+        if ($yt !== '') {
+            return 'yt:'.$yt;
+        }
+        if ($spotify !== '') {
+            return 'sp:'.$spotify;
+        }
+        if ($mp3 !== '') {
+            return 'mp3:'.trim($mp3);
+        }
+
+        return 'tt:'.mb_strtolower(trim($title)).'|'.mb_strtolower(trim($artist));
+    }
+
+    public function frontendKey(): string
+    {
+        return self::keyFor(
+            (string) $this->youtube_id,
+            (string) $this->spotify_id,
+            (string) $this->mp3_url,
+            (string) $this->title,
+            (string) ($this->artist ?? '')
+        );
+    }
+
+    /**
      * Serialize to the exact song shape the frontend expects
      * (an element of a playlist's `songs` array in music.json).
      *

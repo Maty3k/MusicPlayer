@@ -2368,6 +2368,9 @@ function buildSongListItem(song, index) {
                     <span></span><span></span><span></span><span></span>
                 </div>
             </div>
+            ${activePlaylistId === 'favorites' ? '' : `<button class="song-fav-btn ${favoriteKeys.has(songPlayKey(song)) ? 'is-fav' : ''}" data-index="${index}" onclick="event.stopPropagation(); toggleFavorite(${index})" title="Favorite" aria-label="Favorite">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.8-8.85a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </button>`}
             <span class="song-list-num">${String(index + 1).padStart(2, '0')}</span>
             <div class="song-actions">
                 <button class="song-send-btn" onclick="event.stopPropagation(); showSendMenu(this, ${index})" title="Send to playlist">
@@ -3253,6 +3256,54 @@ async function playRecentSong(i) {
     } else {
         switchSong(idx);
     }
+}
+
+
+// ============================================================
+// FAVORITES — heart toggle into the Favorites playlist
+// ============================================================
+
+// Refresh every visible heart from the favoriteKeys set (after a toggle or a
+// list rebuild), keyed by each row's real songsData index.
+function updateFavoriteHearts() {
+    document.querySelectorAll('#songList .song-fav-btn').forEach(btn => {
+        const idx = parseInt(btn.getAttribute('data-index'), 10);
+        const song = songsData[idx];
+        if (!song) return;
+        btn.classList.toggle('is-fav', favoriteKeys.has(songPlayKey(song)));
+    });
+}
+
+// Toggle a song in/out of the Favorites playlist. Optimistic — the heart flips
+// immediately and reverts if the server rejects.
+async function toggleFavorite(index) {
+    const song = songsData[index];
+    if (!song) return;
+    const key = songPlayKey(song);
+    const wasFav = favoriteKeys.has(key);
+    if (wasFav) favoriteKeys.delete(key); else favoriteKeys.add(key);
+    updateFavoriteHearts();
+
+    try {
+        const res = await fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'favorite', song })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            if (data.favorited) favoriteKeys.add(data.key); else favoriteKeys.delete(data.key);
+            // Keep the Favorites crate card's count/cover roughly in sync.
+            if (typeof playlistsMeta === 'object' && playlistsMeta.favorites) {
+                playlistsMeta.favorites.songCount = (playlistsMeta.favorites.songCount || 0) + (data.favorited ? 1 : -1);
+            }
+        } else {
+            if (wasFav) favoriteKeys.add(key); else favoriteKeys.delete(key);
+        }
+    } catch (e) {
+        if (wasFav) favoriteKeys.add(key); else favoriteKeys.delete(key);
+    }
+    updateFavoriteHearts();
 }
 
 

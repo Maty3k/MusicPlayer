@@ -2971,6 +2971,28 @@ body {
     transform: scale(1.1);
 }
 
+/* Song favorite (heart) — always visible, unlike the hover-only .song-actions.
+   z-index keeps it above the actions gradient when a row is hovered. */
+.song-fav-btn {
+    position: relative;
+    z-index: 3;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    color: rgba(212, 165, 116, 0.38);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+.song-fav-btn:hover { color: rgba(212, 165, 116, 0.85); transform: scale(1.12); }
+.song-fav-btn.is-fav { color: #e8b877; }
+.song-fav-btn.is-fav svg { fill: currentColor; }
+
 /* Empty playlist state (sidebar) */
 .song-list-empty {
     display: flex;
@@ -8377,6 +8399,9 @@ html[data-theme="greenroom"] {
 [data-theme] .stats-empty { color: rgba(var(--th-accent-rgb), 0.7); }
 [data-theme] .stats-empty-icon,
 [data-theme] .stats-song-cover-empty { color: rgba(var(--th-accent-rgb), 0.5); }
+[data-theme] .song-fav-btn { color: rgba(var(--th-accent-rgb), 0.38); }
+[data-theme] .song-fav-btn:hover { color: rgba(var(--th-accent-rgb), 0.85); }
+[data-theme] .song-fav-btn.is-fav { color: var(--th-accent-hi); }
 @media (min-width: 601px) {
     [data-theme] .record-card.now-playing .record-card-cover {
         box-shadow:
