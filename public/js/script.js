@@ -1272,10 +1272,17 @@ function ytDebugLog(stateData) {
     if (!box) {
         box = document.createElement('div');
         box.id = 'ytDebugBox';
-        box.style.cssText = 'position:fixed;top:8px;left:8px;z-index:99999;background:rgba(0,0,0,0.85);color:#7cf;font:11px/1.4 monospace;padding:8px 10px;border-radius:8px;max-width:70vw;pointer-events:none;white-space:pre';
+        box.style.cssText = 'position:fixed;top:8px;left:8px;z-index:99999;background:rgba(0,0,0,0.85);color:#7cf;font:11px/1.4 monospace;padding:8px 10px;border-radius:8px;max-width:80vw;pointer-events:none;white-space:pre';
         document.body.appendChild(box);
     }
-    box.textContent = 'YT state (newest last):\n' + window.__ytlog.map(e => `+${e.d}s  ${e.s}`).join('\n');
+    // Show display-vs-audio context so a wrong-song desync is visible.
+    let ctx = '';
+    try {
+        const shown = (document.querySelector('.sleeve-mobile-nowplaying .song-title') || {}).textContent || '(none)';
+        const s = (typeof currentRadioSong !== 'undefined' && currentRadioSong) || (typeof songsData !== 'undefined' && songsData[currentSongIndex]) || {};
+        ctx = `\nshown: ${shown.slice(0, 22)}\nidx ${typeof currentSongIndex !== 'undefined' ? currentSongIndex : '?'} -> ${(s.title || '?').slice(0, 22)}\nyt=${s.youtube_id || '?'}  radio=${!!(typeof currentRadioSong !== 'undefined' && currentRadioSong)}`;
+    } catch (e) {}
+    box.textContent = 'YT state (newest last):\n' + window.__ytlog.map(e => `+${e.d}s  ${e.s}`).join('\n') + ctx;
 }
 
 function onPlayerStateChange(event) {
@@ -3109,6 +3116,7 @@ async function moveSongTo(toPlaylist, songIndex) {
             const song = songsData[currentSongIndex];
             updateSongDisplay(song);
             playSongSource(song, true);
+            loadLyricsForSong(song); // keep lyrics in sync with the shown song
         }
         if (window.mToast && window.matchMedia('(max-width: 600px)').matches) {
             const toMeta = playlistsMeta[toPlaylist];
@@ -6005,6 +6013,7 @@ async function importAudioFiles(files) {
         const current = songsData[currentSongIndex];
         updateSongDisplay(current);
         playSongSource(current, true); // cue, don't blast the speakers
+        loadLyricsForSong(current); // keep lyrics in sync with the shown song
     }
     const parts = [];
     if (added) parts.push(`imported ${added}`);
