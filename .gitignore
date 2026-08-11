@@ -5,6 +5,8 @@
 .env.production
 # Local Spotify API credentials (client id + secret) — never commit.
 /spotify-config.php
+# Local security-tooling working dir — never commit.
+/.deepsec/
 .phpactor.json
 .phpunit.result.cache
 /.codex
