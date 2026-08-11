@@ -251,55 +251,74 @@ function prevSong() {
     }
 }
 
+// Mark exactly one playlist row active, by its real songsData index —
+// never a Discover or radio row, and never by fragile DOM position.
+function setActiveSongRow(index) {
+    document.querySelectorAll('#songList .song-list-item').forEach(item => {
+        const isSong = !item.classList.contains('discover-item')
+            && !item.classList.contains('radio-song-item');
+        const rowIndex = parseInt(item.getAttribute('data-index'), 10);
+        item.classList.toggle('active', isSong && rowIndex === index);
+    });
+}
+
 // Switch song from sidebar
 async function switchSong(index) {
     if (index === currentSongIndex && !currentRadioSong) return;
     if (isChangingSong) return;
 
     isChangingSong = true;
-    const song = songsData[index];
+    // try/finally so a rejected await (crackle, animation, the save fetch)
+    // can never leave isChangingSong stuck true — that would make every
+    // later tap early-return and the previously-playing row stay selected.
+    try {
+        const song = songsData[index];
 
-    // Clear radio state — we're playing a playlist song now
-    currentRadioSong = null;
-    removeRadioSidebarItem();
+        // Clear radio state — we're playing a playlist song now
+        currentRadioSong = null;
+        removeRadioSidebarItem();
 
-    // Update sidebar active state
-    document.querySelectorAll('.song-list-item:not(.radio-song-item)').forEach((item, i) => {
-        item.classList.toggle('active', i === index);
-    });
+        // Highlight the tapped song by its real index (data-index), not DOM
+        // position — the list also holds Discover rows, so a positional loop
+        // could land the highlight on the wrong row.
+        setActiveSongRow(index);
 
-    // Animate the record change
-    // Play vinyl crackle before song change. On phones the crackle still
-    // plays, but delays the track start by at most 300ms.
-    if (window.matchMedia('(max-width: 600px)').matches) {
-        await Promise.race([playCrackleSound(), new Promise(r => setTimeout(r, 300))]);
-    } else {
-        await playCrackleSound();
-    }
-    await animateRecordChange(song);
+        // Animate the record change
+        // Play vinyl crackle before song change. On phones the crackle still
+        // plays, but delays the track start by at most 300ms.
+        if (window.matchMedia('(max-width: 600px)').matches) {
+            await Promise.race([playCrackleSound(), new Promise(r => setTimeout(r, 300))]);
+        } else {
+            await playCrackleSound();
+        }
+        await animateRecordChange(song);
 
-    // Reset progress bar for new song
-    resetSleeveProgress();
+        // Reset progress bar for new song
+        resetSleeveProgress();
 
-    // Update player with new song (YouTube or MP3)
-    playSongSource(song, false);
+        // Update player with new song (YouTube or MP3)
+        playSongSource(song, false);
 
-    // Save to server
-    await fetch('/save-music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'switch', index: index })
-    });
+        // Save to server
+        try {
+            await fetch('/save-music', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'switch', index: index })
+            });
+        } catch (e) { /* playback already started; the server sync is best-effort */ }
 
-    currentSongIndex = index;
-    updateLoopSongLabel();
-    updateAmpDisplay();
-    loadLyricsForSong(song);
-    isChangingSong = false;
+        currentSongIndex = index;
+        updateLoopSongLabel();
+        updateAmpDisplay();
+        loadLyricsForSong(song);
 
-    // In smart shuffle, refresh radio recommendations if pool is low
-    if (shuffleMode === 'smart' && radioPool.length < 3 && song.youtube_id) {
-        fetchRadioRecommendations(song.youtube_id);
+        // In smart shuffle, refresh radio recommendations if pool is low
+        if (shuffleMode === 'smart' && radioPool.length < 3 && song.youtube_id) {
+            fetchRadioRecommendations(song.youtube_id);
+        }
+    } finally {
+        isChangingSong = false;
     }
 }
 
@@ -777,35 +796,38 @@ async function playRadioSong(song) {
     if (isChangingSong) return;
     isChangingSong = true;
 
-    currentRadioSong = song;
-    currentRadioSongSaved = false;
+    try {
+        currentRadioSong = song;
+        currentRadioSongSaved = false;
 
-    // Remove previous radio item, add new one
-    removeRadioSidebarItem();
-    addRadioSidebarItem(song);
+        // Remove previous radio item, add new one
+        removeRadioSidebarItem();
+        addRadioSidebarItem(song);
 
-    // Deactivate all playlist items in sidebar
-    document.querySelectorAll('.song-list-item:not(.radio-song-item)').forEach(item => item.classList.remove('active'));
+        // Deactivate all playlist items in sidebar
+        document.querySelectorAll('.song-list-item:not(.radio-song-item)').forEach(item => item.classList.remove('active'));
 
-    // Animate the record change
-    // Play vinyl crackle before song change. On phones the crackle still
-    // plays, but delays the track start by at most 300ms.
-    if (window.matchMedia('(max-width: 600px)').matches) {
-        await Promise.race([playCrackleSound(), new Promise(r => setTimeout(r, 300))]);
-    } else {
-        await playCrackleSound();
+        // Animate the record change
+        // Play vinyl crackle before song change. On phones the crackle still
+        // plays, but delays the track start by at most 300ms.
+        if (window.matchMedia('(max-width: 600px)').matches) {
+            await Promise.race([playCrackleSound(), new Promise(r => setTimeout(r, 300))]);
+        } else {
+            await playCrackleSound();
+        }
+        await animateRecordChange(song);
+
+        // Reset progress bar
+        resetSleeveProgress();
+
+        // Load in player
+        playSongSource(song, false);
+
+        updateAmpDisplay();
+        loadLyricsForSong(song);
+    } finally {
+        isChangingSong = false;
     }
-    await animateRecordChange(song);
-
-    // Reset progress bar
-    resetSleeveProgress();
-
-    // Load in player
-    playSongSource(song, false);
-
-    updateAmpDisplay();
-    loadLyricsForSong(song);
-    isChangingSong = false;
 }
 
 function addRadioSidebarItem(song) {
