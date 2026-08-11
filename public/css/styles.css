@@ -9754,6 +9754,12 @@ html[data-theme="greenroom"] {
            ordinary scroll padding, not a dead band mid-screen */
         margin-top: 20px;
         margin-bottom: 10px;
+        /* No backdrop blur on phones: a backdrop-filter element inside a
+           scroll container smears/flickers during scroll on mobile
+           Chromium/Brave. The near-opaque fill carries the look instead. */
+        background: rgba(18, 14, 10, 0.94);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
     .collection-stats .stat-item {
