@@ -13,6 +13,7 @@ use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\RecommendationsController;
 use App\Http\Controllers\ScanCoverController;
 use App\Http\Controllers\SetupCheckController;
+use App\Http\Controllers\SharedPlaylistController;
 use App\Http\Controllers\SearchYoutubeController;
 use App\Http\Controllers\YoutubePlaylistController;
 use App\Http\Controllers\SpotifyController;
@@ -31,6 +32,13 @@ Route::get('/setup-check', SetupCheckController::class)
         // L13's forgery middleware calls $request->session() even on GET.
         \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
     ]);
+
+// Public read-only view of a shared playlist (no auth). Sessions stay on so
+// the page knows whether the viewer is logged in (for the "add" button).
+Route::get('/s/{token}', [SharedPlaylistController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->middleware('throttle:60,1')
+    ->name('shared.show');
 
 // ---- Guest auth ----
 Route::middleware('guest')->group(function () {
@@ -98,4 +106,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/youtube-playlist', YoutubePlaylistController::class)->middleware('throttle:20,1');
     Route::post('/scan-cover', ScanCoverController::class)->middleware('throttle:10,1');
     Route::post('/recommendations', RecommendationsController::class)->middleware('throttle:5,1');
+
+    // Copy a shared playlist into the current user's library.
+    Route::post('/s/{token}/add', [SharedPlaylistController::class, 'add'])
+        ->where('token', '[A-Za-z0-9]+')->middleware('throttle:20,1')->name('shared.add');
 });

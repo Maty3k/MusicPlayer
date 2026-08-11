@@ -913,6 +913,16 @@
                 <label>Cover Art</label>
                 <div class="cover-picker-grid" id="coverPickerGrid"></div>
             </div>
+            <div class="add-song-form-group" id="shareGroup">
+                <label>Share</label>
+                <button type="button" class="share-create-btn" id="shareCreateBtn" onclick="sharePlaylist()">Create a share link</button>
+                <div class="share-link-row" id="shareLinkRow" style="display:none">
+                    <input type="text" id="shareLinkInput" readonly onclick="this.select()">
+                    <button type="button" class="share-copy-btn" onclick="copyShareLink()">Copy</button>
+                    <button type="button" class="share-stop-btn" onclick="stopSharing()" title="Stop sharing">Stop</button>
+                </div>
+                <p class="settings-hint">Anyone with the link can view this playlist and add a copy to their own library. Your uploaded files are never shared.</p>
+            </div>
             <div class="add-song-modal-buttons">
                 <button type="button" class="playlist-delete-btn" id="playlistDeleteBtn" onclick="deleteCurrentPlaylist()">Delete</button>
                 <button type="button" class="add-song-btn-cancel" onclick="hidePlaylistEditModal()">Cancel</button>
@@ -1479,6 +1489,7 @@
         let recentlyPlayed = @json($recentlyPlayed);
         let recentSongs = @json($recentSongs);
         let favoriteKeys = new Set(@json($favoriteKeys));
+        let shareTokens = @json((object) $shareTokens);
     </script>
     <!-- gif.js encoder for the Vinyl GIF Maker (client-side GIF encoding + worker) -->
     <script src="{{ asset('vendor/gif.js/gif.js') }}?v={{ filemtime(public_path('vendor/gif.js/gif.js')) }}" defer></script>

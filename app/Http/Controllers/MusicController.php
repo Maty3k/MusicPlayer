@@ -40,6 +40,8 @@ class MusicController extends Controller
             'recordPlay' => DB::transaction(fn () => $this->recordPlay($request, $user)),
             'favorite' => DB::transaction(fn () => $this->favorite($request, $user)),
             'reorder' => DB::transaction(fn () => $this->reorderPlaylist($request, $user)),
+            'share' => DB::transaction(fn () => $this->sharePlaylist($request, $user)),
+            'unshare' => DB::transaction(fn () => $this->unsharePlaylist($request, $user)),
             'searchLibrary' => $this->searchLibrary($request, $user),
             'stats' => $this->stats($user),
             'getAll' => $this->getAll($user),
@@ -504,6 +506,40 @@ class MusicController extends Controller
         if ($newCur !== false && $newCur !== $oldCur) {
             $playlist->update(['current_index' => $newCur]);
         }
+
+        return ['success' => true];
+    }
+
+    /** Create (or return the existing) public share link for a playlist. */
+    private function sharePlaylist(Request $request, User $user): array
+    {
+        $playlist = $this->findPlaylist($user, $this->strInput($request, 'playlist'));
+        if ($playlist === null) {
+            return ['success' => false, 'error' => 'Invalid playlist'];
+        }
+
+        if (empty($playlist->share_token)) {
+            do {
+                $token = Str::random(24);
+            } while (Playlist::where('share_token', $token)->exists());
+            $playlist->update(['share_token' => $token]);
+        }
+
+        return [
+            'success' => true,
+            'token' => $playlist->share_token,
+            'url' => url('/s/'.$playlist->share_token),
+        ];
+    }
+
+    /** Revoke a playlist's public share link (old links stop working). */
+    private function unsharePlaylist(Request $request, User $user): array
+    {
+        $playlist = $this->findPlaylist($user, $this->strInput($request, 'playlist'));
+        if ($playlist === null) {
+            return ['success' => false, 'error' => 'Invalid playlist'];
+        }
+        $playlist->update(['share_token' => null]);
 
         return ['success' => true];
     }

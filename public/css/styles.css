@@ -1040,6 +1040,48 @@ body {
     text-overflow: ellipsis;
 }
 
+/* ---- Share-a-playlist controls (playlist edit modal) ---- */
+.share-create-btn {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(212, 165, 116, 0.32);
+    background: linear-gradient(180deg, rgba(212, 165, 116, 0.12), rgba(212, 165, 116, 0.05));
+    color: #d4a574;
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.share-create-btn:hover { border-color: rgba(212, 165, 116, 0.6); }
+.share-link-row { display: flex; gap: 8px; align-items: center; }
+#shareLinkInput {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(212, 165, 116, 0.28);
+    background: rgba(0, 0, 0, 0.28);
+    color: #f2e8d8;
+    font-family: inherit;
+    font-size: 0.82rem;
+}
+.share-copy-btn,
+.share-stop-btn {
+    flex: 0 0 auto;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(212, 165, 116, 0.3);
+    background: rgba(212, 165, 116, 0.1);
+    color: #f2e8d8;
+    font-family: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.share-copy-btn:hover { background: rgba(212, 165, 116, 0.2); }
+.share-stop-btn { border-color: rgba(200, 80, 80, 0.4); color: rgba(232, 150, 150, 0.9); background: rgba(200, 80, 80, 0.08); }
+.share-stop-btn:hover { background: rgba(200, 80, 80, 0.2); }
+
 /* Records Display */
 .records-display {
     display: flex;
@@ -8539,6 +8581,13 @@ html[data-theme="greenroom"] {
 [data-theme] .search-result-title { color: var(--th-cream); }
 [data-theme] .search-result-artist { color: rgba(var(--th-accent-rgb), 0.65); }
 [data-theme] .search-result-cover-empty { color: rgba(var(--th-accent-rgb), 0.5); }
+[data-theme] .share-create-btn {
+    border-color: rgba(var(--th-accent-rgb), 0.32);
+    background: linear-gradient(180deg, rgba(var(--th-accent-rgb), 0.12), rgba(var(--th-accent-rgb), 0.05));
+    color: var(--th-accent);
+}
+[data-theme] #shareLinkInput { border-color: rgba(var(--th-accent-rgb), 0.28); color: var(--th-cream); }
+[data-theme] .share-copy-btn { border-color: rgba(var(--th-accent-rgb), 0.3); background: rgba(var(--th-accent-rgb), 0.1); color: var(--th-cream); }
 [data-theme] .song-fav-btn { color: rgba(var(--th-accent-rgb), 0.38); }
 [data-theme] .song-fav-btn:hover { color: rgba(var(--th-accent-rgb), 0.85); }
 [data-theme] .song-fav-btn.is-fav { color: var(--th-accent-hi); }

@@ -21,6 +21,12 @@ class PlayerController extends Controller
             $playlists[$playlist->slug] = $playlist->toFrontend();
         }
 
+        // Existing public-share links, keyed by playlist slug (for the edit modal).
+        $shareTokens = $user->playlists
+            ->filter(fn ($p) => ! empty($p->share_token))
+            ->mapWithKeys(fn ($p) => [$p->slug => url('/s/'.$p->share_token)])
+            ->all();
+
         // Identity keys of the user's favorites, for the song-row heart state.
         $favPlaylist = $user->playlists->firstWhere('slug', 'favorites');
         $favoriteKeys = $favPlaylist
@@ -44,6 +50,7 @@ class PlayerController extends Controller
             'recentlyPlayed' => $user->recently_played ?? array_keys($playlists),
             'recentSongs' => $user->recentSongs(),
             'favoriteKeys' => $favoriteKeys,
+            'shareTokens' => $shareTokens,
         ]);
     }
 }

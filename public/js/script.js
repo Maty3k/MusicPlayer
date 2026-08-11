@@ -2762,8 +2762,80 @@ function showPlaylistEditModal(id) {
     });
     // Build cover picker
     buildCoverPicker(id);
+    document.getElementById('shareGroup').style.display = '';
+    syncShareUi(id);
     document.getElementById('playlistEditModal').classList.add('active');
     document.getElementById('playlistEditName').focus();
+}
+
+// Reflect the playlist's current share state in the edit modal.
+function syncShareUi(id) {
+    const url = (typeof shareTokens === 'object' && shareTokens) ? shareTokens[id] : null;
+    if (url) showShareLink(url); else hideShareLink();
+}
+
+function sharePlaylist() {
+    const id = document.getElementById('playlistEditId').value;
+    if (!id) return;
+    fetch('/save-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'share', playlist: id })
+    }).then(r => r.json()).then(d => {
+        if (d && d.success && d.url) {
+            if (typeof shareTokens === 'object' && shareTokens) shareTokens[id] = d.url;
+            showShareLink(d.url);
+        }
+    }).catch(() => { /* leave the button as-is on failure */ });
+}
+
+function showShareLink(url) {
+    const input = document.getElementById('shareLinkInput');
+    const row = document.getElementById('shareLinkRow');
+    const btn = document.getElementById('shareCreateBtn');
+    if (input) input.value = url;
+    if (row) row.style.display = '';
+    if (btn) btn.style.display = 'none';
+}
+
+function hideShareLink() {
+    const row = document.getElementById('shareLinkRow');
+    const btn = document.getElementById('shareCreateBtn');
+    if (row) row.style.display = 'none';
+    if (btn) btn.style.display = '';
+}
+
+function copyShareLink() {
+    const input = document.getElementById('shareLinkInput');
+    if (!input) return;
+    input.select();
+    const done = () => {
+        const btn = document.querySelector('.share-copy-btn');
+        if (!btn) return;
+        const t = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = t; }, 1400);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(input.value).then(done).catch(() => { try { document.execCommand('copy'); done(); } catch (e) {} });
+    } else {
+        try { document.execCommand('copy'); done(); } catch (e) {}
+    }
+}
+
+function stopSharing() {
+    const id = document.getElementById('playlistEditId').value;
+    if (!id) return;
+    fetch('/save-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unshare', playlist: id })
+    }).then(r => r.json()).then(d => {
+        if (d && d.success) {
+            if (typeof shareTokens === 'object' && shareTokens) delete shareTokens[id];
+            hideShareLink();
+        }
+    }).catch(() => {});
 }
 
 // Same modal, create mode: no cover picker (no songs yet), no delete button.
@@ -2773,6 +2845,7 @@ function showPlaylistCreateModal() {
     document.getElementById('playlistEditModalTitle').textContent = 'New Playlist';
     document.getElementById('playlistEditSaveBtn').textContent = 'Create';
     document.getElementById('coverArtGroup').style.display = 'none';
+    document.getElementById('shareGroup').style.display = 'none';
     document.getElementById('playlistDeleteBtn').style.display = 'none';
     document.getElementById('playlistEditId').value = '';
     document.getElementById('playlistEditName').value = '';

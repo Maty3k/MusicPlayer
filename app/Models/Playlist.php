@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['slug', 'name', 'color', 'current_index', 'cover_song_index', 'source', 'position'])]
+#[Fillable(['slug', 'name', 'color', 'current_index', 'cover_song_index', 'source', 'position', 'share_token'])]
 class Playlist extends Model
 {
     public function user(): BelongsTo
