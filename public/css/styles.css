@@ -5306,13 +5306,24 @@ body {
     text-transform: uppercase;
 }
 
+/* The audio-only YouTube iframe must stay RENDERED, or mobile browsers
+   (Brave/Chrome/Safari) throttle and suspend a 1px/opacity:0 video —
+   which pauses playback and forces a reload every few seconds. So it's
+   full-viewport and opaque, then reparented to <body> (see script.js) so
+   the opaque #music-section (z-index:200) sits over it: alive, never seen. */
 .youtube-player-container {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 1;
+    z-index: 1;
     pointer-events: none;
     overflow: hidden;
+}
+.youtube-player-container iframe {
+    width: 100%;
+    height: 100%;
 }
 
 .volume-icon {

@@ -72,6 +72,18 @@ function safeUrl(s) {
 }
 
 // Music player controls
+// Move the YouTube audio iframe out to <body> so it renders full-viewport
+// behind the opaque #music-section instead of as a suspended 1px overlay —
+// mobile browsers keep a visible video alive but throttle a hidden one,
+// which was pausing + reloading playback every few seconds. Runs before the
+// player iframe is created (script.js is last in <body>), so nothing reloads.
+(function keepPlayerAlive() {
+    try {
+        const c = document.getElementById('youtubeContainer');
+        if (c && c.parentElement !== document.body) document.body.appendChild(c);
+    } catch (e) { /* container rendered later or missing — harmless */ }
+})();
+
 // Song and playlist data from PHP
 // activePlaylistId is injected by PHP in player.blade.php
 // songsData is injected by PHP in player.blade.php
