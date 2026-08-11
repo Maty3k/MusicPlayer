@@ -483,26 +483,30 @@ class MusicController extends Controller
             return ['success' => false, 'error' => 'Missing song data'];
         }
 
-        $title = (string) $song['title'];
-        $artist = (string) ($song['artist'] ?? '');
+        // Clamp to the column limits — an over-length title/artist/album/
+        // spotify_id would otherwise throw a QueryException (500) on a strict
+        // DB like the prod Postgres; SQLite in tests silently truncates.
+        $title = mb_substr((string) $song['title'], 0, 300);
+        $artist = mb_substr((string) ($song['artist'] ?? ''), 0, 300);
+        $album = mb_substr((string) ($song['album'] ?? ''), 0, 300);
         // Client-supplied id: accept only the canonical 11-char YouTube form,
         // blank anything else (same guard as addBatch) so a crafted value can
         // never reach the player/iframe when this song is replayed.
         $yt = (string) ($song['youtube_id'] ?? '');
         $yt = preg_match('/^[A-Za-z0-9_-]{11}$/', $yt) ? $yt : '';
-        $spotify = (string) ($song['spotify_id'] ?? '');
+        $spotify = mb_substr((string) ($song['spotify_id'] ?? ''), 0, 40);
         $mp3 = $this->sanitizeUrl($song['mp3_url'] ?? '');
         $key = $this->playKey($yt, $spotify, $mp3, $title, $artist);
 
         // Delete-then-insert (not updateOrCreate) so a replay gets a fresh row
-        // with a higher id — recentSongs orders by id, which stays correct even
-        // when several plays land in the same clock second (played_at collides).
+        // with a higher id — recentSongs tiebreaks on id, which stays correct
+        // even when several plays land in the same clock second (played_at ties).
         $user->plays()->where('dedupe_key', $key)->delete();
         $user->plays()->create([
             'dedupe_key' => $key,
             'title' => $title,
             'artist' => $artist,
-            'album' => (string) ($song['album'] ?? ''),
+            'album' => $album,
             'cover' => $this->sanitizeUrl($song['cover'] ?? ''),
             'youtube_id' => $yt,
             'mp3_url' => $mp3,

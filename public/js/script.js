@@ -1861,6 +1861,10 @@ function toggleMusic() {
         const source = getPlaybackSource(song);
         if (song && source) {
             ytPlayer.loadVideoById(source);
+            // Cold-start of a cued song bypasses playSongSource, so log the
+            // play here too — otherwise the first play of a session (pressing
+            // play without tapping a row) never reaches the shelf.
+            recordPlay(song);
         }
         // Load lyrics on first play if not yet loaded
         if (!currentLyrics && activeLyricIndex === -1) {
@@ -3152,8 +3156,10 @@ function songPlayKey(song) {
     if (!song) return '';
     if (song.youtube_id) return 'yt:' + song.youtube_id;
     if (song.spotify_id) return 'sp:' + song.spotify_id;
-    if (song.mp3_url) return 'mp3:' + song.mp3_url;
-    return 'tt:' + String(song.title || '').toLowerCase() + '|' + String(song.artist || '').toLowerCase();
+    if (song.mp3_url) return 'mp3:' + String(song.mp3_url).trim();
+    // Mirror the server's playKey normalization (trim + lowercase title|artist)
+    // so client and server dedupe the same id-less songs.
+    return 'tt:' + String(song.title || '').trim().toLowerCase() + '|' + String(song.artist || '').trim().toLowerCase();
 }
 
 // Log a play: bump this song to the front of the local shelf (so returning to
@@ -3199,7 +3205,7 @@ function updateRecentSongs() {
         const cover = safeUrl(song.cover);
         const coverHtml = cover
             ? `<img class="recent-song-cover" src="${escapeHtml(cover)}" alt="" loading="lazy">`
-            : `<div class="recent-song-cover recent-song-cover-empty">&#9834;</div>`;
+            : `<div class="recent-song-cover recent-song-cover-empty"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg></div>`;
         const artist = song.artist
             ? `<div class="recent-song-artist">${escapeHtml(song.artist)}</div>`
             : '';
@@ -3217,19 +3223,35 @@ function updateRecentSongs() {
     shelf.classList.remove('hidden');
 }
 
-// Resume a recently-played song. Opens the player (same entry the crate cards
-// use), then plays it by index if it's in the loaded playlist, else as a
-// one-off (the radio path plays any song object regardless of playlist).
+// Reveal the player view (the crate<->player toggle), independent of
+// selectPlaylistFromCrate's in-flight guard so a shelf tap always opens it.
+function openPlayerView() {
+    const crate = document.getElementById('vinylCrateView');
+    const player = document.getElementById('musicPlayerView');
+    if (crate) crate.classList.add('hidden');
+    if (player) player.classList.add('active');
+}
+
+// Resume a recently-played song: open the player and play that exact song.
+// Play it by index only when it's in the loaded playlist AND matched on a real
+// streaming id (a title|artist key can collide with a different track);
+// otherwise play it directly as a one-off. If it's already the current track,
+// (re)start it rather than no-op'ing on switchSong's same-index guard.
 async function playRecentSong(i) {
     const song = Array.isArray(recentSongs) ? recentSongs[i] : null;
     if (!song) return;
-    await selectPlaylistFromCrate(activePlaylistId);
+    openPlayerView();
     const key = songPlayKey(song);
-    const idx = Array.isArray(songsData) ? songsData.findIndex(s => songPlayKey(s) === key) : -1;
-    if (idx !== -1) {
-        switchSong(idx);
-    } else {
+    const hasId = !!(song.youtube_id || song.spotify_id || song.mp3_url);
+    const idx = hasId && Array.isArray(songsData)
+        ? songsData.findIndex(s => songPlayKey(s) === key)
+        : -1;
+    if (idx === -1) {
         playRadioSong(song);
+    } else if (idx === currentSongIndex && !currentRadioSong) {
+        playSongSource(songsData[idx], false);
+    } else {
+        switchSong(idx);
     }
 }
 
@@ -3566,11 +3588,14 @@ async function playSongSource(song, cueOnly) {
     if (cueOnly) {
         if (ytPlayer && ytPlayer.cueVideoById) ytPlayer.cueVideoById(source);
     } else {
-        if (ytPlayer && ytPlayer.loadVideoById) ytPlayer.loadVideoById(source);
-        // Every real (non-cue) start funnels through here — playlist taps,
-        // autoplay/next, and radio previews — so it's the one place to log a
-        // play. Cue-only loads (playlist switch, initial onReady) are excluded.
-        recordPlay(song);
+        // Real (non-cue) start — playlist taps, autoplay/next, radio previews.
+        // Log the play only when the load actually fires, so a song that never
+        // played (no ready player) isn't recorded to the shelf. (toggleMusic's
+        // cold-start path logs separately, since it bypasses playSongSource.)
+        if (ytPlayer && ytPlayer.loadVideoById) {
+            ytPlayer.loadVideoById(source);
+            recordPlay(song);
+        }
     }
 }
 

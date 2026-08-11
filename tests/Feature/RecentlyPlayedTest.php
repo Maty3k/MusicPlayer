@@ -79,6 +79,25 @@ class RecentlyPlayedTest extends TestCase
         $this->assertSame('', $play->mp3_url);
     }
 
+    public function test_clamps_overlong_fields_instead_of_erroring(): void
+    {
+        $user = $this->user();
+        $long = str_repeat('a', 500);
+        // On a strict DB (prod Postgres) an unclamped insert would 500 here.
+        $this->record($user, [
+            'title' => $long,
+            'artist' => $long,
+            'album' => $long,
+            'spotify_id' => str_repeat('b', 60),
+        ]);
+
+        $play = $user->plays()->firstOrFail();
+        $this->assertSame(300, mb_strlen($play->title));
+        $this->assertSame(300, mb_strlen($play->artist));
+        $this->assertSame(300, mb_strlen($play->album));
+        $this->assertSame(40, mb_strlen($play->spotify_id));
+    }
+
     public function test_rejects_a_play_with_no_title(): void
     {
         $this->actingAs($this->user())

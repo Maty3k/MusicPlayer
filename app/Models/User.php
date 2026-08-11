@@ -71,10 +71,11 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function recentSongs(int $limit = 12): array
     {
-        // Order by id (monotonic per insert), not played_at — recordPlay
-        // delete-inserts on replay, so the newest row always has the highest id
-        // even when several plays share a clock second.
+        // Order by played_at (uses the (user_id, played_at) index) with id as a
+        // deterministic tiebreak — recordPlay delete-inserts on replay, so the
+        // newest row also has the highest id when several plays share a second.
         return $this->plays()
+            ->orderByDesc('played_at')
             ->orderByDesc('id')
             ->limit($limit)
             ->get()
