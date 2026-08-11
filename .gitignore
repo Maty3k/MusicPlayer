@@ -3,6 +3,8 @@
 .env
 .env.backup
 .env.production
+# Local Spotify API credentials (client id + secret) — never commit.
+/spotify-config.php
 .phpactor.json
 .phpunit.result.cache
 /.codex
