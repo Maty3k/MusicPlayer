@@ -2457,6 +2457,9 @@ function buildSongListItem(song, index) {
             data-index="${index}"
             data-src="${song.mp3_url ? 'mp3' : (song.youtube_id ? 'yt' : 'spotify')}"
             onclick="switchSong(${index})">
+            <span class="song-drag-handle" title="Drag to reorder" onpointerdown="startSongDrag(event)" onclick="event.stopPropagation()">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>
+            </span>
             <div class="song-list-vinyl">
                 <div class="song-list-vinyl-groove"></div>
                 ${itemCover
@@ -2525,6 +2528,66 @@ function rebuildSongList() {
     } else if (header && !discoverStarted) {
         startDiscover();
     }
+}
+
+// ---- Drag-to-reorder songs (pointer-based, works on mouse + touch) ----
+// Grabbing a row's handle reorders the DOM live via insertBefore; on release
+// songsData is rewritten to match and the new order is persisted.
+function startSongDrag(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const list = document.getElementById('songList');
+    const li = e.currentTarget.closest('.song-list-item');
+    if (!list || !li) return;
+
+    li.classList.add('dragging');
+    document.body.classList.add('song-dragging');
+
+    const move = (ev) => {
+        const y = ev.clientY;
+        const others = [...list.querySelectorAll('.song-list-item:not(.discover-item):not(.radio-song-item)')]
+            .filter(r => r !== li);
+        let placed = false;
+        for (const r of others) {
+            const rect = r.getBoundingClientRect();
+            if (y < rect.top + rect.height / 2) { list.insertBefore(li, r); placed = true; break; }
+        }
+        if (!placed && others.length) others[others.length - 1].after(li);
+    };
+    const end = () => {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', end);
+        document.removeEventListener('pointercancel', end);
+        li.classList.remove('dragging');
+        document.body.classList.remove('song-dragging');
+        finishSongDrag();
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', end);
+    document.addEventListener('pointercancel', end);
+}
+
+function finishSongDrag() {
+    const list = document.getElementById('songList');
+    if (!list) return;
+    const rows = [...list.querySelectorAll('.song-list-item:not(.discover-item):not(.radio-song-item)')];
+    const order = rows.map(r => parseInt(r.getAttribute('data-index'), 10));
+
+    if (order.length !== songsData.length || order.some(isNaN)) { rebuildSongList(); return; }
+    if (order.every((v, i) => v === i)) return; // no change — DOM already correct
+
+    songsData = order.map(oldIndex => songsData[oldIndex]);
+    const newCur = order.indexOf(currentSongIndex);
+    if (newCur !== -1) currentSongIndex = newCur;
+    rebuildSongList();
+
+    try {
+        fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'reorder', playlist: activePlaylistId, order })
+        }).catch(() => { /* best-effort; order persists on next full load anyway */ });
+    } catch (e) { /* best-effort */ }
 }
 
 // The first paint is server-rendered without the Discover shelf — one

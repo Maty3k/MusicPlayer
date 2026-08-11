@@ -39,6 +39,7 @@ class MusicController extends Controller
             'setCover' => DB::transaction(fn () => $this->setCover($request, $user)),
             'recordPlay' => DB::transaction(fn () => $this->recordPlay($request, $user)),
             'favorite' => DB::transaction(fn () => $this->favorite($request, $user)),
+            'reorder' => DB::transaction(fn () => $this->reorderPlaylist($request, $user)),
             'searchLibrary' => $this->searchLibrary($request, $user),
             'stats' => $this->stats($user),
             'getAll' => $this->getAll($user),
@@ -449,6 +450,62 @@ class MusicController extends Controller
             'success' => true,
             'toCount' => $to->songs()->count(),
         ];
+    }
+
+    /**
+     * Reorder a playlist's songs (drag-to-reorder). `order` is the new sequence
+     * of current positions — order[i] is the old position of the song that
+     * should end up at index i. Validated as a strict permutation of 0..n-1.
+     */
+    private function reorderPlaylist(Request $request, User $user): array
+    {
+        $slug = $this->strInput($request, 'playlist');
+        if ($slug === '') {
+            $slug = $this->activeSlug($user);
+        }
+        $playlist = $this->findPlaylist($user, $slug);
+        if ($playlist === null) {
+            return ['success' => false, 'error' => 'Invalid playlist'];
+        }
+
+        $order = $request->input('order');
+        $songs = $playlist->songs()->orderBy('position')->get();
+        $n = $songs->count();
+        if ($n === 0) {
+            return ['success' => true];
+        }
+        if (! is_array($order) || count($order) !== $n) {
+            return ['success' => false, 'error' => 'Bad order'];
+        }
+
+        $ints = [];
+        foreach ($order as $v) {
+            $iv = filter_var($v, FILTER_VALIDATE_INT);
+            if ($iv === false || $iv < 0 || $iv >= $n) {
+                return ['success' => false, 'error' => 'Bad order'];
+            }
+            $ints[] = $iv;
+        }
+        $sorted = $ints;
+        sort($sorted);
+        if ($sorted !== range(0, $n - 1)) {
+            return ['success' => false, 'error' => 'Bad order'];
+        }
+
+        foreach ($ints as $newPos => $oldPos) {
+            $song = $songs[$oldPos];
+            if ((int) $song->position !== $newPos) {
+                $song->update(['position' => $newPos]);
+            }
+        }
+        // Follow the currently-selected song to its new slot.
+        $oldCur = (int) $playlist->current_index;
+        $newCur = array_search($oldCur, $ints, true);
+        if ($newCur !== false && $newCur !== $oldCur) {
+            $playlist->update(['current_index' => $newCur]);
+        }
+
+        return ['success' => true];
     }
 
     /** Pin (or clear) a playlist's cover song. */
