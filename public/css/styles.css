@@ -928,6 +928,57 @@ body {
     .song-list-item.m-filtered-out { display: none; }
 }
 
+/* ---- Listening stats modal ---- */
+.stats-panel { max-width: 460px; }
+#statsBody { max-height: 62vh; overflow-y: auto; padding-right: 2px; }
+
+.stats-loading,
+.stats-empty {
+    text-align: center;
+    color: rgba(212, 165, 116, 0.7);
+    padding: 28px 10px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.stats-empty-icon { display: inline-flex; color: rgba(212, 165, 116, 0.55); margin-bottom: 10px; }
+.stats-empty-icon svg { width: 34px; height: 34px; }
+
+.stats-summary { display: flex; gap: 10px; margin-bottom: 20px; }
+.stats-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 14px 8px;
+    border-radius: 12px;
+    background: rgba(212, 165, 116, 0.06);
+    border: 1px solid rgba(212, 165, 116, 0.14);
+}
+.stats-stat-num { font-size: 1.6rem; font-weight: 300; color: #f2e8d8; letter-spacing: 0.5px; }
+.stats-stat-label { font-size: 0.66rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(212, 165, 116, 0.7); }
+
+.stats-section { margin-bottom: 18px; }
+.stats-section-label { font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase; color: rgba(212, 165, 116, 0.7); margin-bottom: 10px; }
+
+.stats-song-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.stats-song { display: flex; align-items: center; gap: 11px; }
+.stats-rank { width: 18px; text-align: center; font-size: 0.8rem; color: rgba(212, 165, 116, 0.5); flex: 0 0 auto; }
+.stats-song-cover { width: 42px; height: 42px; border-radius: 7px; object-fit: cover; flex: 0 0 auto; background: rgba(0, 0, 0, 0.35); }
+.stats-song-cover-empty { display: flex; align-items: center; justify-content: center; color: rgba(212, 165, 116, 0.5); }
+.stats-song-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.stats-song-title { font-size: 0.9rem; color: #f2e8d8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats-song-artist { font-size: 0.76rem; color: rgba(212, 165, 116, 0.65); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats-song-plays { flex: 0 0 auto; font-size: 0.82rem; color: rgba(212, 165, 116, 0.85); white-space: nowrap; }
+.stats-plays-unit { color: rgba(212, 165, 116, 0.5); font-size: 0.72rem; }
+
+.stats-artist-list { display: flex; flex-direction: column; gap: 9px; }
+.stats-artist { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; align-items: center; gap: 10px; }
+.stats-artist-name { font-size: 0.85rem; color: #f2e8d8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats-artist-bar { height: 8px; border-radius: 4px; background: rgba(212, 165, 116, 0.12); overflow: hidden; }
+.stats-artist-bar-fill { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, rgba(212, 165, 116, 0.55), #d4a574); }
+.stats-artist-plays { font-size: 0.8rem; color: rgba(212, 165, 116, 0.75); min-width: 24px; text-align: right; }
+
 /* Records Display */
 .records-display {
     display: flex;
@@ -8309,6 +8360,23 @@ html[data-theme="greenroom"] {
 }
 [data-theme] #mFilterInput:focus { border-color: rgba(var(--th-accent-rgb), 0.55); }
 [data-theme] #mFilterInput::placeholder { color: rgba(var(--th-accent-rgb), 0.4); }
+[data-theme] .stats-stat { background: rgba(var(--th-accent-rgb), 0.06); border-color: rgba(var(--th-accent-rgb), 0.14); }
+[data-theme] .stats-stat-num,
+[data-theme] .stats-song-title,
+[data-theme] .stats-artist-name { color: var(--th-cream); }
+[data-theme] .stats-stat-label,
+[data-theme] .stats-section-label { color: rgba(var(--th-accent-rgb), 0.7); }
+[data-theme] .stats-song-artist,
+[data-theme] .stats-rank,
+[data-theme] .stats-plays-unit { color: rgba(var(--th-accent-rgb), 0.6); }
+[data-theme] .stats-song-plays,
+[data-theme] .stats-artist-plays { color: rgba(var(--th-accent-rgb), 0.8); }
+[data-theme] .stats-artist-bar { background: rgba(var(--th-accent-rgb), 0.12); }
+[data-theme] .stats-artist-bar-fill { background: linear-gradient(90deg, rgba(var(--th-accent-rgb), 0.55), var(--th-accent)); }
+[data-theme] .stats-loading,
+[data-theme] .stats-empty { color: rgba(var(--th-accent-rgb), 0.7); }
+[data-theme] .stats-empty-icon,
+[data-theme] .stats-song-cover-empty { color: rgba(var(--th-accent-rgb), 0.5); }
 @media (min-width: 601px) {
     [data-theme] .record-card.now-playing .record-card-cover {
         box-shadow:

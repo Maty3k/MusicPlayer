@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['dedupe_key', 'title', 'artist', 'album', 'cover', 'youtube_id', 'mp3_url', 'spotify_id', 'played_at'])]
+#[Fillable(['dedupe_key', 'title', 'artist', 'album', 'cover', 'youtube_id', 'mp3_url', 'spotify_id', 'played_at', 'play_count'])]
 class Play extends Model
 {
     protected function casts(): array

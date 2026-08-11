@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Play;
 use App\Models\Playlist;
 use App\Models\Song;
 use App\Models\User;
@@ -37,6 +38,7 @@ class MusicController extends Controller
             'copySong' => DB::transaction(fn () => $this->copySong($request, $user)),
             'setCover' => DB::transaction(fn () => $this->setCover($request, $user)),
             'recordPlay' => DB::transaction(fn () => $this->recordPlay($request, $user)),
+            'stats' => $this->stats($user),
             'getAll' => $this->getAll($user),
             default => ['success' => false, 'error' => 'Invalid action'],
         };
@@ -501,6 +503,9 @@ class MusicController extends Controller
         // Delete-then-insert (not updateOrCreate) so a replay gets a fresh row
         // with a higher id — recentSongs tiebreaks on id, which stays correct
         // even when several plays land in the same clock second (played_at ties).
+        // Carry the lifetime play_count across the delete so stats can rank by it.
+        $existing = $user->plays()->where('dedupe_key', $key)->first();
+        $playCount = ($existing !== null ? (int) $existing->play_count : 0) + 1;
         $user->plays()->where('dedupe_key', $key)->delete();
         $user->plays()->create([
             'dedupe_key' => $key,
@@ -512,6 +517,7 @@ class MusicController extends Controller
             'mp3_url' => $mp3,
             'spotify_id' => $spotify,
             'played_at' => now(),
+            'play_count' => $playCount,
         ]);
 
         return ['success' => true];
@@ -534,6 +540,43 @@ class MusicController extends Controller
         }
 
         return 'tt:'.md5(mb_strtolower(trim($title).'|'.trim($artist)));
+    }
+
+    /**
+     * Listening stats for the profile panel: top songs and top artists by
+     * lifetime play_count, plus totals and a 7-day distinct-song count. Scoped
+     * to the user's own plays.
+     */
+    private function stats(User $user): array
+    {
+        $topSongs = $user->plays()
+            ->orderByDesc('play_count')
+            ->orderByDesc('played_at')
+            ->limit(8)
+            ->get()
+            ->map(fn (Play $p) => $p->toFrontend() + ['plays' => (int) $p->play_count])
+            ->all();
+
+        $topArtists = $user->plays()
+            ->where('artist', '!=', '')
+            ->selectRaw('artist, SUM(play_count) as plays')
+            ->groupBy('artist')
+            ->orderByDesc('plays')
+            ->limit(6)
+            ->get()
+            ->map(fn ($row) => ['artist' => (string) $row->artist, 'plays' => (int) $row->plays])
+            ->all();
+
+        return [
+            'success' => true,
+            'stats' => [
+                'totalPlays' => (int) $user->plays()->sum('play_count'),
+                'distinctSongs' => $user->plays()->count(),
+                'thisWeek' => $user->plays()->where('played_at', '>=', now()->subDays(7))->count(),
+                'topSongs' => $topSongs,
+                'topArtists' => $topArtists,
+            ],
+        ];
     }
 
     /** Return all data in one call (for the initial load). */

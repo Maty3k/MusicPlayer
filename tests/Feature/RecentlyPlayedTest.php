@@ -140,4 +140,57 @@ class RecentlyPlayedTest extends TestCase
         $this->postJson('/save-music', ['action' => 'recordPlay', 'song' => ['title' => 'x']])
             ->assertRedirect();
     }
+
+    public function test_play_count_accumulates_on_replay(): void
+    {
+        $user = $this->user();
+        $this->record($user, ['title' => 'A', 'artist' => 'X', 'youtube_id' => 'aaaaaaaaaaa']);
+        $this->record($user, ['title' => 'A', 'artist' => 'X', 'youtube_id' => 'aaaaaaaaaaa']);
+        $this->record($user, ['title' => 'A', 'artist' => 'X', 'youtube_id' => 'aaaaaaaaaaa']);
+
+        $this->assertSame(1, $user->plays()->count());
+        $this->assertSame(3, (int) $user->plays()->firstOrFail()->play_count);
+    }
+
+    public function test_stats_rank_top_songs_and_artists_by_play_count(): void
+    {
+        $user = $this->user();
+        // A x3 (Alpha), B x1 (Beta), C x2 (Alpha) → Alpha=5, Beta=1; A is top song.
+        foreach (range(1, 3) as $_) {
+            $this->record($user, ['title' => 'A', 'artist' => 'Alpha', 'youtube_id' => 'aaaaaaaaaaa']);
+        }
+        $this->record($user, ['title' => 'B', 'artist' => 'Beta', 'youtube_id' => 'bbbbbbbbbbb']);
+        foreach (range(1, 2) as $_) {
+            $this->record($user, ['title' => 'C', 'artist' => 'Alpha', 'youtube_id' => 'ccccccccccc']);
+        }
+
+        $stats = $this->actingAs($user)
+            ->postJson('/save-music', ['action' => 'stats'])
+            ->assertOk()
+            ->json('stats');
+
+        $this->assertSame(6, $stats['totalPlays']);
+        $this->assertSame(3, $stats['distinctSongs']);
+        $this->assertSame(3, $stats['thisWeek']);
+        $this->assertSame('A', $stats['topSongs'][0]['title']);
+        $this->assertSame(3, $stats['topSongs'][0]['plays']);
+        $this->assertSame('Alpha', $stats['topArtists'][0]['artist']);
+        $this->assertSame(5, $stats['topArtists'][0]['plays']);
+    }
+
+    public function test_stats_are_scoped_per_user(): void
+    {
+        $me = $this->user();
+        $other = $this->user();
+        $this->record($other, ['title' => 'Theirs', 'artist' => 'Z', 'youtube_id' => 'zzzzzzzzzzz']);
+
+        $stats = $this->actingAs($me)
+            ->postJson('/save-music', ['action' => 'stats'])
+            ->assertOk()
+            ->json('stats');
+
+        $this->assertSame(0, $stats['totalPlays']);
+        $this->assertSame([], $stats['topSongs']);
+        $this->assertSame([], $stats['topArtists']);
+    }
 }

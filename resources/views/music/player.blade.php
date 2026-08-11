@@ -394,6 +394,7 @@
                             <button class="source-filter-btn"        data-source-filter="spotify" onclick="setSourceFilter('spotify')">Spotify</button>
                         </div>
                         <button class="new-playlist-btn" onclick="showPlaylistCreateModal()">+ New playlist</button>
+                        <button class="new-playlist-btn crate-stats-btn" onclick="showStatsModal()" title="Your listening stats"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg>Stats</button>
                         <button class="new-playlist-btn crate-settings-btn" onclick="showSettingsModal()" title="Settings"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg>Settings</button>
                     </div>
                     {{-- Recently played songs — a Spotify-style "jump back in"
@@ -1018,6 +1019,19 @@
         </div>
     </div>
     <!-- Settings Modal (playback source + Spotify) -->
+    {{-- Listening stats — filled + opened by showStatsModal() --}}
+    <div class="add-song-modal" id="statsModal">
+        <div class="add-song-modal-backdrop" onclick="hideStatsModal()"></div>
+        <div class="add-song-modal-panel stats-panel">
+            <button class="add-song-modal-close" onclick="hideStatsModal()">&times;</button>
+            <div class="add-song-modal-header">
+                <div class="add-song-modal-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg></div>
+                <h2 class="add-song-modal-title">Your listening</h2>
+            </div>
+            <div id="statsBody"></div>
+        </div>
+    </div>
+
     <div class="add-song-modal" id="settingsModal">
         <div class="add-song-modal-backdrop" onclick="hideSettingsModal()"></div>
         <div class="add-song-modal-panel">

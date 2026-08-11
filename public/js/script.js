@@ -3257,6 +3257,100 @@ async function playRecentSong(i) {
 
 
 // ============================================================
+// LISTENING STATS — "Your listening" panel
+// ============================================================
+
+const STATS_EMPTY_COVER = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>';
+
+async function showStatsModal() {
+    const modal = document.getElementById('statsModal');
+    const body = document.getElementById('statsBody');
+    if (!modal || !body) return;
+    body.innerHTML = '<div class="stats-loading">Loading…</div>';
+    modal.classList.add('active');
+    try {
+        const res = await fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'stats' })
+        });
+        const data = await res.json();
+        renderStats(data && data.stats ? data.stats : null);
+    } catch (e) {
+        body.innerHTML = '<div class="stats-empty">Couldn\'t load your stats. Try again.</div>';
+    }
+}
+
+function hideStatsModal() {
+    const modal = document.getElementById('statsModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function renderStats(stats) {
+    const body = document.getElementById('statsBody');
+    if (!body) return;
+    if (!stats || (!stats.distinctSongs && !stats.totalPlays)) {
+        body.innerHTML = `<div class="stats-empty">
+            <div class="stats-empty-icon">${STATS_EMPTY_COVER}</div>
+            <p>Play some songs and your top tracks and artists will show up here.</p>
+        </div>`;
+        return;
+    }
+    const num = n => Number(n || 0).toLocaleString();
+
+    const summary = `
+        <div class="stats-summary">
+            <div class="stats-stat"><span class="stats-stat-num">${num(stats.totalPlays)}</span><span class="stats-stat-label">plays</span></div>
+            <div class="stats-stat"><span class="stats-stat-num">${num(stats.distinctSongs)}</span><span class="stats-stat-label">songs</span></div>
+            <div class="stats-stat"><span class="stats-stat-num">${num(stats.thisWeek)}</span><span class="stats-stat-label">this week</span></div>
+        </div>`;
+
+    const songs = Array.isArray(stats.topSongs) ? stats.topSongs : [];
+    const songsHtml = songs.length ? `
+        <div class="stats-section">
+            <div class="stats-section-label">Top songs</div>
+            <ol class="stats-song-list">
+                ${songs.map((s, i) => {
+                    const cover = safeUrl(s.cover);
+                    const coverHtml = cover
+                        ? `<img class="stats-song-cover" src="${escapeHtml(cover)}" alt="" loading="lazy">`
+                        : `<div class="stats-song-cover stats-song-cover-empty">${STATS_EMPTY_COVER}</div>`;
+                    const artist = s.artist ? `<span class="stats-song-artist">${escapeHtml(s.artist)}</span>` : '';
+                    return `<li class="stats-song">
+                        <span class="stats-rank">${i + 1}</span>
+                        ${coverHtml}
+                        <span class="stats-song-info">
+                            <span class="stats-song-title">${escapeHtml(s.title)}</span>
+                            ${artist}
+                        </span>
+                        <span class="stats-song-plays">${num(s.plays)}<span class="stats-plays-unit"> plays</span></span>
+                    </li>`;
+                }).join('')}
+            </ol>
+        </div>` : '';
+
+    const artists = Array.isArray(stats.topArtists) ? stats.topArtists : [];
+    const maxA = artists.length ? Math.max(...artists.map(a => a.plays || 0)) : 0;
+    const artistsHtml = artists.length ? `
+        <div class="stats-section">
+            <div class="stats-section-label">Top artists</div>
+            <div class="stats-artist-list">
+                ${artists.map(a => {
+                    const pct = maxA > 0 ? Math.max(6, Math.round((a.plays / maxA) * 100)) : 0;
+                    return `<div class="stats-artist">
+                        <span class="stats-artist-name">${escapeHtml(a.artist)}</span>
+                        <span class="stats-artist-bar"><span class="stats-artist-bar-fill" style="width:${pct}%"></span></span>
+                        <span class="stats-artist-plays">${num(a.plays)}</span>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>` : '';
+
+    body.innerHTML = summary + songsHtml + artistsHtml;
+}
+
+
+// ============================================================
 // SETTINGS — MUSIC SOURCE MANAGEMENT
 // ============================================================
 
