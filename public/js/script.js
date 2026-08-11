@@ -1195,6 +1195,8 @@ function renderDiscoverSection() {
 }
 
 function playNextByLoop() {
+    // Sleep timer set to "end of track" — stop here instead of auto-advancing.
+    if (sleepEndOfTrack) { fireSleep(true); return; }
     if (loopMode === 'single') {
         // Replay current song (even if it's a radio song)
         if (ytPlayer && ytPlayer.seekTo) {
@@ -1225,6 +1227,108 @@ function playNextByLoop() {
     }
     // 'off' = do nothing, song ends
 }
+
+
+// ============================================================
+// SLEEP TIMER — fade out + pause after N minutes or end of track
+// ============================================================
+
+let sleepIntervalId = null;   // 1s countdown tick
+let sleepDeadline = 0;        // epoch ms when the timer fires (0 = inactive)
+let sleepEndOfTrack = false;  // true = stop when the current song ends
+
+function toggleSleepMenu(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('sleepMenu');
+    if (menu) menu.hidden = !menu.hidden;
+}
+
+function setSleepTimer(mins) {
+    const menu = document.getElementById('sleepMenu');
+    if (menu) menu.hidden = true;
+    clearSleepTimer(false);
+
+    if (mins === 0) { updateSleepLabel(); return; } // Off
+
+    if (mins === 'end') {
+        sleepEndOfTrack = true;
+        setSleepActive(true);
+        updateSleepLabel();
+        return;
+    }
+
+    sleepDeadline = Date.now() + mins * 60 * 1000;
+    setSleepActive(true);
+    sleepIntervalId = setInterval(() => {
+        if (Date.now() >= sleepDeadline) { fireSleep(false); return; }
+        updateSleepLabel();
+    }, 1000);
+    updateSleepLabel();
+}
+
+function clearSleepTimer(updateUi = true) {
+    if (sleepIntervalId) { clearInterval(sleepIntervalId); sleepIntervalId = null; }
+    sleepDeadline = 0;
+    sleepEndOfTrack = false;
+    setSleepActive(false);
+    if (updateUi) updateSleepLabel();
+}
+
+function setSleepActive(on) {
+    const btn = document.getElementById('sleepBtn');
+    if (btn) btn.setAttribute('data-sleep', on ? 'on' : 'off');
+}
+
+function updateSleepLabel() {
+    let countdown = '';
+    if (sleepDeadline) {
+        const totalSec = Math.max(0, Math.round((sleepDeadline - Date.now()) / 1000));
+        countdown = Math.floor(totalSec / 60) + ':' + String(totalSec % 60).padStart(2, '0');
+    }
+    // Desktop coaster label.
+    const label = document.getElementById('sleepLabel');
+    if (label) label.textContent = sleepEndOfTrack ? 'end of track' : (countdown || 'sleep');
+    // Settings-modal status line (the mobile entry point's feedback).
+    const hint = document.getElementById('sleepStatusHint');
+    if (hint) {
+        hint.textContent = sleepEndOfTrack
+            ? 'Playback will pause when this track ends.'
+            : (countdown ? 'Fading out and pausing in ' + countdown + '.'
+                         : 'Fades the volume out and pauses when the timer ends.');
+    }
+}
+
+// Stop playback. Timed fire fades the volume out first; an end-of-track fire
+// just pauses (the song already finished). Volume is restored for next time.
+function fireSleep(alreadyEnded) {
+    const restore = (typeof currentVolume !== 'undefined') ? currentVolume : 100;
+    clearSleepTimer(false);
+    updateSleepLabel();
+
+    if (alreadyEnded) {
+        try { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); } catch (e) { /* no player */ }
+        return;
+    }
+
+    let step = 0;
+    const steps = 20;
+    const fade = setInterval(() => {
+        step++;
+        setVolume(Math.max(0, Math.round(restore * (1 - step / steps))));
+        if (step >= steps) {
+            clearInterval(fade);
+            try { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); } catch (e) { /* no player */ }
+            setVolume(restore);
+        }
+    }, 200);
+}
+
+// Close the sleep menu when clicking anywhere outside it.
+document.addEventListener('click', (e) => {
+    const btn = document.getElementById('sleepBtn');
+    const menu = document.getElementById('sleepMenu');
+    if (menu && !menu.hidden && btn && !btn.contains(e.target)) menu.hidden = true;
+});
 
 // YouTube IFrame API
 let ytPlayer;
@@ -3420,6 +3524,8 @@ function showSettingsModal() {
     if (lyricsToggle) lyricsToggle.checked = lyricsEnabled;
     const crackleToggle = document.getElementById('settingsCrackleToggle');
     if (crackleToggle) crackleToggle.checked = crackleEnabled;
+    // Reflect any running sleep timer in its status line.
+    updateSleepLabel();
     // Sync the room-theme swatches
     syncThemeSwatches();
     // Clear any leftover form status from a previous visit

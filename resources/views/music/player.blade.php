@@ -253,6 +253,22 @@
                             </div>
                             <div class="loop-btn-label" id="crackleLabel">crackle</div>
                         </div>
+                        <div class="loop-btn sleep-btn" id="sleepBtn" data-sleep="off" onclick="toggleSleepMenu(event)" title="Sleep timer">
+                            <div class="loop-btn-icon" id="sleepIcon">
+                                <svg class="loop-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+                                </svg>
+                            </div>
+                            <div class="loop-btn-label" id="sleepLabel">sleep</div>
+                            <div class="sleep-menu" id="sleepMenu" onclick="event.stopPropagation()" hidden>
+                                <button type="button" onclick="setSleepTimer(15)">15 min</button>
+                                <button type="button" onclick="setSleepTimer(30)">30 min</button>
+                                <button type="button" onclick="setSleepTimer(45)">45 min</button>
+                                <button type="button" onclick="setSleepTimer(60)">60 min</button>
+                                <button type="button" onclick="setSleepTimer('end')">End of track</button>
+                                <button type="button" class="sleep-off" onclick="setSleepTimer(0)">Off</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1063,6 +1079,19 @@
                     <input type="checkbox" id="settingsCrackleToggle" onchange="setCrackleEnabledFromSettings(this.checked)">
                     <span class="settings-switch"></span>
                 </label>
+            </div>
+
+            <div class="add-song-form-group">
+                <label>Sleep timer</label>
+                <div class="settings-source-options sleep-options" id="sleepOptions">
+                    <button type="button" class="settings-source-btn" onclick="setSleepTimer(15)">15m</button>
+                    <button type="button" class="settings-source-btn" onclick="setSleepTimer(30)">30m</button>
+                    <button type="button" class="settings-source-btn" onclick="setSleepTimer(45)">45m</button>
+                    <button type="button" class="settings-source-btn" onclick="setSleepTimer(60)">60m</button>
+                    <button type="button" class="settings-source-btn" onclick="setSleepTimer('end')">End of track</button>
+                    <button type="button" class="settings-source-btn sleep-off" onclick="setSleepTimer(0)">Off</button>
+                </div>
+                <p class="settings-hint" id="sleepStatusHint">Fades the volume out and pauses when the timer ends.</p>
             </div>
 
             <div class="add-song-form-group">

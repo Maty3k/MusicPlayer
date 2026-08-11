@@ -2050,6 +2050,53 @@ body {
     color: rgba(212, 165, 116, 0.6);
 }
 
+/* Sleep timer coaster + popup menu */
+.sleep-btn { position: relative; }
+.sleep-btn[data-sleep="on"] { border-color: rgba(212, 165, 116, 0.2); }
+.sleep-btn[data-sleep="on"] .loop-btn-icon {
+    color: #d4a574;
+    background: radial-gradient(circle, rgba(212, 165, 116, 0.12) 0%, rgba(212, 165, 116, 0.04) 100%);
+    border-color: rgba(212, 165, 116, 0.25);
+    box-shadow: 0 0 16px rgba(212, 165, 116, 0.15);
+    animation: loopGlowWarm 2.5s ease-in-out infinite;
+}
+.sleep-btn[data-sleep="on"] .loop-btn-label { color: rgba(212, 165, 116, 0.75); }
+.sleep-menu {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    min-width: 128px;
+    background: rgba(24, 19, 14, 0.98);
+    border: 1px solid rgba(212, 165, 116, 0.25);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    z-index: 60;
+}
+.sleep-menu[hidden] { display: none; }
+.sleep-menu button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: rgba(212, 165, 116, 0.85);
+    font-family: inherit;
+    font-size: 0.82rem;
+    text-align: left;
+    padding: 8px 11px;
+    border-radius: 8px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.sleep-menu button:hover { background: rgba(212, 165, 116, 0.14); color: #f2e8d8; }
+.sleep-menu button.sleep-off { color: rgba(212, 165, 116, 0.5); margin-top: 2px; }
+
+/* Sleep timer options inside the Settings modal (reachable on mobile, where
+   the side-table coaster is hidden) — the segmented buttons wrap. */
+.sleep-options { flex-wrap: wrap; }
+
 /* Loop single */
 .loop-btn[data-loop="single"] {
     border-color: rgba(126, 184, 218, 0.2);
@@ -8402,6 +8449,16 @@ html[data-theme="greenroom"] {
 [data-theme] .song-fav-btn { color: rgba(var(--th-accent-rgb), 0.38); }
 [data-theme] .song-fav-btn:hover { color: rgba(var(--th-accent-rgb), 0.85); }
 [data-theme] .song-fav-btn.is-fav { color: var(--th-accent-hi); }
+[data-theme] .sleep-btn[data-sleep="on"] .loop-btn-icon {
+    color: var(--th-accent);
+    background: radial-gradient(circle, rgba(var(--th-accent-rgb), 0.12) 0%, rgba(var(--th-accent-rgb), 0.04) 100%);
+    border-color: rgba(var(--th-accent-rgb), 0.25);
+    box-shadow: 0 0 16px rgba(var(--th-accent-rgb), 0.15);
+}
+[data-theme] .sleep-btn[data-sleep="on"] .loop-btn-label { color: rgba(var(--th-accent-rgb), 0.75); }
+[data-theme] .sleep-menu { border-color: rgba(var(--th-accent-rgb), 0.25); }
+[data-theme] .sleep-menu button { color: rgba(var(--th-accent-rgb), 0.85); }
+[data-theme] .sleep-menu button:hover { background: rgba(var(--th-accent-rgb), 0.14); color: var(--th-cream); }
 @media (min-width: 601px) {
     [data-theme] .record-card.now-playing .record-card-cover {
         box-shadow:
