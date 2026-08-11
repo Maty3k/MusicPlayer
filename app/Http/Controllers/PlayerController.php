@@ -36,6 +36,7 @@ class PlayerController extends Controller
             'currentIndex' => $currentIndex,
             'current' => $current,
             'recentlyPlayed' => $user->recently_played ?? array_keys($playlists),
+            'recentSongs' => $user->recentSongs(),
         ]);
     }
 }

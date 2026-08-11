@@ -2422,6 +2422,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof songsData !== 'undefined' && Array.isArray(songsData) && songsData.length > 0) {
         rebuildSongList();
     }
+    if (typeof updateRecentSongs === 'function') updateRecentSongs();
 });
 
 function updateTrackCount() {
@@ -3142,6 +3143,98 @@ function updateCrateRecords() {
 
 
 // ============================================================
+// RECENTLY PLAYED SONGS — homescreen "Jump back in" shelf
+// ============================================================
+
+// Stable per-song identity, mirroring the server's playKey() so the client
+// and server dedupe the same way.
+function songPlayKey(song) {
+    if (!song) return '';
+    if (song.youtube_id) return 'yt:' + song.youtube_id;
+    if (song.spotify_id) return 'sp:' + song.spotify_id;
+    if (song.mp3_url) return 'mp3:' + song.mp3_url;
+    return 'tt:' + String(song.title || '').toLowerCase() + '|' + String(song.artist || '').toLowerCase();
+}
+
+// Log a play: bump this song to the front of the local shelf (so returning to
+// the crate without a reload shows it) and persist server-side. Best-effort —
+// a failed sync must never break playback. Called once per real track start.
+function recordPlay(song) {
+    if (!song || !song.title) return;
+    const entry = {
+        title: song.title || '',
+        artist: song.artist || '',
+        album: song.album || '',
+        cover: song.cover || '',
+        youtube_id: song.youtube_id || '',
+        mp3_url: song.mp3_url || '',
+        spotify_id: song.spotify_id || '',
+    };
+    const key = songPlayKey(entry);
+    const prev = Array.isArray(recentSongs) ? recentSongs : [];
+    recentSongs = [entry, ...prev.filter(s => songPlayKey(s) !== key)].slice(0, 12);
+    updateRecentSongs();
+
+    try {
+        fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'recordPlay', song: entry })
+        }).catch(() => { /* best-effort; server reorders on next load */ });
+    } catch (e) { /* best-effort */ }
+}
+
+// Re-render the shelf from the `recentSongs` array; hide it entirely when empty.
+function updateRecentSongs() {
+    const shelf = document.getElementById('recentSongsShelf');
+    const track = document.getElementById('recentSongsTrack');
+    if (!shelf || !track) return;
+    const list = Array.isArray(recentSongs) ? recentSongs : [];
+    if (list.length === 0) {
+        shelf.classList.add('hidden');
+        track.innerHTML = '';
+        return;
+    }
+    track.innerHTML = list.map((song, i) => {
+        const cover = safeUrl(song.cover);
+        const coverHtml = cover
+            ? `<img class="recent-song-cover" src="${escapeHtml(cover)}" alt="" loading="lazy">`
+            : `<div class="recent-song-cover recent-song-cover-empty">&#9834;</div>`;
+        const artist = song.artist
+            ? `<div class="recent-song-artist">${escapeHtml(song.artist)}</div>`
+            : '';
+        const label = (song.artist ? song.artist + ' — ' : '') + song.title;
+        return `
+            <button type="button" class="recent-song" onclick="playRecentSong(${i})" title="${escapeHtml(label)}">
+                <div class="recent-song-art">
+                    ${coverHtml}
+                    <span class="recent-song-play"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></span>
+                </div>
+                <div class="recent-song-title">${escapeHtml(song.title)}</div>
+                ${artist}
+            </button>`;
+    }).join('');
+    shelf.classList.remove('hidden');
+}
+
+// Resume a recently-played song. Opens the player (same entry the crate cards
+// use), then plays it by index if it's in the loaded playlist, else as a
+// one-off (the radio path plays any song object regardless of playlist).
+async function playRecentSong(i) {
+    const song = Array.isArray(recentSongs) ? recentSongs[i] : null;
+    if (!song) return;
+    await selectPlaylistFromCrate(activePlaylistId);
+    const key = songPlayKey(song);
+    const idx = Array.isArray(songsData) ? songsData.findIndex(s => songPlayKey(s) === key) : -1;
+    if (idx !== -1) {
+        switchSong(idx);
+    } else {
+        playRadioSong(song);
+    }
+}
+
+
+// ============================================================
 // SETTINGS — MUSIC SOURCE MANAGEMENT
 // ============================================================
 
@@ -3474,6 +3567,10 @@ async function playSongSource(song, cueOnly) {
         if (ytPlayer && ytPlayer.cueVideoById) ytPlayer.cueVideoById(source);
     } else {
         if (ytPlayer && ytPlayer.loadVideoById) ytPlayer.loadVideoById(source);
+        // Every real (non-cue) start funnels through here — playlist taps,
+        // autoplay/next, and radio previews — so it's the one place to log a
+        // play. Cue-only loads (playlist switch, initial onReady) are excluded.
+        recordPlay(song);
     }
 }
 
@@ -6443,9 +6540,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyRowFilter() {
         if (!filterInput) return;
         const q = filterInput.value.trim().toLowerCase();
-        // "Find in this crate" only filters library songs — Discover rows
-        // (and the shelf header/note) aren't part of the crate.
-        document.querySelectorAll('#songList .song-list-item:not(.discover-item)').forEach((row) => {
+        // Only filter library songs — Discover rows and the now-playing radio
+        // row aren't part of the crate.
+        document.querySelectorAll('#songList .song-list-item:not(.discover-item):not(.radio-song-item)').forEach((row) => {
             if (!q) {
                 row.classList.remove('m-filtered-out');
                 return;
@@ -6918,10 +7015,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dock.classList.remove('m-dock-hidden');
             document.body.classList.remove('m-np-open', 'm-lyrics-open', 'm-scrubbing');
             window.__mScrubbing = false;
-            if (filterInput) {
-                filterInput.value = '';
-                applyRowFilter();
-            }
+            // Keep the find-in-songs query across the breakpoint — the filter
+            // works on desktop too now, so don't wipe it when leaving phone.
         }
         updateDockVisibility();
     });

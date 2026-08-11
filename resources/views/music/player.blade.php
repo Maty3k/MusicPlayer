@@ -396,6 +396,13 @@
                         <button class="new-playlist-btn" onclick="showPlaylistCreateModal()">+ New playlist</button>
                         <button class="new-playlist-btn crate-settings-btn" onclick="showSettingsModal()" title="Settings"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg>Settings</button>
                     </div>
+                    {{-- Recently played songs — a Spotify-style "jump back in"
+                         shelf. Filled + shown by updateRecentSongs() from the
+                         injected `recentSongs`; stays hidden when empty. --}}
+                    <div class="recent-songs hidden" id="recentSongsShelf">
+                        <div class="recent-songs-label">Jump back in</div>
+                        <div class="recent-songs-track" id="recentSongsTrack"></div>
+                    </div>
                     <div class="records-conveyor" id="recordsConveyor">
                         <div class="conveyor-rows">
                             <div class="conveyor-row" data-row="1">
@@ -508,7 +515,7 @@
                     </button>
                     <button type="button" id="mShuffleChip" aria-pressed="false">Shuffle</button>
                 </div>
-                <input class="m-only" type="search" id="mFilterInput" placeholder="Find in this crate" autocomplete="off">
+                <input class="crate-filter" type="search" id="mFilterInput" placeholder="Find in these songs" autocomplete="off">
             </div>
             <ul class="song-list" id="songList">
                 @if (count($songs) === 0)
@@ -1413,6 +1420,7 @@
         let currentSongIndex = {{ (int) $currentIndex }};
         let playlistsMeta = @json((object) $meta);
         let recentlyPlayed = @json($recentlyPlayed);
+        let recentSongs = @json($recentSongs);
     </script>
     <!-- gif.js encoder for the Vinyl GIF Maker (client-side GIF encoding + worker) -->
     <script src="{{ asset('vendor/gif.js/gif.js') }}?v={{ filemtime(public_path('vendor/gif.js/gif.js')) }}" defer></script>

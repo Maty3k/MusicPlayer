@@ -795,6 +795,139 @@ body {
     text-transform: lowercase;
 }
 
+/* ---- Recently played songs shelf ("Jump back in") ---- */
+.recent-songs {
+    width: 100%;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.recent-songs.hidden { display: none; }
+
+.recent-songs-label {
+    font-size: 0.72rem;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: rgba(212, 165, 116, 0.7);
+    padding-left: 4px;
+}
+
+.recent-songs-track {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 4px 10px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(212, 165, 116, 0.35) transparent;
+    -webkit-overflow-scrolling: touch;
+}
+.recent-songs-track::-webkit-scrollbar { height: 6px; }
+.recent-songs-track::-webkit-scrollbar-thumb {
+    background: rgba(212, 165, 116, 0.3);
+    border-radius: 3px;
+}
+
+.recent-song {
+    flex: 0 0 auto;
+    width: 128px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    font-family: inherit;
+}
+.recent-song:focus-visible {
+    outline: 2px solid rgba(212, 165, 116, 0.7);
+    outline-offset: 3px;
+    border-radius: 12px;
+}
+
+.recent-song-art {
+    position: relative;
+    width: 128px;
+    height: 128px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.35);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.recent-song:hover .recent-song-art { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); }
+.recent-song-cover { width: 100%; height: 100%; object-fit: cover; display: block; }
+.recent-song-cover-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: rgba(212, 165, 116, 0.5);
+}
+.recent-song-play {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #1a140d;
+    background: linear-gradient(180deg, #e8c48f, #d4a574);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.recent-song:hover .recent-song-play,
+.recent-song:focus-visible .recent-song-play { opacity: 1; transform: translateY(0); }
+.recent-song-title {
+    font-size: 0.85rem;
+    color: #f2e8d8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.recent-song-artist {
+    font-size: 0.75rem;
+    color: rgba(212, 165, 116, 0.65);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---- Find-in-songs filter: desktop base (phone styles live in MOBILE V2) ---- */
+@media (min-width: 601px) {
+    #mFilterInput {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        margin: 8px 0 2px;
+        padding: 8px 12px;
+        font-size: 0.9rem;
+        font-family: inherit;
+        color: #f2e8d8;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(212, 165, 116, 0.28);
+        border-radius: 10px;
+        outline: none;
+    }
+    #mFilterInput:focus {
+        border-color: rgba(212, 165, 116, 0.55);
+        background: rgba(0, 0, 0, 0.35);
+    }
+    #mFilterInput::placeholder { color: rgba(212, 165, 116, 0.4); }
+    /* The existing hide rule is scoped to the phone media query — add a
+       desktop one so filtered-out rows actually disappear here too. */
+    .song-list-item.m-filtered-out { display: none; }
+}
+
 /* Records Display */
 .records-display {
     display: flex;
@@ -8161,6 +8294,21 @@ html[data-theme="greenroom"] {
     color: var(--th-ink);
     background: linear-gradient(180deg, var(--th-accent-hi), var(--th-accent));
 }
+[data-theme] .recent-songs-label { color: rgba(var(--th-accent-rgb), 0.7); }
+[data-theme] .recent-song-title { color: var(--th-cream); }
+[data-theme] .recent-song-artist { color: rgba(var(--th-accent-rgb), 0.65); }
+[data-theme] .recent-song-cover-empty { color: rgba(var(--th-accent-rgb), 0.5); }
+[data-theme] .recent-song-play {
+    color: var(--th-ink);
+    background: linear-gradient(180deg, var(--th-accent-hi), var(--th-accent));
+}
+[data-theme] .recent-song:focus-visible { outline-color: rgba(var(--th-accent-rgb), 0.7); }
+[data-theme] #mFilterInput {
+    color: var(--th-cream);
+    border-color: rgba(var(--th-accent-rgb), 0.28);
+}
+[data-theme] #mFilterInput:focus { border-color: rgba(var(--th-accent-rgb), 0.55); }
+[data-theme] #mFilterInput::placeholder { color: rgba(var(--th-accent-rgb), 0.4); }
 @media (min-width: 601px) {
     [data-theme] .record-card.now-playing .record-card-cover {
         box-shadow:

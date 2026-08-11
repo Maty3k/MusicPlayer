@@ -57,6 +57,31 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Playlist::class)->orderBy('position');
     }
 
+    /** Per-user recently-played song history (see the Play model / plays table). */
+    public function plays(): HasMany
+    {
+        return $this->hasMany(Play::class);
+    }
+
+    /**
+     * Most-recently-played songs, newest first, in the frontend song shape —
+     * ready for the homescreen "recently played" shelf and for replay.
+     *
+     * @return array<int, array<string, string>>
+     */
+    public function recentSongs(int $limit = 12): array
+    {
+        // Order by id (monotonic per insert), not played_at — recordPlay
+        // delete-inserts on replay, so the newest row always has the highest id
+        // even when several plays share a clock second.
+        return $this->plays()
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get()
+            ->map(fn (Play $p) => $p->toFrontend())
+            ->all();
+    }
+
     public function spotifyToken(): HasOne
     {
         return $this->hasOne(SpotifyToken::class);

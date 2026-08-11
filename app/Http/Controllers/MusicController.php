@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Playlist;
+use App\Models\Song;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * Port of the legacy save-music.php action dispatcher, per authenticated user.
@@ -33,6 +36,7 @@ class MusicController extends Controller
             'moveSong' => DB::transaction(fn () => $this->moveSong($request, $user)),
             'copySong' => DB::transaction(fn () => $this->copySong($request, $user)),
             'setCover' => DB::transaction(fn () => $this->setCover($request, $user)),
+            'recordPlay' => DB::transaction(fn () => $this->recordPlay($request, $user)),
             'getAll' => $this->getAll($user),
             default => ['success' => false, 'error' => 'Invalid action'],
         };
@@ -203,6 +207,7 @@ class MusicController extends Controller
         foreach ($songs as $song) {
             if (! is_array($song) || empty($song['title'])) {
                 $skipped++;
+
                 continue;
             }
             $title = (string) $song['title'];
@@ -218,6 +223,7 @@ class MusicController extends Controller
             $dupeKey = isset($haveKey[$key]) || isset($seenKey[$key]);
             if ($dupeYt || $dupeKey) {
                 $skipped++;
+
                 continue;
             }
 
@@ -315,7 +321,7 @@ class MusicController extends Controller
         }
 
         do {
-            $slug = 'pl-'.strtolower(\Illuminate\Support\Str::random(10));
+            $slug = 'pl-'.strtolower(Str::random(10));
         } while ($user->playlists()->where('slug', $slug)->exists());
 
         $playlist = $user->playlists()->create([
@@ -464,6 +470,68 @@ class MusicController extends Controller
         return ['success' => true];
     }
 
+    /**
+     * Record that a song started playing. Upserts one row per distinct song
+     * (dedupe_key), bumping played_at on a replay so "recently played" reorders
+     * without piling up duplicate rows. Fires for playlist taps, autoplay, and
+     * radio/discover previews (every real start funnels through here from JS).
+     */
+    private function recordPlay(Request $request, User $user): array
+    {
+        $song = $request->input('song');
+        if (! is_array($song) || empty($song['title'])) {
+            return ['success' => false, 'error' => 'Missing song data'];
+        }
+
+        $title = (string) $song['title'];
+        $artist = (string) ($song['artist'] ?? '');
+        // Client-supplied id: accept only the canonical 11-char YouTube form,
+        // blank anything else (same guard as addBatch) so a crafted value can
+        // never reach the player/iframe when this song is replayed.
+        $yt = (string) ($song['youtube_id'] ?? '');
+        $yt = preg_match('/^[A-Za-z0-9_-]{11}$/', $yt) ? $yt : '';
+        $spotify = (string) ($song['spotify_id'] ?? '');
+        $mp3 = $this->sanitizeUrl($song['mp3_url'] ?? '');
+        $key = $this->playKey($yt, $spotify, $mp3, $title, $artist);
+
+        // Delete-then-insert (not updateOrCreate) so a replay gets a fresh row
+        // with a higher id — recentSongs orders by id, which stays correct even
+        // when several plays land in the same clock second (played_at collides).
+        $user->plays()->where('dedupe_key', $key)->delete();
+        $user->plays()->create([
+            'dedupe_key' => $key,
+            'title' => $title,
+            'artist' => $artist,
+            'album' => (string) ($song['album'] ?? ''),
+            'cover' => $this->sanitizeUrl($song['cover'] ?? ''),
+            'youtube_id' => $yt,
+            'mp3_url' => $mp3,
+            'spotify_id' => $spotify,
+            'played_at' => now(),
+        ]);
+
+        return ['success' => true];
+    }
+
+    /**
+     * Stable per-song identity for dedupe: prefer the streaming id, fall back
+     * to a hash of title|artist so songs with no id still collapse on replay.
+     */
+    private function playKey(string $yt, string $spotify, string $mp3, string $title, string $artist): string
+    {
+        if ($yt !== '') {
+            return 'yt:'.$yt;
+        }
+        if ($spotify !== '') {
+            return 'sp:'.$spotify;
+        }
+        if ($mp3 !== '') {
+            return 'mp3:'.md5($mp3);
+        }
+
+        return 'tt:'.md5(mb_strtolower(trim($title).'|'.trim($artist)));
+    }
+
     /** Return all data in one call (for the initial load). */
     private function getAll(User $user): array
     {
@@ -478,6 +546,7 @@ class MusicController extends Controller
             'success' => true,
             'activePlaylist' => $this->activeSlug($user),
             'recentlyPlayed' => $user->recently_played ?? [],
+            'recentSongs' => $user->recentSongs(),
             'playlists' => $playlists,
         ];
     }
@@ -507,7 +576,7 @@ class MusicController extends Controller
     }
 
     /** Songs keep contiguous 0..n-1 positions, so position == legacy index. */
-    private function songAt(Playlist $playlist, int $index): ?\App\Models\Song
+    private function songAt(Playlist $playlist, int $index): ?Song
     {
         if ($index < 0) {
             return null;
@@ -539,12 +608,12 @@ class MusicController extends Controller
                 continue;
             }
 
-            $stillUsed = \App\Models\Song::whereIn('playlist_id', $user->playlists()->select('id'))
+            $stillUsed = Song::whereIn('playlist_id', $user->playlists()->select('id'))
                 ->where(fn ($q) => $q->where('mp3_url', $url)->orWhere('cover', $url))
                 ->exists();
 
             if (! $stillUsed) {
-                \Illuminate\Support\Facades\Storage::disk((string) config('filesystems.uploads', 'local'))
+                Storage::disk((string) config('filesystems.uploads', 'local'))
                     ->delete('music/'.$user->id.'/'.$m[1]);
             }
         }
@@ -556,7 +625,7 @@ class MusicController extends Controller
      * must match exactly (post-normalization); artists match loosely —
      * "Shakira" from an ID3 tag should hit "Shakira ft. Wyclef Jean".
      */
-    private function findLinkableSong(Playlist $playlist, string $title, string $artist): ?\App\Models\Song
+    private function findLinkableSong(Playlist $playlist, string $title, string $artist): ?Song
     {
         $wantTitle = $this->normalizeForMatch($title);
         if ($wantTitle === '') {
