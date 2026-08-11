@@ -1261,44 +1261,7 @@ function onYouTubeIframeAPIReady() {
     ytPlayerReal = player;
 }
 
-// Temporary, opt-in playback diagnostic. Enable with ?ytdebug=1 (persists);
-// shows the last player-state transitions with timestamps so a real-device
-// pause/play cycle can be read off a screenshot. Disable with ?ytdebug=0.
-(function () {
-    try {
-        const q = new URLSearchParams(location.search);
-        if (q.has('ytdebug')) localStorage.setItem('ytdebug', q.get('ytdebug') === '0' ? '0' : '1');
-    } catch (e) {}
-})();
-function ytDebugLog(stateData) {
-    try {
-        if (localStorage.getItem('ytdebug') !== '1') return;
-    } catch (e) { return; }
-    const names = { '-1': 'unstarted', '0': 'ENDED', '1': 'PLAYING', '2': 'PAUSED', '3': 'BUFFERING', '5': 'CUED' };
-    window.__ytlog = window.__ytlog || [];
-    const now = Date.now();
-    const prev = window.__ytlog[window.__ytlog.length - 1];
-    window.__ytlog.push({ s: names[stateData] || stateData, t: now, d: prev ? ((now - prev.t) / 1000).toFixed(1) : '0' });
-    if (window.__ytlog.length > 12) window.__ytlog.shift();
-    let box = document.getElementById('ytDebugBox');
-    if (!box) {
-        box = document.createElement('div');
-        box.id = 'ytDebugBox';
-        box.style.cssText = 'position:fixed;top:8px;left:8px;z-index:99999;background:rgba(0,0,0,0.85);color:#7cf;font:11px/1.4 monospace;padding:8px 10px;border-radius:8px;max-width:80vw;pointer-events:none;white-space:pre';
-        document.body.appendChild(box);
-    }
-    // Show display-vs-audio context so a wrong-song desync is visible.
-    let ctx = '';
-    try {
-        const shown = (document.querySelector('.sleeve-mobile-nowplaying .song-title') || {}).textContent || '(none)';
-        const s = (typeof currentRadioSong !== 'undefined' && currentRadioSong) || (typeof songsData !== 'undefined' && songsData[currentSongIndex]) || {};
-        ctx = `\nshown: ${shown.slice(0, 22)}\nidx ${typeof currentSongIndex !== 'undefined' ? currentSongIndex : '?'} -> ${(s.title || '?').slice(0, 22)}\nyt=${s.youtube_id || '?'}  radio=${!!(typeof currentRadioSong !== 'undefined' && currentRadioSong)}`;
-    } catch (e) {}
-    box.textContent = 'YT state (newest last):\n' + window.__ytlog.map(e => `+${e.d}s  ${e.s}`).join('\n') + ctx;
-}
-
 function onPlayerStateChange(event) {
-    ytDebugLog(event && event.data);
     const vinyl = document.getElementById('vinyl');
     const tonearm = document.getElementById('tonearm');
     const playBtn = document.getElementById('playBtn');
