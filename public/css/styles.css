@@ -1216,8 +1216,22 @@ body {
 .queue-cover-empty { display: flex; align-items: center; justify-content: center; color: rgba(212, 165, 116, 0.5); }
 
 .queue-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.queue-item { display: flex; align-items: center; gap: 12px; padding: 4px; border-radius: 10px; transition: background 0.15s ease; }
+.queue-item { display: flex; align-items: center; gap: 10px; padding: 4px; border-radius: 10px; transition: background 0.15s ease; }
 .queue-item:hover { background: rgba(212, 165, 116, 0.06); }
+.queue-drag-handle {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    margin-left: -2px;
+    color: rgba(212, 165, 116, 0.3);
+    cursor: grab;
+    touch-action: none;
+    transition: color 0.2s ease;
+}
+.queue-drag-handle:hover { color: rgba(212, 165, 116, 0.6); }
+.queue-item.dragging { opacity: 0.92; background: rgba(212, 165, 116, 0.14); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); }
 .queue-item-play { position: relative; flex: 0 0 auto; padding: 0; border: none; background: none; cursor: pointer; border-radius: 7px; line-height: 0; }
 .queue-item-playicon {
     position: absolute;
@@ -8771,6 +8785,9 @@ html[data-theme="greenroom"] {
 [data-theme] .queue-clear-btn { border-color: rgba(var(--th-accent-rgb), 0.28); color: rgba(var(--th-accent-rgb), 0.8); }
 [data-theme] .queue-now { background: linear-gradient(180deg, rgba(var(--th-accent-rgb), 0.1), rgba(var(--th-accent-rgb), 0.04)); border-color: rgba(var(--th-accent-rgb), 0.16); }
 [data-theme] .queue-item:hover { background: rgba(var(--th-accent-rgb), 0.06); }
+[data-theme] .queue-drag-handle { color: rgba(var(--th-accent-rgb), 0.3); }
+[data-theme] .queue-drag-handle:hover { color: rgba(var(--th-accent-rgb), 0.6); }
+[data-theme] .queue-item.dragging { background: rgba(var(--th-accent-rgb), 0.14); }
 [data-theme] .queue-item-title { color: var(--th-cream); }
 [data-theme] .queue-item-artist,
 [data-theme] .queue-cover-empty { color: rgba(var(--th-accent-rgb), 0.6); }

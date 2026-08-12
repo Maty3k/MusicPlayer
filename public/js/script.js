@@ -1525,6 +1525,48 @@ function playQueueItem(i) {
     playFromQueue(item);
 }
 
+// Drag-to-reorder within the queue (pointer-based, mouse + touch). Reorders the
+// DOM live via insertBefore; on release rebuilds playQueue to match.
+function startQueueDrag(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const list = document.querySelector('#queueBody .queue-list');
+    const li = e.currentTarget.closest('.queue-item');
+    if (!list || !li) return;
+    li.classList.add('dragging');
+
+    const move = (ev) => {
+        const y = ev.clientY;
+        const others = [...list.querySelectorAll('.queue-item')].filter(r => r !== li);
+        let placed = false;
+        for (const r of others) {
+            const rect = r.getBoundingClientRect();
+            if (y < rect.top + rect.height / 2) { list.insertBefore(li, r); placed = true; break; }
+        }
+        if (!placed && others.length) others[others.length - 1].after(li);
+    };
+    const end = () => {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', end);
+        document.removeEventListener('pointercancel', end);
+        li.classList.remove('dragging');
+        finishQueueDrag();
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', end);
+    document.addEventListener('pointercancel', end);
+}
+
+function finishQueueDrag() {
+    const list = document.querySelector('#queueBody .queue-list');
+    if (!list) return;
+    const order = [...list.querySelectorAll('.queue-item')].map(el => parseInt(el.getAttribute('data-qindex'), 10));
+    if (order.length !== playQueue.length || order.some(isNaN)) { renderQueue(); return; }
+    if (order.every((v, i) => v === i)) return; // no change
+    playQueue = order.map(qi => playQueue[qi]);
+    afterQueueChange(); // re-renders (fresh indices), updates badge, persists
+}
+
 function queueCoverHtml(song, cls) {
     const cover = safeUrl(song.cover);
     return cover
@@ -1557,7 +1599,10 @@ function renderQueue() {
             </div>
             <ol class="queue-list">
                 ${playQueue.map((s, i) => `
-                    <li class="queue-item">
+                    <li class="queue-item" data-qindex="${i}">
+                        <span class="queue-drag-handle" title="Drag to reorder" onpointerdown="startQueueDrag(event)" onclick="event.stopPropagation()">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>
+                        </span>
                         <button type="button" class="queue-item-play" onclick="playQueueItem(${i})" title="Play now">
                             ${queueCoverHtml(s, 'queue-item-cover')}
                             <span class="queue-item-playicon"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></span>
