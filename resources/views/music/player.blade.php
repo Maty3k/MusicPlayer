@@ -1078,13 +1078,27 @@
 
     <div class="add-song-modal" id="settingsModal">
         <div class="add-song-modal-backdrop" onclick="hideSettingsModal()"></div>
-        <div class="add-song-modal-panel">
+        <div class="add-song-modal-panel settings-modal-panel">
             <button class="add-song-modal-close" onclick="hideSettingsModal()">&times;</button>
             <div class="add-song-modal-header">
-                <div class="add-song-modal-icon">&#9881;</div>
+                <div class="add-song-modal-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V15z"/></svg></div>
                 <h2 class="add-song-modal-title">Settings</h2>
             </div>
 
+            <div class="settings-tabs" id="settingsTabs">
+                <button type="button" class="settings-tab active" data-tab="playback" onclick="setSettingsTab('playback')">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>Playback
+                </button>
+                <button type="button" class="settings-tab" data-tab="appearance" onclick="setSettingsTab('appearance')">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>Appearance
+                </button>
+                <button type="button" class="settings-tab" data-tab="account" onclick="setSettingsTab('account')">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>Account
+                </button>
+            </div>
+
+            <div class="settings-panel active" data-panel="playback">
+            <div class="settings-panel-scroll">
             <div class="add-song-form-group">
                 <label>Add-song source</label>
                 <div class="settings-source-options" id="settingsSourceOptions">
@@ -1093,6 +1107,17 @@
                     <button type="button" class="settings-source-btn" data-source="spotify" onclick="setMusicSource('spotify')">Spotify</button>
                 </div>
                 <p class="settings-hint">Sets what the Add Song box expects. Spotify tracks stream via the Web Playback SDK (Premium) or a matched YouTube video.</p>
+            </div>
+
+            <div class="add-song-form-group">
+                <label>Crossfade</label>
+                <div class="settings-source-options" id="crossfadeOptions">
+                    <button type="button" class="settings-source-btn active" data-xf="0" onclick="setCrossfade(0)">Off</button>
+                    <button type="button" class="settings-source-btn" data-xf="3" onclick="setCrossfade(3)">3s</button>
+                    <button type="button" class="settings-source-btn" data-xf="6" onclick="setCrossfade(6)">6s</button>
+                    <button type="button" class="settings-source-btn" data-xf="12" onclick="setCrossfade(12)">12s</button>
+                </div>
+                <p class="settings-hint">Fades each song out and the next one in so tracks blend instead of cutting. (Single-player fade, not a true overlap.)</p>
             </div>
 
             <div class="add-song-form-group">
@@ -1121,7 +1146,11 @@
                 </div>
                 <p class="settings-hint" id="sleepStatusHint">Fades the volume out and pauses when the timer ends.</p>
             </div>
+            </div>
+            </div>
 
+            <div class="settings-panel" data-panel="appearance">
+            <div class="settings-panel-scroll">
             <div class="add-song-form-group">
                 <label>Room theme</label>
                 <div class="theme-swatch-row" id="themeSwatchRow">
@@ -1139,7 +1168,11 @@
                     </button>
                 </div>
             </div>
+            </div>
+            </div>
 
+            <div class="settings-panel" data-panel="account">
+            <div class="settings-panel-scroll">
             <div class="add-song-form-group settings-spotify-group">
                 <label>Spotify</label>
                 <div id="spotifyNotConfigured" class="spotify-state" style="display:none">
@@ -1207,6 +1240,8 @@
                     @csrf
                     <button class="add-song-btn-cancel">Log out</button>
                 </form>
+            </div>
+            </div>
             </div>
 
             <div class="add-song-modal-buttons">

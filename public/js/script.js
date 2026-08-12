@@ -1330,6 +1330,76 @@ document.addEventListener('click', (e) => {
     if (menu && !menu.hidden && btn && !btn.contains(e.target)) menu.hidden = true;
 });
 
+
+// ============================================================
+// CROSSFADE — smooth fade-out/fade-in between songs (single player)
+// ============================================================
+
+let crossfadeSeconds = parseInt(localStorage.getItem('crossfadeSeconds') || '0', 10) || 0;
+let crossfadeInTimer = null;
+let crossfadeFadingOut = false;
+
+// Set the player's actual output volume WITHOUT touching the user's stored
+// currentVolume, so a fade can ramp freely and restore to their setting.
+function setPlayerVolumeRaw(v) {
+    v = Math.min(100, Math.max(0, Math.round(v)));
+    if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(v);
+}
+
+function setCrossfade(sec) {
+    crossfadeSeconds = parseInt(sec, 10) || 0;
+    try { localStorage.setItem('crossfadeSeconds', String(crossfadeSeconds)); } catch (e) { /* private mode */ }
+    document.querySelectorAll('#crossfadeOptions .settings-source-btn').forEach(b =>
+        b.classList.toggle('active', parseInt(b.dataset.xf, 10) === crossfadeSeconds));
+    // Cancel any in-flight fade and restore the user's volume immediately.
+    if (crossfadeInTimer) { clearInterval(crossfadeInTimer); crossfadeInTimer = null; }
+    crossfadeFadingOut = false;
+    setPlayerVolumeRaw(currentVolume);
+}
+
+// Fade the newly-started track up from silence — called on every real start.
+function crossfadeInStart() {
+    if (!crossfadeSeconds) return;
+    if (crossfadeInTimer) clearInterval(crossfadeInTimer);
+    crossfadeFadingOut = false;
+    const target = currentVolume;
+    const stepMs = 80;
+    const steps = Math.max(1, Math.round((crossfadeSeconds * 1000) / stepMs));
+    let step = 0;
+    setPlayerVolumeRaw(0);
+    crossfadeInTimer = setInterval(() => {
+        step++;
+        setPlayerVolumeRaw(target * (step / steps));
+        if (step >= steps) { clearInterval(crossfadeInTimer); crossfadeInTimer = null; setPlayerVolumeRaw(target); }
+    }, stepMs);
+}
+
+// Fade the current track down as it nears its end. Driven by the 100ms
+// sleeve-progress tick so the ramp tracks real playback time. Skipped for
+// loop-single (the same song just restarts — a fade would leave it silent).
+function crossfadeOutTick(current, duration) {
+    if (!crossfadeSeconds || loopMode === 'single' || !duration) {
+        if (crossfadeFadingOut) { crossfadeFadingOut = false; setPlayerVolumeRaw(currentVolume); }
+        return;
+    }
+    const remaining = duration - current;
+    if (remaining >= 0 && remaining <= crossfadeSeconds) {
+        crossfadeFadingOut = true;
+        setPlayerVolumeRaw(currentVolume * (remaining / crossfadeSeconds));
+    } else if (crossfadeFadingOut) {
+        crossfadeFadingOut = false;
+        setPlayerVolumeRaw(currentVolume);
+    }
+}
+
+// Switch the Settings modal's visible tab/panel.
+function setSettingsTab(tab) {
+    document.querySelectorAll('#settingsTabs .settings-tab').forEach(b =>
+        b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('#settingsModal .settings-panel').forEach(p =>
+        p.classList.toggle('active', p.dataset.panel === tab));
+}
+
 // YouTube IFrame API
 let ytPlayer;
 let ytPlayerReady = false;
@@ -1499,6 +1569,7 @@ function updateSleeveProgress() {
     const dockProgress = document.getElementById('mDockProgress');
     if (dockProgress) dockProgress.style.transform = 'scaleX(' + (pct / 100) + ')';
 
+    crossfadeOutTick(current, duration);
     updateActiveLyric();
 }
 
@@ -3757,6 +3828,10 @@ function showSettingsModal() {
     if (crackleToggle) crackleToggle.checked = crackleEnabled;
     // Reflect any running sleep timer in its status line.
     updateSleepLabel();
+    // Always open on the Playback tab, and sync the crossfade control.
+    setSettingsTab('playback');
+    document.querySelectorAll('#crossfadeOptions .settings-source-btn').forEach(b =>
+        b.classList.toggle('active', parseInt(b.dataset.xf, 10) === crossfadeSeconds));
     // Sync the room-theme swatches
     syncThemeSwatches();
     // Clear any leftover form status from a previous visit
@@ -4077,6 +4152,7 @@ async function playSongSource(song, cueOnly) {
         if (ytPlayer && ytPlayer.loadVideoById) {
             ytPlayer.loadVideoById(source);
             recordPlay(song);
+            crossfadeInStart();
         }
     }
 }
