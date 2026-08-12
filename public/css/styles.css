@@ -1151,6 +1151,107 @@ body {
 }
 .settings-panel-scroll > .add-song-form-group:first-child { margin-top: 0; }
 
+/* ---- Up-next queue ---- */
+.queue-btn { position: relative; }
+.queue-count-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #e8c48f, #d4a574);
+    color: #17120d;
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.send-menu-qicon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    flex: 0 0 auto;
+    color: rgba(212, 165, 116, 0.8);
+}
+
+.queue-panel { max-width: 460px; }
+#queueBody { max-height: 60vh; overflow-y: auto; padding-right: 2px; }
+.queue-section-label {
+    display: block;
+    font-size: 0.68rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(212, 165, 116, 0.7);
+    margin: 4px 0 8px;
+}
+.queue-section-head { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+.queue-section-head .queue-section-label { margin: 0; }
+.queue-clear-btn {
+    background: none;
+    border: 1px solid rgba(212, 165, 116, 0.28);
+    color: rgba(212, 165, 116, 0.8);
+    font-family: inherit;
+    font-size: 0.72rem;
+    padding: 4px 11px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.queue-clear-btn:hover { border-color: rgba(212, 165, 116, 0.55); color: #f2e8d8; }
+
+.queue-now {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(212, 165, 116, 0.1), rgba(212, 165, 116, 0.04));
+    border: 1px solid rgba(212, 165, 116, 0.16);
+    margin-bottom: 6px;
+}
+.queue-now-cover, .queue-item-cover { width: 44px; height: 44px; border-radius: 7px; object-fit: cover; flex: 0 0 auto; background: rgba(0, 0, 0, 0.35); display: block; }
+.queue-cover-empty { display: flex; align-items: center; justify-content: center; color: rgba(212, 165, 116, 0.5); }
+
+.queue-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.queue-item { display: flex; align-items: center; gap: 12px; padding: 4px; border-radius: 10px; transition: background 0.15s ease; }
+.queue-item:hover { background: rgba(212, 165, 116, 0.06); }
+.queue-item-play { position: relative; flex: 0 0 auto; padding: 0; border: none; background: none; cursor: pointer; border-radius: 7px; line-height: 0; }
+.queue-item-playicon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    color: #f2e8d8;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+.queue-item:hover .queue-item-playicon { opacity: 1; }
+.queue-item-info { min-width: 0; flex: 1; cursor: pointer; }
+.queue-item-title { font-size: 0.9rem; color: #f2e8d8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-item-artist { font-size: 0.76rem; color: rgba(212, 165, 116, 0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-item-remove {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: none;
+    color: rgba(212, 165, 116, 0.4);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 50%;
+}
+.queue-item-remove:hover { color: #f2e8d8; background: rgba(200, 60, 60, 0.35); }
+.queue-empty { color: rgba(212, 165, 116, 0.6); text-align: center; padding: 26px 14px; font-size: 0.88rem; line-height: 1.5; }
+
+.app-flash-toast { border-color: rgba(212, 165, 116, 0.4); color: #f2e8d8; }
+
 /* Records Display */
 .records-display {
     display: flex;
@@ -8664,6 +8765,17 @@ html[data-theme="greenroom"] {
     background: linear-gradient(180deg, rgba(var(--th-accent-rgb), 0.2), rgba(var(--th-accent-rgb), 0.09));
     color: var(--th-cream);
 }
+[data-theme] .queue-count-badge { background: linear-gradient(180deg, var(--th-accent-hi), var(--th-accent)); color: var(--th-ink); }
+[data-theme] .send-menu-qicon { color: rgba(var(--th-accent-rgb), 0.8); }
+[data-theme] .queue-section-label { color: rgba(var(--th-accent-rgb), 0.7); }
+[data-theme] .queue-clear-btn { border-color: rgba(var(--th-accent-rgb), 0.28); color: rgba(var(--th-accent-rgb), 0.8); }
+[data-theme] .queue-now { background: linear-gradient(180deg, rgba(var(--th-accent-rgb), 0.1), rgba(var(--th-accent-rgb), 0.04)); border-color: rgba(var(--th-accent-rgb), 0.16); }
+[data-theme] .queue-item:hover { background: rgba(var(--th-accent-rgb), 0.06); }
+[data-theme] .queue-item-title { color: var(--th-cream); }
+[data-theme] .queue-item-artist,
+[data-theme] .queue-cover-empty { color: rgba(var(--th-accent-rgb), 0.6); }
+[data-theme] .queue-empty { color: rgba(var(--th-accent-rgb), 0.6); }
+[data-theme] .app-flash-toast { border-color: rgba(var(--th-accent-rgb), 0.4); color: var(--th-cream); }
 [data-theme] .song-fav-btn { color: rgba(var(--th-accent-rgb), 0.38); }
 [data-theme] .song-fav-btn:hover { color: rgba(var(--th-accent-rgb), 0.85); }
 [data-theme] .song-fav-btn.is-fav { color: var(--th-accent-hi); }

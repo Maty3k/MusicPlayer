@@ -206,9 +206,13 @@ async function animateRecordChange(newSong) {
 }
 
 let songHistory = [];
+let playQueue = []; // Up-next queue: song objects the user explicitly queued.
 
 function nextSong() {
-    if (isChangingSong || songsData.length === 0) return;
+    if (isChangingSong) return;
+    // The queue always wins over the normal playlist/shuffle progression.
+    if (playQueue.length > 0) { advanceFromQueue(); return; }
+    if (songsData.length === 0) return;
 
     // Smart shuffle: alternate between playlist and radio
     if (shuffleMode === 'smart' && smartShuffleNextIsRadio && radioPool.length > 0) {
@@ -1197,6 +1201,8 @@ function renderDiscoverSection() {
 function playNextByLoop() {
     // Sleep timer set to "end of track" — stop here instead of auto-advancing.
     if (sleepEndOfTrack) { fireSleep(true); return; }
+    // The queue plays before returning to the playlist/loop progression.
+    if (playQueue.length > 0) { advanceFromQueue(); return; }
     if (loopMode === 'single') {
         // Replay current song (even if it's a radio song)
         if (ytPlayer && ytPlayer.seekTo) {
@@ -1398,6 +1404,167 @@ function setSettingsTab(tab) {
         b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelectorAll('#settingsModal .settings-panel').forEach(p =>
         p.classList.toggle('active', p.dataset.panel === tab));
+}
+
+
+// ============================================================
+// UP-NEXT QUEUE — songs the user queues jump ahead of the playlist
+// ============================================================
+
+function songToQueueItem(song) {
+    return {
+        title: song.title || '',
+        artist: song.artist || '',
+        album: song.album || '',
+        cover: song.cover || '',
+        youtube_id: song.youtube_id || '',
+        mp3_url: song.mp3_url || '',
+        spotify_id: song.spotify_id || '',
+    };
+}
+
+// Add the playlist song at `index` to the end of the queue.
+function queueAdd(index) {
+    const song = songsData[index];
+    if (!song) return;
+    playQueue.push(songToQueueItem(song));
+    afterQueueChange();
+    showToast('Added to queue');
+    closeSendMenu();
+}
+
+// Insert the playlist song at `index` at the front of the queue.
+function queuePlayNext(index) {
+    const song = songsData[index];
+    if (!song) return;
+    playQueue.unshift(songToQueueItem(song));
+    afterQueueChange();
+    showToast('Playing next');
+    closeSendMenu();
+}
+
+// Shared advance: log history, pop the head, play it (from nextSong /
+// playNextByLoop when the queue is non-empty).
+function advanceFromQueue() {
+    songHistory.push(currentRadioSong ? { type: 'radio', song: currentRadioSong } : currentSongIndex);
+    const q = playQueue.shift();
+    afterQueueChange();
+    playFromQueue(q);
+}
+
+// Play a queued song now. Reuses the one-off radio path, which leaves the
+// playlist's currentSongIndex untouched so it resumes once the queue drains.
+function playFromQueue(song) {
+    if (song) playRadioSong(song);
+}
+
+function afterQueueChange() {
+    updateQueueBadge();
+    renderQueue();
+}
+
+function updateQueueBadge() {
+    const badge = document.getElementById('queueCountBadge');
+    if (!badge) return;
+    badge.textContent = playQueue.length;
+    badge.style.display = playQueue.length > 0 ? '' : 'none';
+}
+
+function openQueueModal() {
+    const modal = document.getElementById('queueModal');
+    if (!modal) return;
+    renderQueue();
+    modal.classList.add('active');
+}
+
+function hideQueueModal() {
+    const modal = document.getElementById('queueModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function clearQueue() {
+    playQueue = [];
+    afterQueueChange();
+}
+
+function removeFromQueue(i) {
+    if (i >= 0 && i < playQueue.length) {
+        playQueue.splice(i, 1);
+        afterQueueChange();
+    }
+}
+
+// Tap a queued song to jump to it now — drops the ones before it.
+function playQueueItem(i) {
+    if (i < 0 || i >= playQueue.length) return;
+    const item = playQueue[i];
+    playQueue.splice(0, i + 1);
+    afterQueueChange();
+    playFromQueue(item);
+}
+
+function queueCoverHtml(song, cls) {
+    const cover = safeUrl(song.cover);
+    return cover
+        ? `<img class="${cls}" src="${escapeHtml(cover)}" alt="" loading="lazy">`
+        : `<div class="${cls} queue-cover-empty"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg></div>`;
+}
+
+function renderQueue() {
+    const body = document.getElementById('queueBody');
+    if (!body) return;
+    const nowSong = currentRadioSong || (Array.isArray(songsData) ? songsData[currentSongIndex] : null);
+    const nowHtml = nowSong ? `
+        <div class="queue-section-label">Now playing</div>
+        <div class="queue-now">
+            ${queueCoverHtml(nowSong, 'queue-now-cover')}
+            <div class="queue-item-info">
+                <div class="queue-item-title">${escapeHtml(nowSong.title || '')}</div>
+                <div class="queue-item-artist">${escapeHtml(nowSong.artist || '')}</div>
+            </div>
+        </div>` : '';
+
+    let listHtml;
+    if (playQueue.length === 0) {
+        listHtml = `<div class="queue-empty">Nothing queued yet. Open any song's menu and choose “Play next” or “Add to queue.”</div>`;
+    } else {
+        listHtml = `
+            <div class="queue-section-head">
+                <span class="queue-section-label">Up next · ${playQueue.length}</span>
+                <button type="button" class="queue-clear-btn" onclick="clearQueue()">Clear</button>
+            </div>
+            <ol class="queue-list">
+                ${playQueue.map((s, i) => `
+                    <li class="queue-item">
+                        <button type="button" class="queue-item-play" onclick="playQueueItem(${i})" title="Play now">
+                            ${queueCoverHtml(s, 'queue-item-cover')}
+                            <span class="queue-item-playicon"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></span>
+                        </button>
+                        <div class="queue-item-info" onclick="playQueueItem(${i})">
+                            <div class="queue-item-title">${escapeHtml(s.title || '')}</div>
+                            <div class="queue-item-artist">${escapeHtml(s.artist || '')}</div>
+                        </div>
+                        <button type="button" class="queue-item-remove" onclick="removeFromQueue(${i})" title="Remove" aria-label="Remove">&times;</button>
+                    </li>`).join('')}
+            </ol>`;
+    }
+    body.innerHTML = nowHtml + listHtml;
+}
+
+// Lightweight client toast (reuses the .app-flash styling).
+let toastTimer = null;
+function showToast(msg) {
+    let t = document.getElementById('clientToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'clientToast';
+        t.className = 'app-flash app-flash-toast';
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.display = '';
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { if (t) t.style.display = 'none'; }, 2200);
 }
 
 // YouTube IFrame API
@@ -3307,6 +3474,14 @@ function showSendMenu(btn, songIndex) {
             </div>`;
         }
     }
+
+    html += `<div class="send-menu-item" onclick="event.stopPropagation(); queuePlayNext(${songIndex})" style="cursor:pointer">
+        <span class="send-menu-qicon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/><path d="M21 18h-6"/></svg></span>
+        <span class="send-menu-name">Play next</span></div>`;
+    html += `<div class="send-menu-item" onclick="event.stopPropagation(); queueAdd(${songIndex})" style="cursor:pointer">
+        <span class="send-menu-qicon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M4 12h12M4 18h8"/><path d="M18 15v6M15 18h6"/></svg></span>
+        <span class="send-menu-name">Add to queue</span></div>`;
+    html += '<div class="send-menu-divider"></div>';
 
     html += '<div class="send-menu-title">Send to...</div>';
     for (const [id, meta] of Object.entries(playlistsMeta)) {

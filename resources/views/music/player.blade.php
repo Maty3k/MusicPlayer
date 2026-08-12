@@ -513,6 +513,10 @@
             <div class="sidebar-header-area">
                 <div class="sidebar-header-row">
                     <div class="music-sidebar-title" id="playlistTitle">{{ $activePlaylist['name'] ?? 'My Records' }}</div>
+                    <button class="add-song-btn queue-btn" onclick="openQueueModal()" title="Up next queue">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/><path d="M21 18h-6"/></svg>
+                        <span class="queue-count-badge" id="queueCountBadge" style="display:none">0</span>
+                    </button>
                     <button class="add-song-btn settings-gear-btn" onclick="showSettingsModal()" title="Settings &amp; Spotify"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg></button>
                         <button class="scan-songs-btn" onclick="showScanModal()" title="Scan for songs">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
@@ -1060,6 +1064,19 @@
                 <input type="search" id="librarySearchInput" placeholder="Search your whole library" autocomplete="off" oninput="runLibrarySearch()">
             </div>
             <div id="searchResults" class="search-results"></div>
+        </div>
+    </div>
+
+    {{-- Up-next queue — filled + opened by openQueueModal() --}}
+    <div class="add-song-modal" id="queueModal">
+        <div class="add-song-modal-backdrop" onclick="hideQueueModal()"></div>
+        <div class="add-song-modal-panel queue-panel">
+            <button class="add-song-modal-close" onclick="hideQueueModal()">&times;</button>
+            <div class="add-song-modal-header">
+                <div class="add-song-modal-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/><path d="M21 18h-6"/></svg></div>
+                <h2 class="add-song-modal-title">Up next</h2>
+            </div>
+            <div id="queueBody"></div>
         </div>
     </div>
 
