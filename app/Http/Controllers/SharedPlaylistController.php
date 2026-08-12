@@ -35,7 +35,10 @@ class SharedPlaylistController extends Controller
             'token' => $token,
             'songs' => $songs,
             'count' => count($songs),
-            'authed' => $request->user() !== null,
+            // Only show the "Add" button to a viewer who can actually add — the
+            // add route is behind 'verified', so an unverified user's click
+            // would bounce to the verify-email page instead of copying.
+            'authed' => $request->user()?->hasVerifiedEmail() ?? false,
         ]);
     }
 
@@ -60,13 +63,18 @@ class SharedPlaylistController extends Controller
         ]);
 
         foreach ($source->songs->take(self::MAX_COPY)->values() as $i => $s) {
+            // Cross-user trust boundary: accept only a canonical 11-char
+            // youtube_id (same guard addBatch uses) so a crafted id from the
+            // sharer can't reach the copier's player.
+            $yt = (string) $s->youtube_id;
+            $yt = preg_match('/^[A-Za-z0-9_-]{11}$/', $yt) ? $yt : '';
             $new->songs()->create([
                 'position' => $i,
                 'title' => (string) $s->title,
                 'artist' => (string) $s->artist,
                 'album' => (string) $s->album,
                 'cover' => $this->publicCover($s->cover),
-                'youtube_id' => (string) $s->youtube_id,
+                'youtube_id' => $yt,
                 'mp3_url' => '', // never copy the owner's private uploaded audio
                 'spotify_id' => (string) $s->spotify_id,
             ]);

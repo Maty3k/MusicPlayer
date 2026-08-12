@@ -118,6 +118,21 @@ class SharePlaylistTest extends TestCase
         $this->assertSame('', (string) $song->mp3_url);
     }
 
+    public function test_add_shows_a_success_flash_on_the_player(): void
+    {
+        $owner = $this->user();
+        $pl = $this->playlist($owner, [['title' => 'Keeper']]);
+        $pl->update(['share_token' => 'flashtok']);
+
+        $me = $this->user();
+        $this->actingAs($me)
+            ->followingRedirects()
+            ->post('/s/flashtok/add')
+            ->assertOk()
+            ->assertSee('app-flash', false)
+            ->assertSee('to your library', false);
+    }
+
     public function test_adding_requires_authentication(): void
     {
         $owner = $this->user();
@@ -126,6 +141,38 @@ class SharePlaylistTest extends TestCase
         $pl->update(['share_token' => 'guestaddtoken']);
 
         $this->post('/s/guestaddtoken/add')->assertRedirect('/login');
+    }
+
+    public function test_add_blanks_a_crafted_youtube_id(): void
+    {
+        $owner = $this->user();
+        $pl = $this->playlist($owner, [['title' => 'Bad', 'youtube_id' => '"><script>']]);
+        $pl->update(['share_token' => 'craftedtok']);
+
+        $me = $this->user();
+        $this->actingAs($me)->post('/s/craftedtok/add')->assertRedirect('/');
+
+        $copied = $me->playlists()->where('name', 'Road Trip')->firstOrFail();
+        $this->assertSame('', (string) $copied->songs()->firstOrFail()->youtube_id);
+    }
+
+    public function test_unverified_user_sees_login_cta_not_add_button(): void
+    {
+        $owner = $this->user();
+        $pl = $this->playlist($owner);
+        $pl->update(['share_token' => 'unverifiedtok']);
+
+        $unverified = User::forceCreate([
+            'name' => 'Unverified',
+            'email' => uniqid().'@example.com',
+            'password' => bcrypt('secret-password'),
+            'email_verified_at' => null,
+        ]);
+
+        $this->actingAs($unverified)->get('/s/unverifiedtok')
+            ->assertOk()
+            ->assertSee('Log in to save this playlist')
+            ->assertDontSee('Add to my library');
     }
 
     public function test_cannot_share_another_users_playlist(): void

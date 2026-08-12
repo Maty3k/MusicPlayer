@@ -93,4 +93,37 @@ class FavoritesTest extends TestCase
         $this->postJson('/save-music', ['action' => 'favorite', 'song' => ['title' => 'x']])
             ->assertRedirect();
     }
+
+    public function test_favorite_key_uses_the_verbatim_youtube_id(): void
+    {
+        $user = $this->user();
+        // A non-canonical id (as addSong stores verbatim) must key as yt:<id>,
+        // not tt:..., or the heart desyncs against the source row on reload.
+        $this->toggle($user, ['title' => 'Weird', 'artist' => 'X', 'youtube_id' => 'shortid'])
+            ->assertJson(['favorited' => true]);
+
+        $keys = $this->actingAs($user)
+            ->postJson('/save-music', ['action' => 'getAll'])
+            ->json('favoriteKeys');
+
+        $this->assertContains('yt:shortid', $keys);
+    }
+
+    public function test_unfavorite_shifts_current_index_for_an_earlier_removal(): void
+    {
+        $user = $this->user();
+        $fav = $user->playlists()->create([
+            'slug' => 'favorites', 'name' => 'Favorites', 'color' => '#d4a574',
+            'current_index' => 3, 'source' => 'user', 'position' => 0,
+        ]);
+        foreach (['A', 'B', 'C', 'D'] as $i => $t) {
+            $fav->songs()->create(['position' => $i, 'title' => $t, 'youtube_id' => str_pad((string) $i, 11, 'x')]);
+        }
+
+        // Un-favorite A (index 0), before the current index (3).
+        $this->toggle($user, ['title' => 'A', 'youtube_id' => str_pad('0', 11, 'x')])
+            ->assertJson(['favorited' => false]);
+
+        $this->assertSame(2, (int) $fav->fresh()->current_index);
+    }
 }

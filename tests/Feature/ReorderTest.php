@@ -56,6 +56,18 @@ class ReorderTest extends TestCase
         $this->assertSame(2, (int) $pl->fresh()->current_index);
     }
 
+    public function test_reorder_follows_the_pinned_cover(): void
+    {
+        $user = $this->user();
+        $pl = $this->playlist($user, ['A', 'B', 'C']);
+        $pl->update(['cover_song_index' => 2]); // pin C
+
+        // New order C, A, B — C moves from index 2 to index 0.
+        $this->reorder($user, [2, 0, 1])->assertJson(['success' => true]);
+
+        $this->assertSame(0, (int) $pl->fresh()->cover_song_index);
+    }
+
     public function test_rejects_a_non_permutation(): void
     {
         $user = $this->user();

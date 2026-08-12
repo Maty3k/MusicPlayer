@@ -500,11 +500,19 @@ class MusicController extends Controller
                 $song->update(['position' => $newPos]);
             }
         }
-        // Follow the currently-selected song to its new slot.
+        // Follow the currently-selected song AND the pinned cover to new slots
+        // (both are positional indexes into the reordered songs).
         $oldCur = (int) $playlist->current_index;
         $newCur = array_search($oldCur, $ints, true);
         if ($newCur !== false && $newCur !== $oldCur) {
             $playlist->update(['current_index' => $newCur]);
+        }
+        if ($playlist->cover_song_index !== null) {
+            $oldCover = (int) $playlist->cover_song_index;
+            $newCover = array_search($oldCover, $ints, true);
+            if ($newCover !== false && $newCover !== $oldCover) {
+                $playlist->update(['cover_song_index' => $newCover]);
+            }
         }
 
         return ['success' => true];
@@ -655,8 +663,10 @@ class MusicController extends Controller
 
         $title = mb_substr((string) $song['title'], 0, 300);
         $artist = mb_substr((string) ($song['artist'] ?? ''), 0, 300);
-        $yt = (string) ($song['youtube_id'] ?? '');
-        $yt = preg_match('/^[A-Za-z0-9_-]{11}$/', $yt) ? $yt : '';
+        // Match by the song's real youtube_id (verbatim, column-bounded), NOT an
+        // 11-char-only blank — the library stores ids verbatim, so blanking here
+        // would make the favorite's key diverge from the row's and desync the heart.
+        $yt = mb_substr((string) ($song['youtube_id'] ?? ''), 0, 20);
         $spotify = mb_substr((string) ($song['spotify_id'] ?? ''), 0, 40);
         $mp3 = $this->sanitizeUrl($song['mp3_url'] ?? '');
         $key = Song::keyFor($yt, $spotify, $mp3, $title, $artist);
@@ -667,12 +677,24 @@ class MusicController extends Controller
         if ($fav !== null) {
             foreach ($fav->songs as $existing) {
                 if ($existing->frontendKey() === $key) {
+                    $removedPos = (int) $existing->position;
+                    $uploads = [$existing->mp3_url, $existing->cover];
                     $existing->delete();
+                    $this->deleteOrphanedUploads($user, $uploads);
                     $this->reindexSongs($fav);
-                    $count = $fav->songs()->count();
-                    if ((int) $fav->current_index >= $count) {
-                        $fav->update(['current_index' => max(0, $count - 1)]);
+
+                    // Same current_index adjustment deleteSong makes: shift down
+                    // when a song before the current one is removed, else clamp.
+                    $total = $fav->songs()->count();
+                    $cur = (int) $fav->current_index;
+                    if ($total === 0) {
+                        $newIndex = 0;
+                    } elseif ($removedPos < $cur || $cur >= $total) {
+                        $newIndex = max(0, $cur - 1);
+                    } else {
+                        $newIndex = $cur;
                     }
+                    $fav->update(['current_index' => $newIndex]);
 
                     return ['success' => true, 'favorited' => false, 'key' => $key];
                 }
@@ -732,10 +754,14 @@ class MusicController extends Controller
             return ['success' => true, 'results' => []];
         }
         // Escape LIKE wildcards so a literal % or _ in the query matches itself.
+        // An explicit ESCAPE clause is required — SQLite has no default escape
+        // char, so the backslashes would otherwise be matched literally.
         $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $q).'%';
 
         $songs = Song::whereIn('playlist_id', $user->playlists()->select('id'))
-            ->where(fn ($query) => $query->where('title', 'like', $like)->orWhere('artist', 'like', $like))
+            ->where(fn ($query) => $query
+                ->whereRaw('title LIKE ? ESCAPE ?', [$like, '\\'])
+                ->orWhereRaw('artist LIKE ? ESCAPE ?', [$like, '\\']))
             ->with('playlist:id,slug,name,color')
             ->orderBy('title')
             ->limit(40)
@@ -802,12 +828,18 @@ class MusicController extends Controller
             $playlists[$playlist->slug] = $playlist->toFrontend();
         }
 
+        // Derive favorite keys from the already-loaded collection (no extra queries).
+        $favPlaylist = $user->playlists->firstWhere('slug', self::FAVORITES_SLUG);
+        $favoriteKeys = $favPlaylist
+            ? $favPlaylist->songs->map(fn (Song $s) => $s->frontendKey())->unique()->values()->all()
+            : [];
+
         return [
             'success' => true,
             'activePlaylist' => $this->activeSlug($user),
             'recentlyPlayed' => $user->recently_played ?? [],
             'recentSongs' => $user->recentSongs(),
-            'favoriteKeys' => $this->favoriteKeys($user),
+            'favoriteKeys' => $favoriteKeys,
             'playlists' => $playlists,
         ];
     }

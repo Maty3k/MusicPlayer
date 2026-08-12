@@ -90,4 +90,15 @@ class LibrarySearchTest extends TestCase
         $this->postJson('/save-music', ['action' => 'searchLibrary', 'q' => 'test'])
             ->assertRedirect();
     }
+
+    public function test_matches_a_literal_percent(): void
+    {
+        $user = $this->user();
+        $this->playlistWithSongs($user, 'p', 'P', [['50% Off', 'X'], ['Full Price', 'Y']]);
+
+        // Without a working ESCAPE clause, % would act as a wildcard and match both.
+        $results = $this->search($user, '50%')->json('results');
+        $this->assertCount(1, $results);
+        $this->assertSame('50% Off', $results[0]['title']);
+    }
 }

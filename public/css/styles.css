@@ -1040,6 +1040,28 @@ body {
     text-overflow: ellipsis;
 }
 
+/* ---- App flash toast (e.g. "Added to your library") ---- */
+.app-flash {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    max-width: 90vw;
+    padding: 12px 20px;
+    border-radius: 12px;
+    background: rgba(24, 19, 14, 0.97);
+    border: 1px solid rgba(92, 186, 92, 0.4);
+    color: #cbe8cb;
+    font-size: 0.9rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    animation: appFlashIn 0.3s ease;
+}
+@keyframes appFlashIn {
+    from { opacity: 0; transform: translate(-50%, -10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
 /* ---- Share-a-playlist controls (playlist edit modal) ---- */
 .share-create-btn {
     width: 100%;

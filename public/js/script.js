@@ -3630,7 +3630,15 @@ async function playSearchResult(i) {
     if (!r) return;
     hideSearchModal();
     await selectPlaylistFromCrate(String(r.playlistSlug));
-    switchSong(parseInt(r.position, 10));
+    const position = parseInt(r.position, 10);
+    // selectPlaylistFromCrate only cues the song at the playlist's saved index;
+    // if that's the hit, start it explicitly (switchSong would early-return on
+    // its same-index guard and nothing would play).
+    if (position === currentSongIndex && !currentRadioSong) {
+        if (songsData[position]) playSongSource(songsData[position], false);
+    } else {
+        switchSong(position);
+    }
 }
 
 

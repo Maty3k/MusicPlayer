@@ -58,6 +58,10 @@
 
     <div id="music-section">
         <!-- Vinyl Collection Room -->
+        @if (session('status'))
+        <div class="app-flash" id="appFlash">{{ session('status') }}</div>
+        <script>setTimeout(function () { var f = document.getElementById('appFlash'); if (f) f.remove(); }, 4200);</script>
+        @endif
         <div class="vinyl-crate-view" id="vinylCrateView">
             <!-- Room Background -->
             <div class="room-bg">
