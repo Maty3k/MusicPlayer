@@ -1461,6 +1461,28 @@ function playFromQueue(song) {
 function afterQueueChange() {
     updateQueueBadge();
     renderQueue();
+    saveQueue();
+}
+
+const QUEUE_STORAGE_KEY = 'playQueue';
+
+function saveQueue() {
+    try { localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(playQueue)); } catch (e) { /* private mode / quota */ }
+}
+
+// Restore the queue from a previous session (device-local). Normalizes each
+// entry to the queue-item shape and caps the length defensively.
+function restoreQueue() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(QUEUE_STORAGE_KEY) || '[]');
+        if (Array.isArray(parsed)) {
+            playQueue = parsed
+                .filter(s => s && typeof s === 'object' && s.title)
+                .slice(0, 200)
+                .map(songToQueueItem);
+        }
+    } catch (e) { playQueue = []; }
+    updateQueueBadge();
 }
 
 function updateQueueBadge() {
@@ -2835,6 +2857,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rebuildSongList();
     }
     if (typeof updateRecentSongs === 'function') updateRecentSongs();
+    if (typeof restoreQueue === 'function') restoreQueue();
 });
 
 function updateTrackCount() {
