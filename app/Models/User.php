@@ -63,6 +63,12 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Play::class);
     }
 
+    /** Append-only play log behind time-ranged listening stats. */
+    public function playEvents(): HasMany
+    {
+        return $this->hasMany(PlayEvent::class);
+    }
+
     /**
      * Most-recently-played songs, newest first, in the frontend song shape —
      * ready for the homescreen "recently played" shelf and for replay.

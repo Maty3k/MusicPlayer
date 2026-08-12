@@ -3962,17 +3962,37 @@ async function playSearchResult(i) {
 
 const STATS_EMPTY_COVER = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>';
 
+let statsRange = (function () { try { return localStorage.getItem('statsRange') || 'all'; } catch (e) { return 'all'; } })();
+
 async function showStatsModal() {
     const modal = document.getElementById('statsModal');
-    const body = document.getElementById('statsBody');
-    if (!modal || !body) return;
-    body.innerHTML = '<div class="stats-loading">Loading…</div>';
+    if (!modal) return;
     modal.classList.add('active');
+    syncStatsRangeButtons();
+    fetchStats();
+}
+
+function setStatsRange(range) {
+    statsRange = range;
+    try { localStorage.setItem('statsRange', range); } catch (e) { /* private mode */ }
+    syncStatsRangeButtons();
+    fetchStats();
+}
+
+function syncStatsRangeButtons() {
+    document.querySelectorAll('#statsRange .settings-source-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.range === statsRange));
+}
+
+async function fetchStats() {
+    const body = document.getElementById('statsBody');
+    if (!body) return;
+    body.innerHTML = '<div class="stats-loading">Loading…</div>';
     try {
         const res = await fetch('/save-music', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'stats' })
+            body: JSON.stringify({ action: 'stats', range: statsRange })
         });
         const data = await res.json();
         renderStats(data && data.stats ? data.stats : null);
@@ -3990,9 +4010,12 @@ function renderStats(stats) {
     const body = document.getElementById('statsBody');
     if (!body) return;
     if (!stats || (!stats.distinctSongs && !stats.totalPlays)) {
+        const msg = statsRange === 'all'
+            ? 'Play some songs and your top tracks and artists will show up here.'
+            : 'No plays in this period yet — try a wider range.';
         body.innerHTML = `<div class="stats-empty">
             <div class="stats-empty-icon">${STATS_EMPTY_COVER}</div>
-            <p>Play some songs and your top tracks and artists will show up here.</p>
+            <p>${msg}</p>
         </div>`;
         return;
     }
@@ -4002,7 +4025,7 @@ function renderStats(stats) {
         <div class="stats-summary">
             <div class="stats-stat"><span class="stats-stat-num">${num(stats.totalPlays)}</span><span class="stats-stat-label">plays</span></div>
             <div class="stats-stat"><span class="stats-stat-num">${num(stats.distinctSongs)}</span><span class="stats-stat-label">songs</span></div>
-            <div class="stats-stat"><span class="stats-stat-num">${num(stats.thisWeek)}</span><span class="stats-stat-label">this week</span></div>
+            <div class="stats-stat"><span class="stats-stat-num">${num(stats.distinctArtists)}</span><span class="stats-stat-label">artists</span></div>
         </div>`;
 
     const songs = Array.isArray(stats.topSongs) ? stats.topSongs : [];

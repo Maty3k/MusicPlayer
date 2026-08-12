@@ -1089,6 +1089,12 @@
                 <div class="add-song-modal-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg></div>
                 <h2 class="add-song-modal-title">Your listening</h2>
             </div>
+            <div class="settings-source-options stats-range" id="statsRange">
+                <button type="button" class="settings-source-btn" data-range="week" onclick="setStatsRange('week')">Week</button>
+                <button type="button" class="settings-source-btn" data-range="month" onclick="setStatsRange('month')">Month</button>
+                <button type="button" class="settings-source-btn" data-range="year" onclick="setStatsRange('year')">Year</button>
+                <button type="button" class="settings-source-btn active" data-range="all" onclick="setStatsRange('all')">All time</button>
+            </div>
             <div id="statsBody"></div>
         </div>
     </div>

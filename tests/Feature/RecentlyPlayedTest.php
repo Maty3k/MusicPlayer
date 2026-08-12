@@ -171,11 +171,33 @@ class RecentlyPlayedTest extends TestCase
 
         $this->assertSame(6, $stats['totalPlays']);
         $this->assertSame(3, $stats['distinctSongs']);
-        $this->assertSame(3, $stats['thisWeek']);
+        $this->assertSame(2, $stats['distinctArtists']);
         $this->assertSame('A', $stats['topSongs'][0]['title']);
         $this->assertSame(3, $stats['topSongs'][0]['plays']);
         $this->assertSame('Alpha', $stats['topArtists'][0]['artist']);
         $this->assertSame(5, $stats['topArtists'][0]['plays']);
+    }
+
+    public function test_stats_scope_to_the_selected_time_range(): void
+    {
+        $user = $this->user();
+        // 2 plays this week, 1 more within the month, 1 within the year.
+        $user->playEvents()->create(['dedupe_key' => 'yt:aaaaaaaaaaa', 'title' => 'Recent', 'artist' => 'A', 'played_at' => now()->subDay()]);
+        $user->playEvents()->create(['dedupe_key' => 'yt:aaaaaaaaaaa', 'title' => 'Recent', 'artist' => 'A', 'played_at' => now()->subDays(2)]);
+        $user->playEvents()->create(['dedupe_key' => 'yt:bbbbbbbbbbb', 'title' => 'MidMonth', 'artist' => 'B', 'played_at' => now()->subDays(20)]);
+        $user->playEvents()->create(['dedupe_key' => 'yt:ccccccccccc', 'title' => 'Old', 'artist' => 'C', 'played_at' => now()->subMonths(8)]);
+
+        $range = fn (string $r) => $this->actingAs($user)
+            ->postJson('/save-music', ['action' => 'stats', 'range' => $r])->json('stats');
+
+        $this->assertSame(2, $range('week')['totalPlays']);
+        $this->assertSame(1, $range('week')['distinctSongs']);
+        $this->assertSame(3, $range('month')['totalPlays']);
+        $this->assertSame(2, $range('month')['distinctSongs']);
+        $this->assertSame(4, $range('year')['totalPlays']);
+        $this->assertSame(4, $range('all')['totalPlays']);
+        // An unknown range falls back to all-time.
+        $this->assertSame(4, $range('bogus')['totalPlays']);
     }
 
     public function test_stats_are_scoped_per_user(): void

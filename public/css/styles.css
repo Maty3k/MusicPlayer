@@ -930,7 +930,8 @@ body {
 
 /* ---- Listening stats modal ---- */
 .stats-panel { max-width: 460px; }
-#statsBody { max-height: 62vh; overflow-y: auto; padding-right: 2px; }
+.stats-range { margin: 2px 0 18px; }
+#statsBody { max-height: 56vh; overflow-y: auto; padding-right: 2px; }
 
 .stats-loading,
 .stats-empty {
