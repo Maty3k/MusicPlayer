@@ -600,6 +600,7 @@ class MusicController extends Controller
         $yt = preg_match('/^[A-Za-z0-9_-]{11}$/', $yt) ? $yt : '';
         $spotify = mb_substr((string) ($song['spotify_id'] ?? ''), 0, 40);
         $mp3 = $this->sanitizeUrl($song['mp3_url'] ?? '');
+        $cover = $this->sanitizeUrl($song['cover'] ?? '');
         $key = $this->playKey($yt, $spotify, $mp3, $title, $artist);
 
         // Delete-then-insert (not updateOrCreate) so a replay gets a fresh row
@@ -614,7 +615,7 @@ class MusicController extends Controller
             'title' => $title,
             'artist' => $artist,
             'album' => $album,
-            'cover' => $this->sanitizeUrl($song['cover'] ?? ''),
+            'cover' => $cover,
             'youtube_id' => $yt,
             'mp3_url' => $mp3,
             'spotify_id' => $spotify,
@@ -622,18 +623,22 @@ class MusicController extends Controller
             'play_count' => $playCount,
         ]);
 
-        // Append to the play-events log too (powers time-ranged stats).
+        // Append to the play-events log too (powers windowed stats).
         $user->playEvents()->create([
             'dedupe_key' => $key,
             'title' => $title,
             'artist' => $artist,
-            'cover' => $this->sanitizeUrl($song['cover'] ?? ''),
+            'cover' => $cover,
             'played_at' => now(),
         ]);
-        // Keep the log bounded — drop everything older than the newest N events.
-        $cutoffId = $user->playEvents()->orderByDesc('id')->skip(self::MAX_PLAY_EVENTS)->limit(1)->value('id');
-        if ($cutoffId !== null) {
-            $user->playEvents()->where('id', '<=', $cutoffId)->delete();
+        // Keep the log bounded — but only check occasionally: the offset lookup
+        // is too costly to run on every play when pruning is needed at most
+        // once per MAX_PLAY_EVENTS plays.
+        if (random_int(1, 100) === 1) {
+            $cutoffId = $user->playEvents()->orderByDesc('id')->skip(self::MAX_PLAY_EVENTS)->limit(1)->value('id');
+            if ($cutoffId !== null) {
+                $user->playEvents()->where('id', '<=', $cutoffId)->delete();
+            }
         }
 
         return ['success' => true];
@@ -798,10 +803,10 @@ class MusicController extends Controller
     }
 
     /**
-     * Listening stats for the profile panel, scoped to a time window
-     * (week/month/year/all) — computed from the play-events log so each play
-     * counts within its window, not by lifetime totals. Top songs/artists,
-     * plus play/song/artist counts.
+     * Listening stats for the profile panel. "All time" reads the persisted
+     * plays table (backfilled, uncapped lifetime counts); week/month/year read
+     * the play-events log so each play counts within its window. Either way:
+     * top songs, top artists, and play/song/artist counts.
      */
     private function stats(Request $request, User $user): array
     {
@@ -809,35 +814,37 @@ class MusicController extends Controller
         if (! in_array($range, ['week', 'month', 'year', 'all'], true)) {
             $range = 'all';
         }
-        $start = match ($range) {
-            'week' => now()->subWeek(),
-            'month' => now()->subMonth(),
-            'year' => now()->subYear(),
-            default => null,
-        };
 
-        // Fresh, window-scoped query builder for each aggregate.
-        $scoped = fn () => $start === null
-            ? $user->playEvents()
-            : $user->playEvents()->where('played_at', '>=', $start);
+        $data = $range === 'all'
+            ? $this->allTimeStats($user)
+            : $this->windowStats($user, $range);
 
-        $topSongs = $scoped()
-            ->selectRaw('dedupe_key, MAX(title) as title, MAX(artist) as artist, MAX(cover) as cover, COUNT(*) as plays')
-            ->groupBy('dedupe_key')
-            ->orderByDesc('plays')
+        return ['success' => true, 'range' => $range] + ['stats' => $data];
+    }
+
+    /** All-time stats from the plays table (lifetime play_count, uncapped). */
+    private function allTimeStats(User $user): array
+    {
+        $counts = $user->plays()
+            ->selectRaw("COALESCE(SUM(play_count), 0) as total, COUNT(*) as songs, COUNT(DISTINCT CASE WHEN artist <> '' THEN artist END) as artists")
+            ->first();
+
+        $topSongs = $user->plays()
+            ->orderByDesc('play_count')
+            ->orderByDesc('played_at')
             ->limit(8)
             ->get()
-            ->map(fn ($r) => [
-                'title' => (string) $r->title,
-                'artist' => (string) $r->artist,
-                'cover' => (string) ($r->cover ?? ''),
-                'plays' => (int) $r->plays,
+            ->map(fn ($p) => [
+                'title' => (string) $p->title,
+                'artist' => (string) ($p->artist ?? ''),
+                'cover' => (string) ($p->cover ?? ''),
+                'plays' => (int) $p->play_count,
             ])
             ->all();
 
-        $topArtists = $scoped()
+        $topArtists = $user->plays()
             ->where('artist', '!=', '')
-            ->selectRaw('artist, COUNT(*) as plays')
+            ->selectRaw('artist, SUM(play_count) as plays')
             ->groupBy('artist')
             ->orderByDesc('plays')
             ->limit(6)
@@ -846,15 +853,71 @@ class MusicController extends Controller
             ->all();
 
         return [
-            'success' => true,
-            'range' => $range,
-            'stats' => [
-                'totalPlays' => $scoped()->count(),
-                'distinctSongs' => $scoped()->distinct()->count('dedupe_key'),
-                'distinctArtists' => $scoped()->where('artist', '!=', '')->distinct()->count('artist'),
-                'topSongs' => $topSongs,
-                'topArtists' => $topArtists,
-            ],
+            'totalPlays' => (int) ($counts->total ?? 0),
+            'distinctSongs' => (int) ($counts->songs ?? 0),
+            'distinctArtists' => (int) ($counts->artists ?? 0),
+            'topSongs' => $topSongs,
+            'topArtists' => $topArtists,
+        ];
+    }
+
+    /** Windowed stats (week/month/year) from the play-events log. */
+    private function windowStats(User $user, string $range): array
+    {
+        // NoOverflow so month-end/leap-day don't shift the window forward.
+        $start = match ($range) {
+            'week' => now()->subWeek(),
+            'month' => now()->subMonthNoOverflow(),
+            default => now()->subYearNoOverflow(),
+        };
+        $scoped = fn () => $user->playEvents()->where('played_at', '>=', $start);
+
+        $counts = $scoped()
+            ->selectRaw("COUNT(*) as total, COUNT(DISTINCT dedupe_key) as songs, COUNT(DISTINCT CASE WHEN artist <> '' THEN artist END) as artists")
+            ->first();
+
+        $songRows = $scoped()
+            ->selectRaw('dedupe_key, COUNT(*) as plays, MAX(played_at) as last_played')
+            ->groupBy('dedupe_key')
+            ->orderByDesc('plays')
+            ->orderByDesc('last_played')
+            ->limit(8)
+            ->get();
+
+        // Enrich display fields from the plays snapshot (latest cover/title),
+        // so a per-event MAX(cover) can't surface a stale/wrong thumbnail.
+        $snap = $user->plays()
+            ->whereIn('dedupe_key', $songRows->pluck('dedupe_key')->all())
+            ->get()
+            ->keyBy('dedupe_key');
+        $topSongs = $songRows->map(function ($r) use ($snap) {
+            $p = $snap->get($r->dedupe_key);
+
+            return [
+                'title' => (string) ($p->title ?? ''),
+                'artist' => (string) ($p->artist ?? ''),
+                'cover' => (string) ($p->cover ?? ''),
+                'plays' => (int) $r->plays,
+            ];
+        })->all();
+
+        $topArtists = $scoped()
+            ->where('artist', '!=', '')
+            ->selectRaw('artist, COUNT(*) as plays, MAX(played_at) as last_played')
+            ->groupBy('artist')
+            ->orderByDesc('plays')
+            ->orderByDesc('last_played')
+            ->limit(6)
+            ->get()
+            ->map(fn ($r) => ['artist' => (string) $r->artist, 'plays' => (int) $r->plays])
+            ->all();
+
+        return [
+            'totalPlays' => (int) ($counts->total ?? 0),
+            'distinctSongs' => (int) ($counts->songs ?? 0),
+            'distinctArtists' => (int) ($counts->artists ?? 0),
+            'topSongs' => $topSongs,
+            'topArtists' => $topArtists,
         ];
     }
 

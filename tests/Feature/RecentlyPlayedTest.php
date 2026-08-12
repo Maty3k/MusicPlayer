@@ -190,14 +190,40 @@ class RecentlyPlayedTest extends TestCase
         $range = fn (string $r) => $this->actingAs($user)
             ->postJson('/save-music', ['action' => 'stats', 'range' => $r])->json('stats');
 
+        // Windowed ranges read the event log.
         $this->assertSame(2, $range('week')['totalPlays']);
         $this->assertSame(1, $range('week')['distinctSongs']);
         $this->assertSame(3, $range('month')['totalPlays']);
         $this->assertSame(2, $range('month')['distinctSongs']);
         $this->assertSame(4, $range('year')['totalPlays']);
-        $this->assertSame(4, $range('all')['totalPlays']);
-        // An unknown range falls back to all-time.
-        $this->assertSame(4, $range('bogus')['totalPlays']);
+    }
+
+    public function test_all_time_stats_come_from_the_plays_table(): void
+    {
+        $user = $this->user();
+        // Simulate an existing user at deploy: a plays row exists but the
+        // event log is empty (no backfill) — all-time must still show it.
+        $user->plays()->create([
+            'dedupe_key' => 'yt:aaaaaaaaaaa', 'title' => 'Legacy', 'artist' => 'X',
+            'play_count' => 7, 'played_at' => now()->subYears(2),
+        ]);
+        $this->assertSame(0, $user->playEvents()->count());
+
+        $stats = $this->actingAs($user)
+            ->postJson('/save-music', ['action' => 'stats', 'range' => 'all'])
+            ->json('stats');
+
+        $this->assertSame(7, $stats['totalPlays']);
+        $this->assertSame(1, $stats['distinctSongs']);
+        $this->assertSame(1, $stats['distinctArtists']);
+        $this->assertSame('Legacy', $stats['topSongs'][0]['title']);
+        $this->assertSame(7, $stats['topSongs'][0]['plays']);
+
+        // An unknown range falls back to all-time (also from the plays table).
+        $bogus = $this->actingAs($user)
+            ->postJson('/save-music', ['action' => 'stats', 'range' => 'zzz'])
+            ->json('stats');
+        $this->assertSame(7, $bogus['totalPlays']);
     }
 
     public function test_stats_are_scoped_per_user(): void

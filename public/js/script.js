@@ -3984,10 +3984,12 @@ function syncStatsRangeButtons() {
         b.classList.toggle('active', b.dataset.range === statsRange));
 }
 
+let statsReqSeq = 0;
 async function fetchStats() {
     const body = document.getElementById('statsBody');
     if (!body) return;
     body.innerHTML = '<div class="stats-loading">Loading…</div>';
+    const seq = ++statsReqSeq;
     try {
         const res = await fetch('/save-music', {
             method: 'POST',
@@ -3995,9 +3997,10 @@ async function fetchStats() {
             body: JSON.stringify({ action: 'stats', range: statsRange })
         });
         const data = await res.json();
+        if (seq !== statsReqSeq) return; // superseded by a newer range switch
         renderStats(data && data.stats ? data.stats : null);
     } catch (e) {
-        body.innerHTML = '<div class="stats-empty">Couldn\'t load your stats. Try again.</div>';
+        if (seq === statsReqSeq) body.innerHTML = '<div class="stats-empty">Couldn\'t load your stats. Try again.</div>';
     }
 }
 
