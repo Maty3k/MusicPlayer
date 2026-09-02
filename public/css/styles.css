@@ -7881,16 +7881,23 @@ body.song-dragging .song-list-item { transition: none; }
    One column of type on the left, a record sliding off the right edge.
    ============================================================ */
 :root {
-    --ink: #0f0d0b;
-    --sleeve: #1b1714;
-    --cream: #f2e8d8;
-    --cream-60: rgba(242, 232, 216, 0.6);
-    --cream-40: rgba(242, 232, 216, 0.42);
-    --line: rgba(242, 232, 216, 0.12);
-    --amber: #d4a574;
-    --amber-hi: #e8c496;
+    /* Golden Hour defaults. A room theme (html[data-theme]) supplies the
+       --th-* values and these tokens follow it. */
+    --ink: var(--th-ink, #211a16);
+    --sleeve: var(--th-wall-b, #2f2721);
+    --surface-hi: var(--th-wall-a, #3b312a);
+    --cream: var(--th-cream, #fff5e9);
+    --cream-60: var(--m-cream-dim, rgba(255, 245, 233, 0.72));
+    --cream-40: rgba(255, 245, 233, 0.5);
+    --line: rgba(var(--th-accent-rgb, 255, 245, 233), 0.16);
+    --amber: var(--th-accent, #f2b45c);
+    --amber-hi: var(--th-accent-hi, #ffc873);
+    --amber-rgb: var(--th-accent-rgb, 242, 180, 92);
+    --on-amber: #241a0f;
     --display: 'Bricolage Grotesque', 'Inter', -apple-system, sans-serif;
 }
+
+body { background: var(--ink); }
 
 body.auth-page {
     background: var(--ink);
@@ -7978,7 +7985,7 @@ body.auth-page {
 .auth-btn-primary {
     background: var(--amber);
     border: 0;
-    color: #1a130c;
+    color: var(--on-amber);
 }
 
 .auth-btn-primary:hover { background: var(--amber-hi); }
@@ -8201,7 +8208,7 @@ body.auth-page {
 
 .auth-page .add-song-btn-save.auth-submit {
     background: var(--amber);
-    color: #1a130c;
+    color: var(--on-amber);
 }
 
 .auth-page .add-song-btn-save.auth-submit:hover { background: var(--amber-hi); }
@@ -8232,7 +8239,7 @@ body.auth-page {
     height: 900px;
     margin-top: -450px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(212, 165, 116, 0.13), transparent 62%);
+    background: radial-gradient(circle, rgba(var(--amber-rgb), 0.16), transparent 62%);
 }
 
 .auth-record-disc {
@@ -8269,7 +8276,7 @@ body.auth-page {
     border-radius: 50%;
     background: var(--amber);
     box-shadow: inset 0 0 0 1px rgba(26, 19, 12, 0.18), inset 0 0 0 10px rgba(26, 19, 12, 0.06);
-    color: #2a1d10;
+    color: var(--on-amber);
     font-family: var(--display);
 }
 
@@ -10920,7 +10927,7 @@ html[data-theme="greenroom"] {
    ============================================================ */
 #music-section {
     background:
-        radial-gradient(ellipse 70% 55% at 50% -10%, rgba(212, 165, 116, 0.1), transparent 70%),
+        radial-gradient(ellipse 70% 55% at 50% -10%, rgba(var(--amber-rgb), 0.2), transparent 70%),
         var(--ink);
 }
 
@@ -11072,7 +11079,7 @@ html[data-theme="greenroom"] {
 .add-song-btn-save {
     background: var(--amber);
     border-radius: 12px;
-    color: #1a130c;
+    color: var(--on-amber);
 }
 
 .add-song-btn-save:hover { background: var(--amber-hi); }
@@ -11083,7 +11090,7 @@ html[data-theme="greenroom"] {
 }
 
 .add-song-modal-panel {
-    background: #1b1714;
+    background: var(--sleeve);
     border-color: var(--line);
     border-radius: 20px;
 }
@@ -11104,7 +11111,7 @@ html[data-theme="greenroom"] {
 
 /* Stage */
 .music-main-backdrop img {
-    filter: blur(60px) saturate(1.6) brightness(0.35);
+    filter: blur(60px) saturate(1.8) brightness(0.55);
     opacity: 0.9;
     animation: none;
 }
@@ -11114,7 +11121,7 @@ html[data-theme="greenroom"] {
 
 /* Sidebar (also the phone's playlist screen) */
 .music-sidebar {
-    background: #12100e;
+    background: var(--ink);
     border-right: 1px solid var(--line);
 }
 
@@ -11241,7 +11248,7 @@ html[data-theme="greenroom"] {
     .record-player { filter: none; }
 
     .record-player-body {
-        background: #1d1916;
+        background: var(--sleeve);
         border-radius: 24px;
         box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(242, 232, 216, 0.08);
     }
@@ -11251,7 +11258,7 @@ html[data-theme="greenroom"] {
     .rubber-mat { display: none; }
 
     .record-player-platter {
-        background: #14110f;
+        background: color-mix(in srgb, var(--sleeve) 55%, #000);
         box-shadow: inset 0 0 0 1px rgba(242, 232, 216, 0.06), inset 0 10px 30px rgba(0, 0, 0, 0.5);
     }
 
@@ -11276,23 +11283,23 @@ html[data-theme="greenroom"] {
     }
 
     .tonearm-base {
-        background: #2a2521;
+        background: var(--surface-hi);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(242, 232, 216, 0.12);
         animation: none;
     }
 
     .tonearm-counterweight {
-        background: #3a342f;
+        background: color-mix(in srgb, var(--surface-hi) 85%, #fff);
         box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(242, 232, 216, 0.1);
     }
 
     .tonearm-rest {
-        background: #3a342f;
+        background: color-mix(in srgb, var(--surface-hi) 85%, #fff);
         box-shadow: none;
     }
 
     .record-player-led {
-        box-shadow: 0 0 0 1.5px #1d1916, 0 0 0 2.5px rgba(242, 232, 216, 0.12);
+        box-shadow: 0 0 0 1.5px var(--sleeve), 0 0 0 2.5px rgba(242, 232, 216, 0.12);
     }
 
     /* Control bay */
@@ -11341,13 +11348,13 @@ html[data-theme="greenroom"] {
     .rp-btn.rp-play {
         background: var(--amber);
         border-color: var(--amber);
-        color: #1a130c;
+        color: var(--on-amber);
     }
 
     .rp-btn.rp-play:hover {
         background: var(--amber-hi);
         border-color: var(--amber-hi);
-        color: #1a130c;
+        color: var(--on-amber);
     }
 
     .pitch-track {
@@ -11375,7 +11382,7 @@ html[data-theme="greenroom"] {
     }
 
     .volume-knob {
-        background: #2a2521;
+        background: var(--surface-hi);
         background-blend-mode: normal;
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(242, 232, 216, 0.12);
     }
@@ -11395,13 +11402,13 @@ html[data-theme="greenroom"] {
         height: 700px;
         margin-right: 16px;
         transform: none;
-        background: #1d1916;
+        background: var(--sleeve);
         border-right: 0;
         border-radius: 20px;
         box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(242, 232, 216, 0.08);
     }
 
-    .sleeve-art { background: #151210; }
+    .sleeve-art { background: color-mix(in srgb, var(--sleeve) 70%, #000); }
     .sleeve-lyrics { border-top-color: var(--line); }
 
     .lyrics-placeholder {
@@ -11441,3 +11448,355 @@ html[data-theme="greenroom"] {
     letter-spacing: 0;
     text-transform: none;
 }
+
+/* ============================================================
+   MODALS — settings, add music, and the rest of the sheet family
+   ============================================================ */
+.add-song-modal-backdrop {
+    background: rgba(18, 12, 8, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.add-song-modal-panel {
+    padding: 28px 28px 24px;
+    background: var(--sleeve);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55);
+}
+
+@media (min-width: 601px) {
+    .add-song-modal-panel { width: 520px; }
+    .settings-modal-panel { max-width: 520px; }
+}
+
+.add-song-modal-close {
+    top: 18px;
+    right: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    background: rgba(255, 245, 233, 0.06);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    color: var(--cream-60);
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.add-song-modal-close:hover {
+    background: rgba(255, 245, 233, 0.12);
+    color: var(--cream);
+}
+
+.add-song-modal-header {
+    gap: 0;
+    margin-bottom: 20px;
+}
+
+.add-song-modal-icon { display: none; }
+.add-song-modal-title { font-size: 1.5rem; }
+
+/* Settings */
+.settings-tabs {
+    margin: 0 0 6px;
+    padding: 4px;
+    background: rgba(255, 245, 233, 0.06);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+}
+
+.settings-tab {
+    padding: 10px 8px;
+    border-radius: 10px;
+    color: var(--cream-60);
+    font-weight: 500;
+}
+
+.settings-tab:hover { color: var(--cream); }
+
+.settings-tab.active {
+    background: rgba(255, 245, 233, 0.14);
+    color: var(--cream);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.settings-panel-scroll { max-height: 56vh; }
+
+.settings-panel .add-song-form-group {
+    margin: 0;
+    padding: 18px 0;
+    border-top: 1px solid var(--line);
+}
+
+.settings-panel .add-song-form-group:first-child {
+    padding-top: 12px;
+    border-top: 0;
+}
+
+.settings-panel .add-song-form-group > label:first-child {
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--cream);
+}
+
+.settings-hint {
+    font-size: 0.8rem;
+    color: var(--cream-40);
+}
+
+.settings-source-options {
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.settings-source-btn {
+    flex: 1 1 auto;
+    padding: 9px 12px;
+    background: rgba(255, 245, 233, 0.06);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--cream-60);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.settings-source-btn:hover {
+    background: rgba(255, 245, 233, 0.1);
+    color: var(--cream);
+}
+
+.settings-source-btn.active {
+    background: rgba(var(--amber-rgb), 0.18);
+    border-color: var(--amber);
+    color: var(--cream);
+}
+
+.settings-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    font-size: 0.92rem;
+    color: var(--cream);
+    cursor: pointer;
+}
+
+.settings-toggle-row + .settings-toggle-row { border-top: 1px solid var(--line); }
+
+.settings-switch {
+    width: 44px;
+    height: 26px;
+    background: rgba(255, 245, 233, 0.12);
+    border: 1px solid var(--line);
+    border-radius: 13px;
+}
+
+.settings-switch::after {
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: var(--cream);
+}
+
+.settings-toggle-row input:checked + .settings-switch {
+    background: var(--amber);
+    border-color: var(--amber);
+}
+
+.settings-toggle-row input:checked + .settings-switch::after {
+    transform: translateX(18px);
+    background: var(--on-amber);
+}
+
+.theme-swatch-row { gap: 10px; }
+
+.theme-swatch-btn {
+    padding: 10px 8px;
+    border-radius: 14px;
+    color: var(--cream-60);
+    font-size: 0.78rem;
+    letter-spacing: 0;
+}
+
+.theme-swatch-btn:hover { background: rgba(255, 245, 233, 0.06); }
+
+.theme-swatch-btn .theme-swatch {
+    width: 46px;
+    height: 46px;
+}
+
+.theme-swatch-btn.active {
+    background: rgba(255, 245, 233, 0.06);
+    color: var(--cream);
+}
+
+.settings-inline-form {
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.settings-password-details { margin-top: 12px; }
+
+.settings-password-details summary {
+    font-size: 0.88rem;
+    color: var(--amber);
+}
+
+.settings-logout-form { margin-top: 16px; }
+
+.spotify-connect-btn {
+    padding: 11px 18px;
+    background: #1db954;
+    border-radius: 12px;
+}
+
+.spotify-connected-actions { margin-top: 8px; }
+
+.add-song-modal-buttons {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+}
+
+.add-song-btn-cancel {
+    padding: 11px 18px;
+    background: rgba(255, 245, 233, 0.06);
+    border: 1px solid var(--line);
+    color: var(--cream);
+    font-weight: 500;
+}
+
+.add-song-btn-cancel:hover {
+    background: rgba(255, 245, 233, 0.1);
+    color: var(--cream);
+}
+
+.add-song-btn-save { padding: 11px 20px; }
+
+/* Add music: the search box is the whole point, so it leads */
+#addSongModal label[for="addSongSearch"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+#addSongSearch {
+    height: 54px;
+    padding-left: 46px;
+    font-size: 1rem;
+    background-color: rgba(255, 245, 233, 0.06);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff5e9' stroke-opacity='0.55' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 16px center;
+    background-size: 18px 18px;
+}
+
+.add-song-search-results {
+    gap: 2px;
+    max-height: 340px;
+    margin: 8px 0 4px;
+}
+
+.search-result-row {
+    padding: 8px 10px;
+    background: transparent;
+    border: 0;
+    border-radius: 12px;
+}
+
+.search-result-row:hover { background: rgba(255, 245, 233, 0.07); }
+
+.search-result-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+}
+
+.search-result-title {
+    font-size: 0.95rem;
+    color: var(--cream);
+}
+
+.search-result-artist {
+    font-size: 0.8rem;
+    color: var(--cream-40);
+}
+
+.search-result-play {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(255, 245, 233, 0.08);
+    color: var(--cream);
+}
+
+.search-result-row:hover .search-result-play {
+    background: var(--amber);
+    color: var(--on-amber);
+}
+
+.search-result-status {
+    font-style: normal;
+    color: var(--cream-40);
+}
+
+.bulk-import-btn {
+    margin: 14px 0 6px;
+    padding: 13px 14px;
+    background: rgba(255, 245, 233, 0.05);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--cream);
+    font-size: 0.9rem;
+}
+
+.bulk-import-btn:hover {
+    background: rgba(255, 245, 233, 0.09);
+    border-color: rgba(255, 245, 233, 0.28);
+    color: var(--cream);
+}
+
+.bulk-import-btn svg { color: var(--amber); }
+
+.add-song-manual {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top-color: var(--line);
+}
+
+.add-song-manual summary {
+    padding: 6px 0;
+    font-size: 0.88rem;
+    color: var(--amber);
+}
+
+.add-song-manual[open] summary { margin-bottom: 12px; }
+
+.upload-audio-btn {
+    background: rgba(255, 245, 233, 0.04);
+    border: 1px dashed rgba(255, 245, 233, 0.3);
+    border-radius: 12px;
+    color: var(--cream);
+}
+
+.wizard-step-chip {
+    font-size: 0.75rem;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.playlist-wizard-hint { color: var(--cream-60); }

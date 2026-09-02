@@ -815,7 +815,7 @@
             </p>
             <div class="add-song-form-group">
                 <label for="addSongSearch">Search</label>
-                <input type="text" id="addSongSearch" placeholder="Song or artist — or paste a YouTube link" autocomplete="off" oninput="onAddSearchInput()" onkeydown="onAddSearchKeydown(event)">
+                <input type="text" id="addSongSearch" placeholder="Search a song or artist, or paste a link" autocomplete="off" oninput="onAddSearchInput()" onkeydown="onAddSearchKeydown(event)">
             </div>
             <div class="add-song-search-results" id="addSongSearchResults"></div>
             {{-- Bulk import: paste a whole list or a Spotify playlist link
