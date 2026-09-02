@@ -12607,3 +12607,239 @@ html[data-theme="greenroom"] {
     border: 1px solid color-mix(in srgb, var(--pl-color, var(--amber)) 40%, transparent);
     border-radius: 999px;
 }
+
+/* ============================================================
+   SONG SCANNER + MEMBER WELCOME
+   ============================================================ */
+.scan-step-desc {
+    margin: 0 0 18px;
+    font-size: 0.9rem;
+    color: var(--cream-60);
+}
+
+.scan-folder-btn {
+    padding: 30px 20px;
+    background: rgba(255, 245, 233, 0.04);
+    border: 1px dashed rgba(255, 245, 233, 0.3);
+    border-radius: 16px;
+    color: var(--cream);
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.scan-folder-btn:hover {
+    background: rgba(var(--amber-rgb), 0.08);
+    border-color: var(--amber);
+    color: var(--cream);
+}
+
+.scan-folder-btn svg { color: var(--amber); }
+
+.scan-or-divider {
+    margin: 14px 0;
+    font-size: 0.8rem;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--cream-40);
+}
+
+.scan-files-btn,
+.scan-capture-btn {
+    background: rgba(255, 245, 233, 0.06);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--cream);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.scan-files-btn { padding: 13px; }
+
+.scan-capture-btn {
+    gap: 8px;
+    padding: 14px 12px;
+    font-size: 0.88rem;
+}
+
+.scan-files-btn:hover,
+.scan-capture-btn:hover {
+    background: rgba(255, 245, 233, 0.1);
+    border-color: rgba(255, 245, 233, 0.28);
+    color: var(--cream);
+}
+
+.scan-files-btn svg,
+.scan-capture-btn svg { color: var(--cream-60); }
+
+.scan-progress-label {
+    font-size: 0.95rem;
+    color: var(--cream);
+}
+
+.scan-progress-bar {
+    height: 6px;
+    background: rgba(255, 245, 233, 0.1);
+    border-radius: 3px;
+}
+
+.scan-progress-fill { background: var(--amber); }
+
+.scan-progress-detail {
+    font-size: 0.8rem;
+    color: var(--cream-40);
+}
+
+.scan-results-header { margin-bottom: 10px; }
+
+.scan-results-count {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cream);
+}
+
+.scan-select-all {
+    font-size: 0.85rem;
+    color: var(--cream-60);
+}
+
+.scan-select-all input,
+.scan-result-check input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--amber);
+}
+
+.scan-results-list {
+    gap: 2px;
+    max-height: 48vh;
+}
+
+.scan-result-item {
+    gap: 12px;
+    padding: 8px 10px;
+    background: transparent;
+    border: 0;
+    border-radius: 12px;
+}
+
+.scan-result-item:hover { background: rgba(255, 245, 233, 0.06); }
+.scan-result-item.no-match { opacity: 0.5; }
+
+.scan-result-cover {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: var(--surface-hi);
+}
+
+.scan-result-no-cover { color: var(--cream-40); }
+
+.scan-result-title {
+    font-size: 0.95rem;
+    color: var(--cream);
+}
+
+.scan-result-artist {
+    font-size: 0.8rem;
+    color: var(--cream-40);
+}
+
+.scan-result-source {
+    margin-top: 3px;
+    font-size: 0.72rem;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--cream-40);
+}
+
+.scan-result-youtube { max-width: 180px; }
+
+.scan-result-yt-title {
+    font-size: 0.78rem;
+    color: var(--cream-60);
+}
+
+.scan-result-yt-channel {
+    font-size: 0.72rem;
+    color: var(--cream-40);
+}
+
+.scan-result-yt-select {
+    max-width: 180px;
+    margin-top: 6px;
+    padding: 5px 8px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--cream);
+    font-size: 0.75rem;
+}
+
+/* Member welcome: the card is the hero, printed in brass */
+.member-card {
+    margin: 8px 0 16px;
+    padding: 22px 20px 18px;
+    background: linear-gradient(135deg, var(--amber-hi), var(--amber));
+    border: 0;
+    border-radius: 18px;
+    color: var(--on-amber);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+.member-card-label {
+    margin-bottom: 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: rgba(36, 26, 15, 0.7);
+}
+
+.member-card-number {
+    margin-bottom: 8px;
+    font-family: var(--display);
+    font-size: 2.8rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--on-amber);
+    text-shadow: none;
+}
+
+.member-card-pin {
+    font-size: 0.9rem;
+    color: rgba(36, 26, 15, 0.75);
+}
+
+.member-card-pin span {
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: rgba(36, 26, 15, 0.12);
+    letter-spacing: 0.2em;
+    font-variant-numeric: tabular-nums;
+    color: var(--on-amber);
+}
+
+.member-card-copy {
+    margin-top: 16px;
+    padding: 8px 14px;
+    background: rgba(36, 26, 15, 0.14);
+    border: 0;
+    border-radius: 10px;
+    color: var(--on-amber);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.member-card-copy:hover {
+    background: rgba(36, 26, 15, 0.22);
+    color: var(--on-amber);
+}
+
+.member-card-note {
+    margin-bottom: 18px;
+    font-size: 0.85rem;
+    color: var(--cream-60);
+}
