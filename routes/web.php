@@ -4,22 +4,26 @@ use App\Http\Controllers\Auth\AccountController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\MemberAccessController;
-use App\Http\Controllers\Auth\RegisteredUserController;
-use App\Http\Controllers\MediaController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\RecommendationsController;
 use App\Http\Controllers\ScanCoverController;
+use App\Http\Controllers\SearchYoutubeController;
 use App\Http\Controllers\SetupCheckController;
 use App\Http\Controllers\SharedPlaylistController;
-use App\Http\Controllers\SearchYoutubeController;
-use App\Http\Controllers\YoutubePlaylistController;
 use App\Http\Controllers\SpotifyController;
+use App\Http\Controllers\SpotifyLibraryController;
 use App\Http\Controllers\SpotifyResolveController;
 use App\Http\Controllers\UploadSongController;
+use App\Http\Controllers\YoutubePlaylistController;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 // Public first-boot diagnostics (booleans only, no secrets) — reachable even
 // when auth is broken, which is exactly when it's needed. Sessions are
@@ -27,10 +31,10 @@ use Illuminate\Support\Facades\Route;
 // middleware itself would 500 this page before it could diagnose anything.
 Route::get('/setup-check', SetupCheckController::class)
     ->withoutMiddleware([
-        \Illuminate\Session\Middleware\StartSession::class,
-        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        StartSession::class,
+        ShareErrorsFromSession::class,
         // L13's forgery middleware calls $request->session() even on GET.
-        \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
+        PreventRequestForgery::class,
     ]);
 
 // Public read-only view of a shared playlist (no auth). Sessions stay on so
@@ -95,6 +99,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // POST serves import_url/playlist_tracks (mirrors the legacy split).
     Route::get('/spotify', [SpotifyController::class, 'handleGet'])->middleware('throttle:60,1');
     Route::post('/spotify', [SpotifyController::class, 'handlePost'])->middleware('throttle:30,1');
+
+    // Whole-library import (Liked Songs + every playlist). The browser drives
+    // it in many short chunks, hence the roomier throttle.
+    Route::post('/spotify-library', SpotifyLibraryController::class)->middleware('throttle:240,1');
 
     // Account settings (fetch/JSON from the Settings modal)
     Route::post('/settings/name', [AccountController::class, 'updateName'])->middleware('throttle:10,1');

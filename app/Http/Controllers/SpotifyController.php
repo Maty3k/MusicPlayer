@@ -2,23 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SpotifyToken;
-use App\Models\User;
-use Illuminate\Http\Client\ConnectionException;
+use App\Support\SpotifyApi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 /**
  * Spotify integration: OAuth (per-user tokens), Web Playback SDK token,
  * connection status, and playlist import. Mirrors the legacy spotify.php
  * action-based contract (GET: login/callback/token/status/logout/playlists,
- * POST: import_url/playlist_tracks) with identical JSON shapes.
+ * POST: import_url/playlist_tracks) with identical JSON shapes. Token and
+ * HTTP plumbing lives in SpotifyApi, shared with the whole-library importer
+ * (SpotifyLibraryController).
  */
 class SpotifyController extends Controller
 {
+    public function __construct(private SpotifyApi $spotify) {}
+
     public function handleGet(Request $request): JsonResponse|RedirectResponse
     {
         return match ($request->query('action', '')) {
@@ -79,7 +80,7 @@ class SpotifyController extends Controller
             return redirect('/?spotify=error');
         }
 
-        $data = $this->accountsPost([
+        $data = $this->spotify->accountsPost([
             'grant_type' => 'authorization_code',
             'code' => $code,
             'redirect_uri' => config('services.spotify.redirect_uri'),
@@ -103,7 +104,7 @@ class SpotifyController extends Controller
     // ============================================================
     private function token(Request $request): JsonResponse
     {
-        $token = $this->validUserToken($request->user());
+        $token = $this->spotify->userToken($request->user());
         if ($token !== null) {
             return response()->json(['access_token' => $token]);
         }
@@ -120,12 +121,12 @@ class SpotifyController extends Controller
             return response()->json(['configured' => false, 'connected' => false]);
         }
 
-        $token = $this->validUserToken($request->user());
+        $token = $this->spotify->userToken($request->user());
         if ($token === null) {
             return response()->json(['configured' => true, 'connected' => false]);
         }
 
-        $user = $this->spotifyGet('https://api.spotify.com/v1/me', $token);
+        $user = $this->spotify->get('https://api.spotify.com/v1/me', $token);
         if ($user) {
             return response()->json([
                 'configured' => true,
@@ -156,7 +157,7 @@ class SpotifyController extends Controller
     // ============================================================
     private function playlists(Request $request): JsonResponse
     {
-        $token = $this->validUserToken($request->user());
+        $token = $this->spotify->userToken($request->user());
         if ($token === null) {
             return response()->json(['success' => false, 'error' => 'Not connected']);
         }
@@ -164,7 +165,7 @@ class SpotifyController extends Controller
         $playlists = [];
         $offset = 0;
         do {
-            $data = $this->spotifyGet('https://api.spotify.com/v1/me/playlists', $token, [
+            $data = $this->spotify->get('https://api.spotify.com/v1/me/playlists', $token, [
                 'offset' => $offset,
                 'limit' => 50,
             ]);
@@ -197,12 +198,12 @@ class SpotifyController extends Controller
             return response()->json(['success' => false, 'error' => 'Invalid Spotify playlist URL']);
         }
 
-        $token = $this->anyToken($request->user());
+        $token = $this->spotify->anyToken($request->user());
         if ($token === null) {
             return response()->json(['success' => false, 'error' => 'Spotify not configured']);
         }
 
-        $info = $this->spotifyGet("https://api.spotify.com/v1/playlists/{$playlistId}", $token, [
+        $info = $this->spotify->get("https://api.spotify.com/v1/playlists/{$playlistId}", $token, [
             'fields' => 'name,images,tracks.total',
         ]);
         if (! $info) {
@@ -230,7 +231,7 @@ class SpotifyController extends Controller
             return response()->json(['success' => false, 'error' => 'No playlist ID']);
         }
 
-        $token = $this->anyToken($request->user());
+        $token = $this->spotify->anyToken($request->user());
         if ($token === null) {
             return response()->json(['success' => false, 'error' => 'Not authenticated']);
         }
@@ -238,106 +239,6 @@ class SpotifyController extends Controller
         $songs = $this->fetchPlaylistTracks($playlistId, $token);
 
         return response()->json(['success' => true, 'songs' => $songs]);
-    }
-
-    // ============================================================
-    // TOKEN HELPERS
-    // ============================================================
-
-    /**
-     * Valid (refreshed-if-needed) access token for the user, or null.
-     */
-    private function validUserToken(User $user): ?string
-    {
-        $stored = $user->spotifyToken;
-        if ($stored === null) {
-            return null;
-        }
-
-        if ($stored->expires_at === null || $stored->expires_at->lt(now()->addSeconds(60))) {
-            $stored = $this->refreshAccessToken($stored);
-        }
-
-        return $stored?->access_token ?: null;
-    }
-
-    /**
-     * Refresh an expired token via the refresh_token grant and persist it.
-     * Keeps the old refresh_token when Spotify doesn't return a new one.
-     */
-    private function refreshAccessToken(SpotifyToken $stored): ?SpotifyToken
-    {
-        if (empty($stored->refresh_token)) {
-            return null;
-        }
-
-        $data = $this->accountsPost([
-            'grant_type' => 'refresh_token',
-            'refresh_token' => $stored->refresh_token,
-        ]);
-
-        if (! empty($data['access_token'])) {
-            $stored->access_token = $data['access_token'];
-            $stored->expires_at = now()->addSeconds((int) ($data['expires_in'] ?? 3600));
-            if (! empty($data['refresh_token'])) {
-                $stored->refresh_token = $data['refresh_token'];
-            }
-            $stored->save();
-
-            return $stored;
-        }
-
-        return null;
-    }
-
-    /**
-     * App-level client-credentials token (public playlist imports).
-     */
-    private function clientToken(): ?string
-    {
-        $data = $this->accountsPost(['grant_type' => 'client_credentials']);
-
-        return $data['access_token'] ?? null;
-    }
-
-    /**
-     * The user's OAuth token if connected, else a client-credentials token.
-     */
-    private function anyToken(User $user): ?string
-    {
-        return $this->validUserToken($user) ?? $this->clientToken();
-    }
-
-    // ============================================================
-    // HTTP HELPERS
-    // ============================================================
-
-    private function accountsPost(array $form): ?array
-    {
-        try {
-            $response = Http::asForm()
-                ->withBasicAuth(
-                    (string) config('services.spotify.client_id'),
-                    (string) config('services.spotify.client_secret'),
-                )
-                ->timeout(15)
-                ->post('https://accounts.spotify.com/api/token', $form);
-        } catch (ConnectionException) {
-            return null;
-        }
-
-        return $response->successful() ? $response->json() : null;
-    }
-
-    private function spotifyGet(string $url, string $token, array $query = []): ?array
-    {
-        try {
-            $response = Http::withToken($token)->timeout(15)->get($url, $query);
-        } catch (ConnectionException) {
-            return null;
-        }
-
-        return $response->successful() ? $response->json() : null;
     }
 
     // ============================================================
@@ -365,7 +266,7 @@ class SpotifyController extends Controller
         $fields = 'items(track(id,name,artists,album(name,images),duration_ms)),total,next';
 
         do {
-            $data = $this->spotifyGet("https://api.spotify.com/v1/playlists/{$playlistId}/tracks", $token, [
+            $data = $this->spotify->get("https://api.spotify.com/v1/playlists/{$playlistId}/tracks", $token, [
                 'offset' => $offset,
                 'limit' => 100,
                 'fields' => $fields,

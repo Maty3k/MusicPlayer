@@ -10,8 +10,9 @@ multi-user **Laravel 13** app.
 - **Per-user libraries**: playlists and songs live in the database (SQLite
   locally, Postgres on Laravel Cloud) — nothing is written to disk at runtime.
 - **Spotify**: per-user OAuth (tokens encrypted at rest), playlist import,
-  Web Playback SDK streaming for Premium, and automatic Spotify→YouTube
-  resolution so non-Premium accounts can play imports too.
+  one-click whole-library import (Liked Songs + every playlist, re-runnable
+  to sync), Web Playback SDK streaming for Premium, and automatic
+  Spotify→YouTube resolution so non-Premium accounts can play imports too.
 - **Frontend**: the original hand-built vinyl UI (plain CSS/JS, no build
   step) served from `public/`, driven by Blade + JSON endpoints.
 
@@ -41,7 +42,7 @@ Resend, Spotify/Gemini keys).
 ## Repo layout
 
 - `app/Http/Controllers` — player page + JSON endpoints (`/save-music`,
-  `/spotify`, `/spotify-resolve`, `/search-youtube`, `/scan-cover`).
+  `/spotify`, `/spotify-library`, `/spotify-resolve`, `/search-youtube`, `/scan-cover`).
 - `public/css`, `public/js`, `public/vendor/gif.js` — the vinyl UI assets.
 - `database/legacy/music.json` — library snapshot used by `music:import`.
 - `MusicPlayerMobile/` — Expo/React Native shell (targets the legacy API;

@@ -1322,6 +1322,11 @@
                 <p class="settings-hint" id="spotifyImportHint">Paste any public Spotify playlist link. Songs stream from YouTube; each one resolves the first time you play it.</p>
                 <div id="spotifyUserPlaylists" class="add-song-form-group" style="display:none">
                     <label>Your playlists</label>
+                    <div class="spotify-import-all">
+                        <button type="button" class="add-song-btn-save" id="spotifyImportAllBtn" onclick="importEntireSpotifyLibrary()">Import everything</button>
+                        <p class="settings-hint">Liked Songs plus every playlist, each as its own playlist here. Run it again any time to sync them with Spotify.</p>
+                    </div>
+                    <div class="settings-hint spotify-import-all-status" id="spotifyImportAllStatus" style="display:none" aria-live="polite"></div>
                     <div class="spotify-playlists-list" id="spotifyPlaylistsList"></div>
                 </div>
             </div>

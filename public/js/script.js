@@ -12,7 +12,7 @@
         }
         return csrfToken || '';
     }
-    const ORIGIN_ENDPOINTS = /^\/(save-music|spotify|spotify-resolve|search-youtube|youtube-playlist|scan-cover|settings|upload-song|recommendations)(\/|\?|$)/;
+    const ORIGIN_ENDPOINTS = /^\/(save-music|spotify|spotify-resolve|spotify-library|search-youtube|youtube-playlist|scan-cover|settings|upload-song|recommendations)(\/|\?|$)/;
     window.getCsrfToken = getCsrfToken; // for the upload XHR, which bypasses fetch
     const origFetch = window.fetch.bind(window);
     window.fetch = function (input, init) {
@@ -4691,6 +4691,68 @@ function showSpotifyImportModal() {
 function hideSpotifyImportModal() {
     document.getElementById('spotifyImportModal').classList.remove('active');
     spotifyImportData = null;
+}
+
+// "Import everything": Liked Songs + every playlist, each mirrored into its
+// own playlist here. The server imports one source at a time in short chunks
+// so a big library never ties up a single request; this loop just drives it
+// and reports progress. Re-running syncs (the server replaces each mirrored
+// playlist's songs with Spotify's current list) rather than duplicating.
+async function importEntireSpotifyLibrary() {
+    const btn = document.getElementById('spotifyImportAllBtn');
+    const status = document.getElementById('spotifyImportAllStatus');
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    status.style.display = '';
+    const say = (msg) => { status.textContent = msg; };
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const post = async (body) => {
+        const resp = await fetch('/spotify-library', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        // Our own throttle; wait it out like a Spotify rate limit.
+        if (resp.status === 429) return { success: false, retry_after: Number(resp.headers.get('Retry-After')) || 5 };
+        return resp.json();
+    };
+
+    try {
+        say('Reading your Spotify library\u2026');
+        const plan = await post({ action: 'plan' });
+        if (!plan.success) throw new Error(plan.error || 'Could not read your Spotify library');
+        const sources = plan.sources || [];
+        if (sources.length === 0) throw new Error('Nothing to import \u2014 your Spotify library is empty');
+
+        let imported = 0;
+        const failed = [];
+        for (let i = 0; i < sources.length; i++) {
+            const src = sources[i];
+            let offset = 0, done = false, waits = 0;
+            while (!done) {
+                say(`Importing ${i + 1}/${sources.length}: ${src.name} (${Math.min(offset, src.total)}/${src.total})\u2026`);
+                const res = await post({ action: 'import', kind: src.kind, id: src.id, offset });
+                if (!res.success) {
+                    if (res.retry_after && waits++ < 5) { await sleep(res.retry_after * 1000); continue; }
+                    failed.push(src.name);
+                    break;
+                }
+                imported += res.imported;
+                offset = res.next_offset;
+                done = res.done;
+            }
+        }
+
+        const ok = sources.length - failed.length;
+        say(`Imported ${imported} song${imported === 1 ? '' : 's'} into ${ok} playlist${ok === 1 ? '' : 's'}`
+            + (failed.length ? ` \u00b7 could not read: ${failed.join(', ')}` : '') + '. Reloading\u2026');
+        await sleep(1500);
+        // New crate cards live in server-rendered markup — reload, like createPlaylist does.
+        location.reload();
+    } catch (e) {
+        say(e.message || 'Import failed');
+        btn.disabled = false;
+    }
 }
 
 async function fetchSpotifyPlaylistUrl() {

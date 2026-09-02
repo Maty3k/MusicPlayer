@@ -4091,6 +4091,17 @@ body.song-dragging .song-list-item { transition: none; }
 }
 .spotify-connected-actions { display: flex; gap: 10px; }
 
+/* "Import everything" row above the user's playlist list */
+.spotify-import-all {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+.spotify-import-all .settings-hint { flex: 1; margin: 0; }
+.spotify-import-all .add-song-btn-save { white-space: nowrap; }
+.spotify-import-all-status { margin-bottom: 8px; color: #1db954; }
+
 /* Import modal */
 .spotify-import-url-row { display: flex; gap: 8px; }
 .spotify-import-url-row input {
