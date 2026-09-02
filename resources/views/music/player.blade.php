@@ -28,14 +28,14 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Music Player</title>
     <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#1a1510">
+    <meta name="theme-color" content="#0f0d0b">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/styles.css') }}?v={{ filemtime(public_path('css/styles.css')) }}">
     <script>
         /* Room theme, applied before first paint so no default-color flash.

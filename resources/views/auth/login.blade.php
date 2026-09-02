@@ -3,15 +3,15 @@
 @section('title', 'Log in — Music Player')
 
 @section('content')
-    <h1 class="auth-heading">Welcome back</h1>
-    <p class="auth-sub">Log in to spin your records</p>
+    <h1 class="auth-heading">Put a record on.</h1>
+    <p class="auth-sub">Your collection, one tap away.</p>
 
     @if (session('status') == 'password-reset')
-        <div class="auth-status">Your password has been reset. Log in with the new one.</div>
+        <div class="auth-status">Password reset. Log in with the new one.</div>
     @endif
 
     @if ($errors->any())
-        <div class="auth-errors">
+        <div class="auth-errors" role="alert">
             @foreach ($errors->all() as $error)
                 <div class="auth-error">{{ $error }}</div>
             @endforeach
@@ -19,59 +19,58 @@
     @endif
 
     {{-- Instant access: one tap deals a member number + PIN, no form. --}}
-    <form method="POST" action="{{ route('member.start') }}" class="member-start-form">
+    <form method="POST" action="{{ route('member.start') }}">
         @csrf
-        <button type="submit" class="add-song-btn-save auth-submit member-start-btn">&#9834; New here? Start listening</button>
-        <p class="member-start-hint">No email needed — you'll get a member card with your number and PIN.</p>
+        <button type="submit" class="auth-btn auth-btn-primary">Start listening</button>
+        <p class="auth-hint">No sign-up. You get a member number and PIN to come back with.</p>
     </form>
 
     @if (config('services.spotify.client_id'))
-        {{-- Spotify sign-in: one tap, and the whole library can be imported right after. --}}
-        <a href="{{ route('spotify.login') }}" class="spotify-connect-btn auth-spotify-btn">
-            <span class="spotify-glyph">&#9835;</span> Continue with Spotify
+        <a href="{{ route('spotify.login') }}" class="auth-btn auth-btn-secondary">
+            <span class="auth-spotify-glyph" aria-hidden="true">&#9835;</span> Continue with Spotify
         </a>
-        <p class="member-start-hint">Signs you in and lets you import your playlists and Liked Songs.</p>
+        <p class="auth-hint">Brings your playlists and Liked Songs along.</p>
     @endif
 
-    <div class="auth-divider"><span>already a member?</span></div>
+    <section class="auth-returning" aria-labelledby="authReturningTitle">
+        <h2 class="auth-returning-title" id="authReturningTitle">Already a member?</h2>
 
-    <form method="POST" action="{{ route('member.login') }}">
-        @csrf
-        <div class="member-login-row">
-            <div class="add-song-form-group">
-                <label for="member_number">Member number</label>
-                <input type="text" id="member_number" name="member_number" value="{{ old('member_number') }}" placeholder="#0042" inputmode="numeric" required autocomplete="username">
-            </div>
-            <div class="add-song-form-group">
-                <label for="pin">PIN</label>
-                <input type="password" id="pin" name="pin" placeholder="&#8226;&#8226;&#8226;&#8226;" required autocomplete="current-password">
-            </div>
-        </div>
-        <button type="submit" class="add-song-btn-save auth-submit">Log in with my number</button>
-    </form>
-
-    <details class="auth-email-details" @if($errors->has('email') || $errors->has('password') || old('email')) open @endif>
-        <summary>Log in with email instead</summary>
-        <form method="POST" action="{{ route('login') }}">
+        <form method="POST" action="{{ route('member.login') }}" class="auth-member-form">
             @csrf
-            <div class="add-song-form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" value="{{ old('email') }}" placeholder="you@example.com" autocomplete="email">
-            </div>
-            <div class="add-song-form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="current-password">
-            </div>
-            <div class="auth-row">
-                <label class="auth-remember">
-                    <input type="checkbox" name="remember" value="1">
-                    <span>Remember me</span>
-                </label>
-                <a class="auth-forgot" href="{{ route('password.request') }}">Forgot password?</a>
-            </div>
-            <button type="submit" class="add-song-btn-save auth-submit">Log in</button>
+            <label class="auth-field">
+                <span>Member number</span>
+                <input type="text" id="member_number" name="member_number" value="{{ old('member_number') }}" placeholder="#0042" inputmode="numeric" required autocomplete="username">
+            </label>
+            <label class="auth-field auth-field-pin">
+                <span>PIN</span>
+                <input type="password" id="pin" name="pin" placeholder="&#8226;&#8226;&#8226;&#8226;" required autocomplete="current-password">
+            </label>
+            <button type="submit" class="auth-btn auth-btn-ghost">Log in</button>
         </form>
-    </details>
 
-    <div class="auth-alt">Prefer a full account? <a href="{{ route('register') }}">Create one with email</a></div>
+        <details class="auth-email-details" @if($errors->has('email') || $errors->has('password') || old('email')) open @endif>
+            <summary>Use email instead</summary>
+            <form method="POST" action="{{ route('login') }}">
+                @csrf
+                <label class="auth-field">
+                    <span>Email</span>
+                    <input type="email" id="email" name="email" value="{{ old('email') }}" placeholder="you@example.com" autocomplete="email">
+                </label>
+                <label class="auth-field">
+                    <span>Password</span>
+                    <input type="password" id="password" name="password" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="current-password">
+                </label>
+                <div class="auth-row">
+                    <label class="auth-remember">
+                        <input type="checkbox" name="remember" value="1">
+                        <span>Remember me</span>
+                    </label>
+                    <a class="auth-link" href="{{ route('password.request') }}">Forgot password?</a>
+                </div>
+                <button type="submit" class="auth-btn auth-btn-ghost auth-btn-block">Log in with email</button>
+            </form>
+        </details>
+    </section>
+
+    <p class="auth-alt">Prefer an email account? <a href="{{ route('register') }}">Create one</a></p>
 @endsection
