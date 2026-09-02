@@ -12843,3 +12843,141 @@ html[data-theme="greenroom"] {
     font-size: 0.85rem;
     color: var(--cream-60);
 }
+
+/* ============================================================
+   FIRST-RUN WIZARD + SEND-TO MENU
+   ============================================================ */
+.wizard-step-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 5px 12px 5px 10px;
+    background: rgba(var(--amber-rgb), 0.14);
+    border: 1px solid rgba(var(--amber-rgb), 0.35);
+    color: var(--cream);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.wizard-step-chip::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--amber);
+}
+
+.playlist-wizard-hint {
+    margin: 0 0 18px;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--cream-60);
+}
+
+/* Popover (desktop) */
+.send-menu {
+    min-width: 240px;
+    padding: 8px;
+    background: var(--sleeve);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.send-menu-title {
+    padding: 8px 10px 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--cream-40);
+}
+
+.send-menu-item {
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+}
+
+.send-menu-item:hover { background: rgba(255, 245, 233, 0.07); }
+
+.send-menu-name {
+    font-size: 0.9rem;
+    color: var(--cream);
+}
+
+.send-menu-qicon { color: var(--cream-60); }
+
+.send-menu-divider {
+    height: 1px;
+    margin: 6px 4px;
+    background: var(--line);
+}
+
+.send-menu-dot { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08); }
+
+/* Bottom sheet (phones) */
+.send-menu-sheet {
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    background: var(--sleeve);
+    border-top: 1px solid var(--line);
+    border-radius: 22px 22px 0 0;
+}
+
+.send-menu-sheet::before { background: rgba(255, 245, 233, 0.25); }
+
+.send-menu-sheet .send-menu-title {
+    padding: 8px 10px 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--cream-40);
+}
+
+.send-menu-sheet .send-menu-item {
+    min-height: 52px;
+    border-radius: 12px;
+}
+
+.send-menu-sheet .send-menu-name { font-size: 1rem; }
+
+.send-menu-song {
+    margin-bottom: 8px;
+    padding: 4px 6px 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.send-menu-song-cover {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+}
+
+.send-menu-song-cover-empty {
+    background: var(--surface-hi);
+    color: var(--cream-40);
+}
+
+.send-menu-song-title { color: var(--cream); }
+.send-menu-song-artist { color: var(--cream-60); }
+
+.send-menu-sheet .send-menu-delete .send-menu-name,
+.send-menu-sheet .send-menu-delete-icon { color: #ffb3bf; }
+
+.send-menu-sheet .send-menu-delete.m-confirm-armed { background: rgba(232, 93, 117, 0.18); }
+
+.send-menu-sheet .send-menu-cancel {
+    margin-top: 8px;
+    background: rgba(255, 245, 233, 0.06);
+    border-radius: 12px;
+    color: var(--cream);
+    font-weight: 500;
+}
+
+.send-menu-backdrop {
+    background: rgba(18, 12, 8, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
