@@ -145,6 +145,17 @@ class MusicController extends Controller
             }
         }
 
+        // Only well-formed ids reach the players (a crafted value must never
+        // land in the iframe / SDK), and a song needs at least one source or
+        // it would sit in the playlist unplayable.
+        $youtubeId = (string) ($song['youtube_id'] ?? '');
+        $youtubeId = preg_match('/^[A-Za-z0-9_-]{11}$/', $youtubeId) ? $youtubeId : '';
+        $spotifyId = (string) ($song['spotify_id'] ?? '');
+        $spotifyId = preg_match('/^[A-Za-z0-9]{22}$/', $spotifyId) ? $spotifyId : '';
+        if ($youtubeId === '' && $spotifyId === '' && $mp3Url === '') {
+            return ['success' => false, 'error' => 'No playable source: paste a YouTube link, a Spotify track link, or an MP3 URL'];
+        }
+
         $newIndex = $playlist->songs()->count();
         $playlist->songs()->create([
             'position' => $newIndex,
@@ -152,9 +163,9 @@ class MusicController extends Controller
             'artist' => (string) ($song['artist'] ?? ''),
             'album' => (string) ($song['album'] ?? ''),
             'cover' => $this->sanitizeUrl($song['cover'] ?? ''),
-            'youtube_id' => (string) ($song['youtube_id'] ?? ''),
-            'mp3_url' => $this->sanitizeUrl($song['mp3_url'] ?? ''),
-            'spotify_id' => (string) ($song['spotify_id'] ?? ''),
+            'youtube_id' => $youtubeId,
+            'mp3_url' => $mp3Url,
+            'spotify_id' => $spotifyId,
         ]);
         $playlist->update(['current_index' => $newIndex]);
 

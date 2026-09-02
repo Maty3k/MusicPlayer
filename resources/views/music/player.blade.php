@@ -1129,7 +1129,7 @@
                     <button type="button" class="settings-source-btn" data-source="mp3" onclick="setMusicSource('mp3')">MP3 URL</button>
                     <button type="button" class="settings-source-btn" data-source="spotify" onclick="setMusicSource('spotify')">Spotify</button>
                 </div>
-                <p class="settings-hint">Sets what the Add Song box expects. Spotify tracks stream via the Web Playback SDK (Premium) or a matched YouTube video.</p>
+                <p class="settings-hint">What the Add Song box asks for by default. YouTube and Spotify links are recognised automatically whichever is selected; MP3 URL also enables file upload. Spotify tracks stream via the Web Playback SDK (Premium) or a matched YouTube video.</p>
             </div>
 
             <div class="add-song-form-group">

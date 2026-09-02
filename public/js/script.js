@@ -2614,12 +2614,44 @@ function extractYoutubeId(input) {
     // youtu.be/ID
     match = input.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
     if (match) return match[1];
-    // youtube.com/embed/ID
-    match = input.match(/embed\/([a-zA-Z0-9_-]{11})/);
+    // youtube.com/embed/ID, /shorts/ID, /v/ID
+    match = input.match(/(?:embed|shorts|\/v)\/([a-zA-Z0-9_-]{11})/);
     if (match) return match[1];
     // raw 11-char ID
     if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
-    return input;
+    // Anything else is not a YouTube video. Returning the raw text here used
+    // to let a pasted Spotify/MP3 link be saved as a bogus youtube_id.
+    return '';
+}
+
+// What did the user paste into the Add Song box? Links are recognised by
+// their shape whatever the add-song source setting says; the setting only
+// decides how a bare URL is treated and what the empty field asks for.
+const DIRECT_AUDIO_URL = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac)(\?[^\s]*)?$/i;
+function classifyAddSongInput(value) {
+    const text = (value || '').trim();
+    if (!text) return { kind: '', error: 'Paste a link first.' };
+
+    const spotifyId = extractSpotifyId(text);
+    if (spotifyId) return { kind: 'spotify', spotifyId };
+
+    const youtubeId = extractYoutubeId(text);
+    if (youtubeId) return { kind: 'youtube', youtubeId };
+
+    if (/open\.spotify\.com\/(playlist|album)\//i.test(text)) {
+        return { kind: '', error: 'That is a Spotify playlist or album. Use "Import playlist" (Settings \u2192 Account \u2192 Spotify) for those.' };
+    }
+    if (/^https?:\/\/[^\s]+$/i.test(text)) {
+        if (musicSource === 'mp3' || DIRECT_AUDIO_URL.test(text)) return { kind: 'mp3', mp3Url: text };
+        return { kind: '', error: 'That link is not a YouTube video or Spotify track. For a direct audio file, switch the add-song source to MP3 URL.' };
+    }
+
+    const hints = {
+        youtube: 'Paste a YouTube link or an 11-character video ID.',
+        spotify: 'Paste a Spotify track link (open.spotify.com/track/\u2026).',
+        mp3: 'Paste a direct link to an audio file (https://\u2026/song.mp3), or upload one below.',
+    };
+    return { kind: '', error: hints[musicSource] || hints.youtube };
 }
 
 let lastFetchedYtId = '';
@@ -2654,15 +2686,16 @@ async function fetchYoutubeInfo(input) {
     }
 }
 
-// Auto-fetch info when URL is pasted or typed (source-aware)
+// Auto-fetch info when a link is pasted or typed. Recognised by shape, so a
+// Spotify link fills in from Spotify even while the setting says YouTube.
 document.getElementById('addSongYoutube')?.addEventListener('input', (e) => {
     const val = e.target.value.trim();
-    if (musicSource === 'youtube' && val.length >= 11) {
-        fetchYoutubeInfo(val);
-    } else if (musicSource === 'spotify' && val.length >= 10) {
+    if (extractSpotifyId(val)) {
         fetchSpotifyInfo(val);
+    } else if (extractYoutubeId(val)) {
+        fetchYoutubeInfo(val);
     }
-    // MP3 mode: no auto-fetch, user fills in metadata manually
+    // Direct audio URLs carry no metadata: the user fills it in.
 });
 
 function updateSongDisplay(song) {
@@ -2944,16 +2977,21 @@ async function addSongToPlaylist(e) {
 
     if (!title || !sourceValue) return;
 
-    let song;
-    if (musicSource === 'mp3') {
-        song = { title, artist, album, cover, youtube_id: '', mp3_url: sourceValue };
-    } else if (musicSource === 'spotify') {
-        // Spotify: metadata only, no direct playback source
-        song = { title, artist, album, cover, youtube_id: '', mp3_url: '' };
+    const input = classifyAddSongInput(sourceValue);
+    if (!input.kind) {
+        alert(input.error);
+        return;
+    }
+
+    const song = { title, artist, album, cover, youtube_id: '', mp3_url: '', spotify_id: '' };
+    if (input.kind === 'mp3') {
+        song.mp3_url = input.mp3Url;
+    } else if (input.kind === 'spotify') {
+        // Plays through the Web Playback SDK on Premium, otherwise through a
+        // YouTube match resolved on first play (keyed by this id).
+        song.spotify_id = input.spotifyId;
     } else {
-        // YouTube (default)
-        const youtubeId = extractYoutubeId(sourceValue);
-        song = { title, artist, album, cover, youtube_id: youtubeId, mp3_url: '' };
+        song.youtube_id = input.youtubeId;
     }
 
     await saveAndPlaySong(song);
@@ -4402,12 +4440,23 @@ function getPlaybackSource(song) {
 // Unified play/cue function
 async function playSongSource(song, cueOnly) {
     let source = getPlaybackSource(song);
-    // Spotify-only track that can't stream via Premium (user isn't premium, or
-    // no active device): resolve a matching YouTube video on demand so it still
-    // plays. Premium+connected users keep native Spotify playback.
-    if (!source && song && song.spotify_id && !song.youtube_id && !song.mp3_url
-        && song.title && !(spotifyPremium && spotifyConnected)) {
-        source = await resolveYoutubeIdForSong(song);
+    // Spotify-only track with nothing else to play from.
+    if (!source && song && song.spotify_id && !song.youtube_id && !song.mp3_url && song.title) {
+        if (spotifyPremium && spotifyConnected && !spotifyDeviceId && !spotifySdkGaveUp) {
+            // Premium and connected, but the Web Playback SDK hasn't reported
+            // a device yet (it connects asynchronously after load): give it a
+            // moment instead of failing silently. If it never shows up, stop
+            // waiting for the rest of this session.
+            spotifySdkGaveUp = !(await waitForSpotifyDevice(4000));
+            source = getPlaybackSource(song);
+        }
+        if (!source) {
+            // Not Premium, not connected, or the SDK never came up: resolve a
+            // matching YouTube video so the track still plays. Only remember
+            // the match when Spotify playback isn't an option at all, so a
+            // slow SDK start doesn't permanently demote a Premium track.
+            source = await resolveYoutubeIdForSong(song, !(spotifyPremium && spotifyConnected));
+        }
     }
     if (!source) return;
     activatePlayerForSong(song);
@@ -4427,11 +4476,12 @@ async function playSongSource(song, cueOnly) {
 }
 
 // Resolve a Spotify-only track to a YouTube video id. The server scrapes YT
-// search, caches by spotify_id, and writes youtube_id back onto the song in
-// music.json; we also set it in memory so the next play is instant.
-async function resolveYoutubeIdForSong(song) {
+// search and caches the match by spotify_id. With `remember` (the default)
+// it also writes youtube_id onto the stored song and the in-memory one so
+// the next play is instant; without it the id is used for this play only.
+async function resolveYoutubeIdForSong(song, remember = true) {
     try {
-        const idx = (typeof songsData !== 'undefined') ? songsData.indexOf(song) : -1;
+        const idx = (remember && typeof songsData !== 'undefined') ? songsData.indexOf(song) : -1;
         const resp = await fetch('/spotify-resolve', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -4439,17 +4489,30 @@ async function resolveYoutubeIdForSong(song) {
                 spotify_id: song.spotify_id || '',
                 title: song.title || '',
                 artist: song.artist || '',
-                playlist_key: (typeof activePlaylistId !== 'undefined') ? activePlaylistId : '',
+                playlist_key: (remember && typeof activePlaylistId !== 'undefined') ? activePlaylistId : '',
                 song_index: idx
             })
         });
         const data = await resp.json();
         if (data.success && data.youtube_id) {
-            song.youtube_id = data.youtube_id;
+            if (remember) song.youtube_id = data.youtube_id;
             return data.youtube_id;
         }
     } catch (e) {}
     return '';
+}
+
+// Resolves true as soon as the Spotify SDK reports a device, false on timeout.
+let spotifySdkGaveUp = false;
+function waitForSpotifyDevice(timeoutMs) {
+    return new Promise(resolve => {
+        const started = Date.now();
+        (function poll() {
+            if (spotifyDeviceId) return resolve(true);
+            if (Date.now() - started >= timeoutMs) return resolve(false);
+            setTimeout(poll, 250);
+        })();
+    });
 }
 
 function isPlayerReady() {
