@@ -7881,15 +7881,16 @@ body.song-dragging .song-list-item { transition: none; }
    One column of type on the left, a record sliding off the right edge.
    ============================================================ */
 :root {
-    /* Golden Hour defaults. A room theme (html[data-theme]) supplies the
-       --th-* values and these tokens follow it. */
-    --ink: var(--th-ink, #211a16);
-    --sleeve: var(--th-wall-b, #2f2721);
-    --surface-hi: var(--th-wall-a, #3b312a);
-    --cream: var(--th-cream, #fff5e9);
-    --cream-60: var(--m-cream-dim, rgba(255, 245, 233, 0.72));
-    --cream-40: rgba(255, 245, 233, 0.5);
-    --line: rgba(var(--th-accent-rgb, 255, 245, 233), 0.16);
+    /* Blue Hour, the default room: deep teal walls, brass lamplight. Any
+       other room (html[data-theme]) supplies the --th-* values and these
+       tokens follow it. */
+    --ink: var(--th-ink, #14262b);
+    --sleeve: var(--th-wall-b, #1c353b);
+    --surface-hi: var(--th-wall-a, #24444b);
+    --cream: var(--th-cream, #fbf5ea);
+    --cream-60: var(--m-cream-dim, rgba(251, 245, 234, 0.72));
+    --cream-40: rgba(251, 245, 234, 0.5);
+    --line: rgba(var(--th-accent-rgb, 251, 245, 234), 0.16);
     --amber: var(--th-accent, #f2b45c);
     --amber-hi: var(--th-accent-hi, #ffc873);
     --amber-rgb: var(--th-accent-rgb, 242, 180, 92);
@@ -8752,6 +8753,38 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
    change color when the walls do.
    Adding a theme = one token set + one settings swatch. Nothing else.
    ============================================================ */
+
+/* -- Golden Hour: the original warm browns and brass, now a room you can pick. */
+html[data-theme="golden-hour"] {
+    --th-body: #1a1512;
+    --th-shell-a: #2a2420;
+    --th-shell-b: #201a16;
+    --th-shell-c: #1a1512;
+    --th-wall-a: #3b312a;
+    --th-wall-b: #2f2721;
+    --th-floor-a: #241d18;
+    --th-floor-b: #1c1613;
+    --th-rug-rgb: 150, 110, 70;
+    --th-accent-rgb: 242, 180, 92;
+    --th-accent: #f2b45c;
+    --th-accent-hi-rgb: 255, 200, 115;
+    --th-accent-hi: #ffc873;
+    --th-ink: #211a16;
+    --th-cream: #fff5e9;
+    --th-bulb-core: #fff8ec;
+    --th-bulb-mid: #ffc873;
+    --th-bulb-rgb: 255, 200, 115;
+    --m-walnut-hi: #3b312a;
+    --m-walnut: #2f2721;
+    --m-walnut-deep: #211a16;
+    --m-ink: #211a16;
+    --m-cream: #fff5e9;
+    --m-cream-dim: rgba(255, 245, 233, 0.72);
+    --m-gold: #f2b45c;
+    --m-gold-hi: #ffc873;
+    --m-brass-border: rgba(242, 180, 92, 0.35);
+    --m-gold-wash: rgba(242, 180, 92, 0.10);
+}
 
 /* -- After Hours: the 2am listening bar. Ink-blue walls, moonlit steel. */
 html[data-theme="after-hours"] {
@@ -12056,4 +12089,440 @@ html[data-theme="greenroom"] {
     font-size: 0.85rem;
     font-variant-numeric: tabular-nums;
     color: var(--cream-60);
+}
+
+/* ============================================================
+   PLAYLIST EDIT + IMPORT MODALS
+   ============================================================ */
+:root { --app-text-dim: var(--cream-60); }
+
+#playlistEditModal .add-song-form-group { margin-bottom: 20px; }
+
+/* Colour swatches: a ring marks the pick instead of a white border + zoom */
+.color-swatch-grid {
+    gap: 12px;
+    padding: 2px 0;
+}
+
+.color-swatch {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.color-swatch:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 2px var(--sleeve), 0 0 0 4px rgba(255, 245, 233, 0.4);
+}
+
+.color-swatch.selected {
+    transform: none;
+    box-shadow: 0 0 0 2px var(--sleeve), 0 0 0 4px var(--cream);
+}
+
+/* Cover picker */
+.cover-picker-grid {
+    gap: 10px;
+    max-height: 160px;
+}
+
+.cover-picker-item {
+    width: 56px;
+    height: 56px;
+    border: 0;
+    border-radius: 12px;
+    background: rgba(255, 245, 233, 0.05);
+}
+
+.cover-picker-item:hover {
+    transform: none;
+    box-shadow: 0 0 0 2px var(--sleeve), 0 0 0 4px rgba(255, 245, 233, 0.4);
+}
+
+.cover-picker-item.selected {
+    transform: none;
+    box-shadow: 0 0 0 2px var(--sleeve), 0 0 0 4px var(--cream);
+}
+
+.cover-picker-auto {
+    border: 1px dashed rgba(255, 245, 233, 0.3);
+    border-radius: 12px;
+    background: transparent;
+    font-size: 0.7rem;
+    letter-spacing: 0;
+    text-transform: lowercase;
+    color: var(--cream-60);
+}
+
+.cover-picker-hint {
+    font-size: 0.8rem;
+    font-style: normal;
+    color: var(--cream-40);
+}
+
+/* Share */
+.share-create-btn {
+    padding: 12px 14px;
+    background: rgba(255, 245, 233, 0.06);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--cream);
+    font-weight: 500;
+}
+
+.share-create-btn:hover {
+    background: rgba(255, 245, 233, 0.1);
+    border-color: rgba(255, 245, 233, 0.28);
+}
+
+#shareLinkInput {
+    height: 46px;
+    padding: 0 14px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--cream);
+    font-size: 0.88rem;
+}
+
+.share-copy-btn,
+.share-stop-btn {
+    height: 46px;
+    padding: 0 16px;
+    border-radius: 12px;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.share-copy-btn {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: var(--on-amber);
+}
+
+.share-copy-btn:hover { background: var(--amber-hi); }
+
+.share-stop-btn {
+    background: rgba(255, 245, 233, 0.06);
+    border-color: var(--line);
+    color: #ffb3bf;
+    font-weight: 500;
+}
+
+.share-stop-btn:hover { background: rgba(232, 93, 117, 0.2); }
+
+.playlist-delete-btn {
+    padding: 11px 16px;
+    background: rgba(255, 245, 233, 0.06);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: #ffb3bf;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.playlist-delete-btn:hover {
+    background: rgba(232, 93, 117, 0.2);
+    border-color: rgba(232, 93, 117, 0.45);
+    color: #ffd0d8;
+}
+
+/* Import: segmented tabs like Settings */
+.import-tabs {
+    margin-bottom: 18px;
+    padding: 4px;
+    background: rgba(255, 245, 233, 0.06);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+}
+
+.import-tab {
+    padding: 10px 8px;
+    border-radius: 10px;
+    color: var(--cream-60);
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0;
+}
+
+.import-tab:hover { color: var(--cream); }
+
+.import-tab.active {
+    background: rgba(255, 245, 233, 0.14);
+    color: var(--cream);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.import-textarea {
+    min-height: 140px;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--cream);
+    font-size: 0.92rem;
+}
+
+.import-textarea:focus {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 3px rgba(var(--amber-rgb), 0.18);
+}
+
+.import-textarea::placeholder { color: rgba(255, 245, 233, 0.3); }
+
+.spotify-import-url-row { gap: 8px; }
+
+.spotify-import-url-row input {
+    height: 46px;
+    padding: 0 14px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--cream);
+    font-size: 0.92rem;
+}
+
+.spotify-import-url-row input:focus {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 3px rgba(var(--amber-rgb), 0.18);
+}
+
+#spotifyImportModal .add-song-form-group { margin-bottom: 18px; }
+#spotifyImportModal .add-song-form-group .settings-hint { margin-top: 8px; }
+#spotifyImportModal .import-pane > .settings-hint { margin: 8px 0 18px; }
+
+.spotify-import-all-status { color: var(--amber); }
+
+.spotify-playlists-list {
+    gap: 6px;
+    max-height: 260px;
+}
+
+.spotify-playlist-item {
+    gap: 12px;
+    padding: 8px 10px;
+    background: rgba(255, 245, 233, 0.05);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.spotify-playlist-item:hover {
+    background: rgba(255, 245, 233, 0.09);
+    border-color: rgba(255, 245, 233, 0.28);
+}
+
+.spotify-playlist-img {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--surface-hi);
+}
+
+.spotify-playlist-name {
+    font-size: 0.92rem;
+    color: var(--cream);
+}
+
+.spotify-playlist-meta {
+    font-size: 0.78rem;
+    color: var(--cream-40);
+}
+
+.spotify-import-loading {
+    padding: 24px;
+    color: var(--cream-60);
+    font-size: 0.9rem;
+}
+
+.spotify-spinner {
+    border-color: rgba(var(--amber-rgb), 0.25);
+    border-top-color: var(--amber);
+}
+
+/* Import preview: the checklist */
+.spotify-import-info {
+    margin-bottom: 14px;
+    color: var(--cream);
+}
+
+.spotify-import-info strong {
+    font-family: var(--display);
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.import-checklist {
+    gap: 2px;
+    max-height: 46vh;
+}
+
+.import-check-row {
+    gap: 12px;
+    padding: 8px 10px;
+    background: transparent;
+    border-radius: 12px;
+}
+
+.import-check-row:hover { background: rgba(255, 245, 233, 0.06); }
+
+.import-check-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--amber);
+}
+
+.import-track-title {
+    font-size: 0.95rem;
+    color: var(--cream);
+}
+
+.import-track-match,
+.import-track-sub {
+    font-size: 0.8rem;
+    color: var(--cream-40);
+}
+
+.no-match .import-track-match { color: #ffb3bf; }
+
+/* ============================================================
+   ROOM THEMES FOLLOW THE TOKENS
+   The theme blocks tint chrome with each room's accent through gradients
+   and accent-coloured text; the redesign reads the same accent through the
+   tokens instead. Reassert the token look for the controls both touch, so
+   Golden Hour, After Hours, Velvet and Greenroom all get the same design.
+   ============================================================ */
+[data-theme] body { background: var(--ink); }
+
+[data-theme] #music-section {
+    background:
+        radial-gradient(ellipse 70% 55% at 50% -10%, rgba(var(--amber-rgb), 0.2), transparent 70%),
+        var(--ink);
+}
+
+[data-theme] .greeting-text p { color: var(--cream-60); }
+
+[data-theme] .source-filter,
+[data-theme] .settings-tabs,
+[data-theme] .import-tabs {
+    background: rgba(255, 245, 233, 0.05);
+    border-color: var(--line);
+}
+
+[data-theme] .source-filter-btn,
+[data-theme] .settings-tab,
+[data-theme] .import-tab { color: var(--cream-60); }
+
+[data-theme] .source-filter-btn:hover,
+[data-theme] .settings-tab:hover,
+[data-theme] .import-tab:hover { color: var(--cream); }
+
+[data-theme] .source-filter-btn.active,
+[data-theme] .settings-tab.active,
+[data-theme] .import-tab.active {
+    background: rgba(255, 245, 233, 0.13);
+    color: var(--cream);
+}
+
+[data-theme] .new-playlist-btn,
+[data-theme] .back-to-crate,
+[data-theme] .add-song-btn-cancel,
+[data-theme] .share-create-btn,
+[data-theme] .bulk-import-btn,
+[data-theme] .queue-clear-btn {
+    background: rgba(255, 245, 233, 0.06);
+    border-color: var(--line);
+    color: var(--cream);
+}
+
+[data-theme] .new-playlist-btn:hover,
+[data-theme] .back-to-crate:hover {
+    background: rgba(255, 245, 233, 0.1);
+    border-color: rgba(255, 245, 233, 0.28);
+    color: var(--cream);
+}
+
+[data-theme] .settings-source-btn {
+    background: rgba(255, 245, 233, 0.06);
+    border-color: var(--line);
+    color: var(--cream-60);
+}
+
+[data-theme] .settings-source-btn.active {
+    background: rgba(var(--amber-rgb), 0.18);
+    border-color: var(--amber);
+    color: var(--cream);
+}
+
+[data-theme] .add-song-btn-save,
+[data-theme] .share-copy-btn,
+[data-theme] .queue-count-badge {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: var(--on-amber);
+}
+
+[data-theme] .add-song-btn-save:hover { background: var(--amber-hi); }
+
+[data-theme] .song-list-item:hover {
+    background: rgba(255, 245, 233, 0.05);
+    border-color: transparent;
+}
+
+[data-theme] .song-list-item.active {
+    background: rgba(var(--amber-rgb), 0.12);
+    border-color: transparent;
+}
+
+[data-theme] .song-list-artist,
+[data-theme] .song-list-item.active .song-list-artist,
+[data-theme] .song-list-item.active .song-list-num,
+[data-theme] .queue-item-artist,
+[data-theme] .queue-drag-handle,
+[data-theme] .queue-empty,
+[data-theme] .stats-song-artist,
+[data-theme] .stats-stat-label,
+[data-theme] .stats-rank,
+[data-theme] .stats-plays-unit,
+[data-theme] .search-result-artist { color: var(--cream-40); }
+
+[data-theme] .queue-section-label,
+[data-theme] .stats-section-label,
+[data-theme] .stats-song-plays,
+[data-theme] .stats-artist-plays,
+[data-theme] .sleeve-progress-times { color: var(--cream-60); }
+
+[data-theme] .stat-num,
+[data-theme] .stats-stat-num,
+[data-theme] .queue-item-title,
+[data-theme] .stats-song-title,
+[data-theme] .stats-artist-name,
+[data-theme] .search-result-title { color: var(--cream); }
+
+[data-theme] .queue-now {
+    background: rgba(var(--amber-rgb), 0.1);
+    border-color: rgba(var(--amber-rgb), 0.35);
+}
+
+[data-theme] .queue-item:hover { background: rgba(255, 245, 233, 0.06); }
+
+[data-theme] .stats-stat {
+    background: rgba(255, 245, 233, 0.05);
+    border-color: var(--line);
+}
+
+[data-theme] .stats-artist-bar,
+[data-theme] .sleeve-progress-bar { background: rgba(255, 245, 233, 0.1); }
+
+[data-theme] .stats-artist-bar-fill,
+[data-theme] .sleeve-progress-fill,
+[data-theme] .sleeve-progress:hover .sleeve-progress-fill { background: var(--amber); }
+
+[data-theme] #mFilterInput,
+[data-theme] #librarySearchInput,
+[data-theme] #shareLinkInput {
+    background: rgba(0, 0, 0, 0.18);
+    border-color: var(--line);
+    color: var(--cream);
 }

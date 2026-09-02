@@ -7,7 +7,7 @@
     {{-- PWA metas: an installed app that opens onto a logged-out page should
          still get the branded chrome + manifest, not a bare white tab --}}
     <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#0f0d0b">
+    <meta name="theme-color" content="#14262b">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">

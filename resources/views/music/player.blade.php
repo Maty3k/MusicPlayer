@@ -28,7 +28,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Music Player</title>
     <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#0f0d0b">
+    <meta name="theme-color" content="#14262b">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -42,9 +42,9 @@
            Kept in sync with ROOM_THEMES in script.js. */
         (function () {
             try {
-                window.__roomThemeColors = { 'golden-hour': '#1a1510', 'after-hours': '#14171e', 'velvet': '#201318', 'greenroom': '#171d13' };
+                window.__roomThemeColors = { 'blue-hour': '#14262b', 'golden-hour': '#211a16', 'after-hours': '#14171e', 'velvet': '#201318', 'greenroom': '#171d13' };
                 var t = localStorage.getItem('musicTheme');
-                if (t && t !== 'golden-hour' && window.__roomThemeColors[t]) {
+                if (t && t !== 'blue-hour' && window.__roomThemeColors[t]) {
                     document.documentElement.setAttribute('data-theme', t);
                     var m = document.querySelector('meta[name="theme-color"]');
                     if (m) m.setAttribute('content', window.__roomThemeColors[t]);
@@ -1177,8 +1177,11 @@
             <div class="add-song-form-group">
                 <label>Room theme</label>
                 <div class="theme-swatch-row" id="themeSwatchRow">
-                    <button type="button" class="theme-swatch-btn" data-theme="golden-hour" onclick="setRoomTheme('golden-hour')" title="Warm browns and brass — the original room">
-                        <span class="theme-swatch" style="--sw-wall:#2a2420;--sw-accent:#d4a574"></span>Golden Hour
+                    <button type="button" class="theme-swatch-btn" data-theme="blue-hour" onclick="setRoomTheme('blue-hour')" title="Deep teal walls and brass lamplight — the default">
+                        <span class="theme-swatch" style="--sw-wall:#1c353b;--sw-accent:#f2b45c"></span>Blue Hour
+                    </button>
+                    <button type="button" class="theme-swatch-btn" data-theme="golden-hour" onclick="setRoomTheme('golden-hour')" title="Warm browns and brass — the original">
+                        <span class="theme-swatch" style="--sw-wall:#2f2721;--sw-accent:#f2b45c"></span>Golden Hour
                     </button>
                     <button type="button" class="theme-swatch-btn" data-theme="after-hours" onclick="setRoomTheme('after-hours')" title="Ink-blue walls, moonlit steel accents">
                         <span class="theme-swatch" style="--sw-wall:#20242e;--sw-accent:#a8c0dc"></span>After Hours

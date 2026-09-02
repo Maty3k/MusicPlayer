@@ -4157,10 +4157,10 @@ function showSettingsModal() {
 // Room themes are color-only: the head inline script applies the saved one
 // before first paint; this just switches at runtime. Keep the list in sync
 // with the html[data-theme] token sets in styles.css and the blade head map.
-const ROOM_THEMES = ['golden-hour', 'after-hours', 'velvet', 'greenroom'];
+const ROOM_THEMES = ['blue-hour', 'golden-hour', 'after-hours', 'velvet', 'greenroom'];
 
 function currentRoomTheme() {
-    return document.documentElement.getAttribute('data-theme') || 'golden-hour';
+    return document.documentElement.getAttribute('data-theme') || 'blue-hour';
 }
 
 function syncThemeSwatches() {
@@ -4171,8 +4171,8 @@ function syncThemeSwatches() {
 }
 
 window.setRoomTheme = function (name) {
-    if (!ROOM_THEMES.includes(name)) name = 'golden-hour';
-    if (name === 'golden-hour') {
+    if (!ROOM_THEMES.includes(name)) name = 'blue-hour';
+    if (name === 'blue-hour') {
         document.documentElement.removeAttribute('data-theme');
     } else {
         document.documentElement.setAttribute('data-theme', name);
