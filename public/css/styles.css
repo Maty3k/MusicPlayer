@@ -11093,3 +11093,351 @@ html[data-theme="greenroom"] {
     font-size: 1.35rem;
     letter-spacing: -0.02em;
 }
+
+/* ============================================================
+   QUIET DECK — the turntable view
+   Same geometry as before (the JS rotates the tonearm and the knob and
+   reads the knob's box), flatter surfaces: one dark slab, a real record,
+   plain controls, a straight sleeve, a calmer cover glow. Deck rules are
+   scoped to desktop so the phone's now-playing sheet keeps its own layout.
+   ============================================================ */
+
+/* Stage */
+.music-main-backdrop img {
+    filter: blur(60px) saturate(1.6) brightness(0.35);
+    opacity: 0.9;
+    animation: none;
+}
+
+.aurora-orbs,
+.vinyl-groove-bg { display: none; }
+
+/* Sidebar (also the phone's playlist screen) */
+.music-sidebar {
+    background: #12100e;
+    border-right: 1px solid var(--line);
+}
+
+.back-to-crate {
+    margin: 16px 20px 12px;
+    padding: 8px 14px;
+    background: rgba(242, 232, 216, 0.06);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--cream);
+    font-size: 0.85rem;
+}
+
+.back-to-crate:hover {
+    background: rgba(242, 232, 216, 0.1);
+    border-color: rgba(242, 232, 216, 0.28);
+    color: var(--cream);
+}
+
+.sidebar-header-area { border-bottom-color: var(--line); }
+
+.music-sidebar-title {
+    font-family: var(--display);
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+}
+
+.sidebar-track-count {
+    font-size: 0.78rem;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--cream-40);
+}
+
+.add-song-btn,
+.scan-songs-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(242, 232, 216, 0.06);
+    border-color: var(--line);
+    color: var(--cream-60);
+}
+
+.add-song-btn:hover,
+.scan-songs-btn:hover {
+    background: rgba(242, 232, 216, 0.12);
+    border-color: rgba(242, 232, 216, 0.3);
+    color: var(--cream);
+}
+
+.song-list-item { border-radius: 12px; }
+
+.song-list-item:hover {
+    background: rgba(242, 232, 216, 0.05);
+    border-color: transparent;
+}
+
+.song-list-item.active {
+    background: rgba(212, 165, 116, 0.12);
+    border-color: transparent;
+}
+
+/* Square covers instead of tiny spinning records */
+.song-list-vinyl,
+.song-list-item.active .song-list-vinyl {
+    border-radius: 10px;
+    background: var(--sleeve);
+    box-shadow: none;
+    animation: none;
+    transform: none;
+}
+
+.song-list-vinyl-groove,
+.song-list-vinyl-hole { display: none; }
+
+.song-list-cover {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: none;
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+.song-list-cover-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cream-40);
+}
+
+.song-list-title {
+    font-size: 0.88rem;
+    color: var(--cream);
+}
+
+.song-list-artist {
+    font-size: 0.75rem;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--cream-40);
+}
+
+.song-list-num {
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--cream-40);
+}
+
+.sidebar-collapse-btn {
+    background: var(--sleeve);
+    border: 1px solid var(--line);
+    color: var(--cream-60);
+    font-weight: 500;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle.dragging { background: rgba(242, 232, 216, 0.2); }
+
+@media (min-width: 601px) {
+    /* Deck */
+    .record-player { filter: none; }
+
+    .record-player-body {
+        background: #1d1916;
+        border-radius: 24px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(242, 232, 216, 0.08);
+    }
+
+    .deck-foot,
+    .strobe-dots,
+    .rubber-mat { display: none; }
+
+    .record-player-platter {
+        background: #14110f;
+        box-shadow: inset 0 0 0 1px rgba(242, 232, 216, 0.06), inset 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .record {
+        background:
+            radial-gradient(circle at center, #181513 0 12%, transparent 12%),
+            repeating-radial-gradient(circle at center, #1a1715 0 1px, #100e0c 1px 2.5px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    .record-label {
+        box-shadow:
+            0 0 0 2px #100e0c,
+            0 0 0 3px rgba(242, 232, 216, 0.14),
+            inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Tonearm: same pivot and lengths, plainer metal */
+    .tonearm {
+        background: linear-gradient(to bottom, #d9d2c8, #9a928a);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    .tonearm-base {
+        background: #2a2521;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(242, 232, 216, 0.12);
+        animation: none;
+    }
+
+    .tonearm-counterweight {
+        background: #3a342f;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(242, 232, 216, 0.1);
+    }
+
+    .tonearm-rest {
+        background: #3a342f;
+        box-shadow: none;
+    }
+
+    .record-player-led {
+        box-shadow: 0 0 0 1.5px #1d1916, 0 0 0 2.5px rgba(242, 232, 216, 0.12);
+    }
+
+    /* Control bay */
+    .rp-song-info .sleeve-now-playing {
+        font-size: 0.72rem;
+        letter-spacing: 0;
+        text-transform: none;
+        color: var(--cream-40);
+    }
+
+    .rp-song-info .song-title {
+        font-family: var(--display);
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: var(--cream);
+    }
+
+    .rp-song-info .song-artist {
+        font-size: 0.85rem;
+        letter-spacing: 0;
+        text-transform: none;
+        color: var(--cream-60);
+    }
+
+    .rp-song-info .song-album {
+        font-size: 0.75rem;
+        font-style: normal;
+        color: var(--cream-40);
+    }
+
+    .rp-btn {
+        background: rgba(242, 232, 216, 0.06);
+        border: 1px solid var(--line);
+        color: var(--cream);
+        box-shadow: none;
+    }
+
+    .rp-btn:hover {
+        background: rgba(242, 232, 216, 0.12);
+        border-color: rgba(242, 232, 216, 0.3);
+        color: var(--cream);
+        box-shadow: none;
+    }
+
+    .rp-btn.rp-play {
+        background: var(--amber);
+        border-color: var(--amber);
+        color: #1a130c;
+    }
+
+    .rp-btn.rp-play:hover {
+        background: var(--amber-hi);
+        border-color: var(--amber-hi);
+        color: #1a130c;
+    }
+
+    .pitch-track {
+        background: rgba(242, 232, 216, 0.1);
+        box-shadow: none;
+    }
+
+    .pitch-thumb {
+        background: var(--cream);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .pitch-value {
+        font-size: 0.7rem;
+        letter-spacing: 0;
+        color: var(--cream-60);
+    }
+
+    .pitch-label,
+    .volume-label {
+        font-size: 0.7rem;
+        letter-spacing: 0;
+        text-transform: lowercase;
+        color: var(--cream-40);
+    }
+
+    .volume-knob {
+        background: #2a2521;
+        background-blend-mode: normal;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(242, 232, 216, 0.12);
+    }
+
+    .knob-ring {
+        border-color: rgba(242, 232, 216, 0.08);
+        box-shadow: none;
+    }
+
+    .knob-indicator {
+        background: var(--amber);
+        box-shadow: 0 0 6px rgba(212, 165, 116, 0.5);
+    }
+
+    /* Sleeve: straight, same height as the deck */
+    .vinyl-sleeve {
+        height: 700px;
+        margin-right: 16px;
+        transform: none;
+        background: #1d1916;
+        border-right: 0;
+        border-radius: 20px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(242, 232, 216, 0.08);
+    }
+
+    .sleeve-art { background: #151210; }
+    .sleeve-lyrics { border-top-color: var(--line); }
+
+    .lyrics-placeholder {
+        font-size: 0.8rem;
+        font-style: normal;
+        letter-spacing: 0;
+        color: var(--cream-40);
+    }
+
+    .lyrics-ctrl-btn {
+        background: rgba(242, 232, 216, 0.06);
+        border-color: var(--line);
+        border-radius: 8px;
+        color: var(--cream-60);
+    }
+
+    .sleeve-progress-bar { background: rgba(242, 232, 216, 0.12); }
+    .sleeve-progress-fill { background: var(--amber); }
+
+    .sleeve-catalog {
+        border-top-color: var(--line);
+        font-size: 0.72rem;
+        font-weight: 500;
+        letter-spacing: 0;
+        text-transform: lowercase;
+        color: var(--cream-40);
+    }
+}
+
+/* Eyebrow above the deck's song title: the markup shouts it, the deck doesn't. */
+@media (min-width: 601px) {
+    .rp-song-info .sleeve-now-playing { text-transform: lowercase; }
+}
+
+/* Phone dock: artist in sentence case like the list above it. */
+#mDock .song-artist {
+    letter-spacing: 0;
+    text-transform: none;
+}
