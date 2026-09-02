@@ -12526,3 +12526,84 @@ html[data-theme="greenroom"] {
     border-color: var(--line);
     color: var(--cream);
 }
+
+/* ============================================================
+   LIBRARY SEARCH MODAL
+   ============================================================ */
+.search-panel {
+    max-width: 520px;
+    padding-top: 24px;
+}
+
+.search-panel .search-modal-input-wrap {
+    height: 54px;
+    gap: 12px;
+    margin: 0 46px 12px 0;
+    padding: 0 16px;
+    background: rgba(255, 245, 233, 0.06);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    color: var(--cream-60);
+}
+
+.search-panel .search-modal-input-wrap:focus-within {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 3px rgba(var(--amber-rgb), 0.18);
+}
+
+#librarySearchInput {
+    color: var(--cream);
+    font-size: 1rem;
+}
+
+#librarySearchInput::placeholder { color: rgba(255, 245, 233, 0.35); }
+
+.search-results {
+    gap: 2px;
+    max-height: 60vh;
+}
+
+.search-hint {
+    padding: 28px 12px;
+    color: var(--cream-40);
+    font-size: 0.9rem;
+}
+
+.search-result {
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 12px;
+}
+
+.search-result:hover { background: rgba(255, 245, 233, 0.07); }
+
+.search-result-cover {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: var(--surface-hi);
+}
+
+.search-result-cover-empty { color: var(--cream-40); }
+
+.search-result .search-result-title {
+    font-size: 0.95rem;
+    color: var(--cream);
+}
+
+.search-result .search-result-artist {
+    font-size: 0.8rem;
+    color: var(--cream-40);
+}
+
+/* Playlist chip keeps its playlist's colour, as a tint instead of an outline */
+.search-result-pl {
+    max-width: 34%;
+    padding: 4px 10px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--pl-color, var(--amber));
+    background: color-mix(in srgb, var(--pl-color, var(--amber)) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--pl-color, var(--amber)) 40%, transparent);
+    border-radius: 999px;
+}
