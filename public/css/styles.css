@@ -12981,3 +12981,107 @@ html[data-theme="greenroom"] {
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
 }
+
+/* ============================================================
+   WIZARD STEP 1 — the member card as a real club card
+   ============================================================ */
+#memberWelcomeModal .member-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        "label label"
+        "number number"
+        "pin copy";
+    align-items: end;
+    gap: 10px 16px;
+    min-height: 196px;
+    padding: 20px 22px 18px;
+    overflow: hidden;
+    text-align: left;
+}
+
+/* A record sliding out of the card's corner, like the one on the login page */
+#memberWelcomeModal .member-card::before {
+    content: '';
+    position: absolute;
+    top: -64px;
+    right: -64px;
+    width: 176px;
+    height: 176px;
+    border-radius: 50%;
+    z-index: 0;
+    background:
+        radial-gradient(circle at center, var(--amber-hi) 0 15%, #100e0c 15.5% 17.5%, transparent 18%),
+        repeating-radial-gradient(circle at center, #131110 0 1.5px, #1d1915 1.5px 3.5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+#memberWelcomeModal .member-card-label {
+    grid-area: label;
+    align-self: start;
+    margin: 0;
+}
+
+#memberWelcomeModal .member-card-number {
+    grid-area: number;
+    margin: 0;
+    font-size: 2.6rem;
+}
+
+#memberWelcomeModal .member-card-pin {
+    grid-area: pin;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+#memberWelcomeModal .member-card-pin span {
+    margin: 0;
+    padding: 4px 10px;
+    font-size: 1.1rem;
+    letter-spacing: 0.25em;
+}
+
+#memberWelcomeModal .member-card > * {
+    position: relative;
+    z-index: 1;
+}
+
+#memberWelcomeModal .member-card-copy {
+    grid-area: copy;
+    justify-self: end;
+    margin-top: 0;
+}
+
+.member-card-notes {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 18px;
+    padding: 0;
+    list-style: none;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--cream-60);
+}
+
+.member-card-notes li {
+    position: relative;
+    padding-left: 14px;
+}
+
+.member-card-notes li::before {
+    content: '';
+    position: absolute;
+    top: 0.6em;
+    left: 0;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--amber);
+}

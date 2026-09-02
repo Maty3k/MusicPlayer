@@ -957,11 +957,11 @@
                 <div class="member-card-pin">PIN <span id="memberCardPin">{{ session('member_card')['pin'] }}</span></div>
                 <button type="button" class="member-card-copy" onclick="copyMemberCard(this)">Copy card details</button>
             </div>
-            <p class="member-card-note">
-                Your number and PIN are how you get back in — they're on the
-                login page. Save them somewhere: the PIN is only shown this
-                once. You can attach an email later in Settings.
-            </p>
+            <ul class="member-card-notes">
+                <li>Your number and PIN get you back in. They're what the login page asks for.</li>
+                <li>The PIN is shown only this once, so save it somewhere safe.</li>
+                <li>You can attach an email later in Settings.</li>
+            </ul>
             <div class="add-song-form-group">
                 <label for="memberWelcomeName">What should we call you?</label>
                 <input type="text" id="memberWelcomeName" maxlength="100" placeholder="Your name" autocomplete="name">
