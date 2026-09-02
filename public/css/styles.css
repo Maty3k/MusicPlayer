@@ -4057,6 +4057,15 @@ body.song-dragging .song-list-item { transition: none; }
     transition: all 0.2s;
 }
 .spotify-connect-btn:hover { filter: brightness(1.08); box-shadow: 0 4px 16px rgba(29, 185, 84, 0.35); }
+/* Login page: "Continue with Spotify" as a full-width row like the member button */
+.auth-spotify-btn {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 12px 0 6px;
+    text-decoration: none;
+}
 .spotify-glyph { font-size: 1rem; }
 
 /* Connected user chip */

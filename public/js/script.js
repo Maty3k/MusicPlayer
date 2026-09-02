@@ -2229,9 +2229,13 @@ function setNowPlayingText(title, artist, album) {
 document.addEventListener('DOMContentLoaded', () => {
     updateAmpDisplay();
     if (shuffleMode !== 'off') buildShuffleQueue();
-    // Check if returning from Spotify OAuth
-    if (new URLSearchParams(window.location.search).get('spotify') === 'connected') {
+    // Returning from Spotify OAuth: refresh the connection state, and after a
+    // fresh "Continue with Spotify" sign-in go straight to the library import.
+    const spotifyReturn = new URLSearchParams(window.location.search).get('spotify');
+    if (spotifyReturn === 'connected') {
         checkSpotifyStatus();
+    } else if (spotifyReturn === 'signed-in') {
+        checkSpotifyStatus().then(() => { showSpotifyImportModal(); setImportTab('spotify'); });
     }
 });
 
@@ -4756,15 +4760,14 @@ function hideSpotifyImportModal() {
     spotifyImportData = null;
 }
 
-// "Import everything": Liked Songs + every playlist, each mirrored into its
-// own playlist here. The server imports one source at a time in short chunks
-// so a big library never ties up a single request; this loop just drives it
-// and reports progress. Re-running syncs (the server replaces each mirrored
-// playlist's songs with Spotify's current list) rather than duplicating.
-async function importEntireSpotifyLibrary() {
-    const btn = document.getElementById('spotifyImportAllBtn');
-    const status = document.getElementById('spotifyImportAllStatus');
-    if (!btn || btn.disabled) return;
+// Whole-library import, driven from the browser: `planBody` asks the server
+// for the sources (the signed-in account's own library, or a public
+// profile's playlists), then each one is imported in short chunks so a big
+// library never ties up a single request. Progress goes to `status`, and the
+// page reloads at the end. The server replaces each mirrored playlist's
+// songs, so re-running syncs rather than duplicates.
+async function runSpotifyLibraryImport(planBody, btn, status) {
+    if (!btn || !status || btn.disabled) return;
     btn.disabled = true;
     status.style.display = '';
     const say = (msg) => { status.textContent = msg; };
@@ -4781,11 +4784,15 @@ async function importEntireSpotifyLibrary() {
     };
 
     try {
-        say('Reading your Spotify library\u2026');
-        const plan = await post({ action: 'plan' });
-        if (!plan.success) throw new Error(plan.error || 'Could not read your Spotify library');
+        say('Reading the Spotify library\u2026');
+        const plan = await post(planBody);
+        if (!plan.success) throw new Error(plan.error || 'Could not read that library');
         const sources = plan.sources || [];
-        if (sources.length === 0) throw new Error('Nothing to import \u2014 your Spotify library is empty');
+        const skipped = Number(plan.skipped) || 0;
+        const skippedNote = skipped
+            ? ` Skipped ${skipped} Spotify-made playlist${skipped === 1 ? '' : 's'} this app can\u2019t read.`
+            : '';
+        if (sources.length === 0) throw new Error('Nothing to import: no playlists found.' + skippedNote);
 
         let imported = 0;
         const failed = [];
@@ -4808,7 +4815,7 @@ async function importEntireSpotifyLibrary() {
 
         const ok = sources.length - failed.length;
         say(`Imported ${imported} song${imported === 1 ? '' : 's'} into ${ok} playlist${ok === 1 ? '' : 's'}`
-            + (failed.length ? ` \u00b7 could not read: ${failed.join(', ')}` : '') + '. Reloading\u2026');
+            + (failed.length ? ` \u00b7 could not read: ${failed.join(', ')}` : '') + '.' + skippedNote + ' Reloading\u2026');
         await sleep(1500);
         // New crate cards live in server-rendered markup — reload, like createPlaylist does.
         location.reload();
@@ -4816,6 +4823,27 @@ async function importEntireSpotifyLibrary() {
         say(e.message || 'Import failed');
         btn.disabled = false;
     }
+}
+
+// "Import everything": the signed-in account's Liked Songs + every playlist.
+function importEntireSpotifyLibrary() {
+    return runSpotifyLibraryImport(
+        { action: 'plan' },
+        document.getElementById('spotifyImportAllBtn'),
+        document.getElementById('spotifyImportAllStatus')
+    );
+}
+
+// A public profile's playlists, read with the app's own credentials — works
+// without connecting Spotify (Liked Songs and private playlists can't).
+function importSpotifyProfile() {
+    const link = (document.getElementById('spotifyProfileUrl')?.value || '').trim();
+    if (!link) return;
+    return runSpotifyLibraryImport(
+        { action: 'plan', profile: link },
+        document.getElementById('spotifyProfileImportBtn'),
+        document.getElementById('spotifyProfileImportStatus')
+    );
 }
 
 async function fetchSpotifyPlaylistUrl() {

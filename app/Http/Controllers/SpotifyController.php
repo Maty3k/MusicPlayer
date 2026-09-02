@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Support\SpotifyApi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 /**
@@ -15,14 +17,29 @@ use Illuminate\Support\Str;
  * POST: import_url/playlist_tracks) with identical JSON shapes. Token and
  * HTTP plumbing lives in SpotifyApi, shared with the whole-library importer
  * (SpotifyLibraryController).
+ *
+ * The same OAuth flow also powers "Continue with Spotify" on the login page:
+ * the callback then signs the visitor in (creating the account on first use)
+ * instead of attaching a token to an existing session.
  */
 class SpotifyController extends Controller
 {
+    public const SCOPES = 'streaming user-read-email user-read-private playlist-read-private playlist-read-collaborative user-library-read';
+
     public function __construct(private SpotifyApi $spotify) {}
 
     public function handleGet(Request $request): JsonResponse|RedirectResponse
     {
-        return match ($request->query('action', '')) {
+        $action = (string) $request->query('action', '');
+
+        // The callback must work for guests: "Continue with Spotify" lands
+        // here before there is a session user. Every other action is per-user.
+        $user = $request->user();
+        if ($action !== 'callback' && ($user === null || ! $user->hasVerifiedEmail())) {
+            return response()->json(['error' => 'Not authenticated'], 401);
+        }
+
+        return match ($action) {
             'login' => $this->login($request),
             'callback' => $this->callback($request),
             'token' => $this->token($request),
@@ -43,26 +60,52 @@ class SpotifyController extends Controller
     }
 
     // ============================================================
-    // ROUTE: LOGIN — start OAuth flow
+    // ROUTE: /auth/spotify — "Continue with Spotify" (guests)
+    // ============================================================
+    public function redirectToLogin(Request $request): RedirectResponse
+    {
+        if (! $this->configured()) {
+            return redirect()->route('login')->withErrors(['spotify' => 'Spotify sign-in is not set up on this server yet.']);
+        }
+
+        return redirect()->away($this->authorizeUrl($request, 'login'));
+    }
+
+    // ============================================================
+    // ROUTE: LOGIN — start the connect flow from Settings
     // ============================================================
     private function login(Request $request): JsonResponse
     {
-        if (empty(config('services.spotify.client_id')) || empty(config('services.spotify.redirect_uri'))) {
+        if (! $this->configured()) {
             return response()->json(['error' => 'Fill in config.php first']);
         }
 
+        return response()->json(['authUrl' => $this->authorizeUrl($request, 'connect')]);
+    }
+
+    private function configured(): bool
+    {
+        return ! empty(config('services.spotify.client_id')) && ! empty(config('services.spotify.redirect_uri'));
+    }
+
+    /**
+     * Spotify consent URL. The random state guards the callback against CSRF;
+     * the flow ("login" or "connect") tells the callback what to do with the
+     * token it gets back.
+     */
+    private function authorizeUrl(Request $request, string $flow): string
+    {
         $state = Str::random(32);
         $request->session()->put('spotify_state', $state);
+        $request->session()->put('spotify_flow', $flow);
 
-        $authUrl = 'https://accounts.spotify.com/authorize?'.http_build_query([
+        return 'https://accounts.spotify.com/authorize?'.http_build_query([
             'client_id' => config('services.spotify.client_id'),
             'response_type' => 'code',
             'redirect_uri' => config('services.spotify.redirect_uri'),
-            'scope' => 'streaming user-read-email user-read-private playlist-read-private playlist-read-collaborative user-library-read',
+            'scope' => self::SCOPES,
             'state' => $state,
         ]);
-
-        return response()->json(['authUrl' => $authUrl]);
     }
 
     // ============================================================
@@ -70,14 +113,19 @@ class SpotifyController extends Controller
     // ============================================================
     private function callback(Request $request): RedirectResponse
     {
+        $flow = (string) $request->session()->pull('spotify_flow', 'connect');
+        $failed = $flow === 'login'
+            ? redirect()->route('login')->withErrors(['spotify' => 'Spotify sign-in did not complete. Please try again.'])
+            : redirect('/?spotify=error');
+
         $code = (string) $request->query('code', '');
         $error = (string) $request->query('error', '');
         $state = (string) $request->query('state', '');
 
-        // Verify the CSRF state parameter we set on `login`.
+        // Verify the CSRF state parameter set when the flow started.
         $expected = (string) $request->session()->pull('spotify_state', '');
         if ($error !== '' || $code === '' || $state === '' || $expected === '' || ! hash_equals($expected, $state)) {
-            return redirect('/?spotify=error');
+            return $failed;
         }
 
         $data = $this->spotify->accountsPost([
@@ -85,18 +133,60 @@ class SpotifyController extends Controller
             'code' => $code,
             'redirect_uri' => config('services.spotify.redirect_uri'),
         ]);
-
-        if (! empty($data['access_token'])) {
-            $request->user()->spotifyToken()->updateOrCreate([], [
-                'access_token' => $data['access_token'],
-                'refresh_token' => $data['refresh_token'] ?? '',
-                'expires_at' => now()->addSeconds((int) ($data['expires_in'] ?? 3600)),
-            ]);
-
-            return redirect('/?spotify=connected');
+        if (empty($data['access_token'])) {
+            return $failed;
         }
 
-        return redirect('/?spotify=error');
+        $profile = $this->spotify->get(SpotifyApi::API_URL.'/me', $data['access_token']);
+        $spotifyUserId = is_array($profile) ? trim((string) ($profile['id'] ?? '')) : '';
+
+        $user = $request->user();
+        if ($flow === 'login') {
+            if ($spotifyUserId === '') {
+                return $failed;
+            }
+            $user = User::query()->where('spotify_user_id', $spotifyUserId)->first()
+                ?? $this->createSpotifyUser($spotifyUserId, $profile);
+            Auth::login($user, remember: true);
+            $request->session()->regenerate();
+        } elseif ($user === null) {
+            return $failed;
+        }
+
+        // Link the Spotify account to this user so "Continue with Spotify"
+        // lands here next time — unless another account already holds it
+        // (connecting the same Spotify twice must not hijack the first).
+        if ($spotifyUserId !== '' && $user->spotify_user_id !== $spotifyUserId) {
+            $claimed = User::query()->where('spotify_user_id', $spotifyUserId)->whereKeyNot($user->getKey())->exists();
+            if (! $claimed) {
+                $user->forceFill(['spotify_user_id' => $spotifyUserId])->save();
+            }
+        }
+
+        $user->spotifyToken()->updateOrCreate([], [
+            'access_token' => $data['access_token'],
+            'refresh_token' => $data['refresh_token'] ?? '',
+            'expires_at' => now()->addSeconds((int) ($data['expires_in'] ?? 3600)),
+        ]);
+
+        return redirect($flow === 'login' ? '/?spotify=signed-in' : '/?spotify=connected');
+    }
+
+    /**
+     * Account for a first-time "Continue with Spotify" sign-in. Spotify's
+     * email claim is unverified, so it is not stored (that would let anyone
+     * claim an address); like a member-number account, an email can be
+     * attached and verified later in Settings.
+     */
+    private function createSpotifyUser(string $spotifyUserId, array $profile): User
+    {
+        $name = trim((string) ($profile['display_name'] ?? ''));
+
+        return User::create([
+            'name' => $name !== '' ? mb_substr($name, 0, 100) : 'Spotify listener',
+            'password' => Str::random(40),
+            'spotify_user_id' => $spotifyUserId,
+        ]);
     }
 
     // ============================================================

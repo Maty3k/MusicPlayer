@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\DB;
  * import syncs them with Spotify instead of duplicating.
  *
  * Big libraries run to thousands of tracks, so the work is split into short
- * chunks the browser drives one after another: plan() lists the sources,
- * importChunk() pulls a few pages of one source per call.
+ * chunks the browser drives one after another: plan() (or, for a public
+ * profile read with the app's own credentials, planPublicProfile()) lists the
+ * sources, importChunk() pulls a few pages of one source per call.
  */
 class SpotifyLibraryImporter
 {
@@ -37,10 +38,10 @@ class SpotifyLibraryImporter
     public function __construct(private SpotifyApi $spotify) {}
 
     /**
-     * Everything the account exposes, in import order: Liked Songs first
-     * (when there are any), then every playlist in Spotify's own order.
+     * Everything the signed-in account exposes, in import order: Liked Songs
+     * first (when there are any), then every playlist in Spotify's own order.
      *
-     * @return list<array{kind: string, id: string, name: string, total: int}>|null null when Spotify could not be read
+     * @return array{sources: list<array{kind: string, id: string, name: string, total: int}>, skipped: int}|null null when Spotify could not be read
      */
     public function plan(string $token): ?array
     {
@@ -49,22 +50,77 @@ class SpotifyLibraryImporter
             return null;
         }
 
-        $sources = [];
-        if ((int) ($liked['total'] ?? 0) > 0) {
-            $sources[] = ['kind' => 'liked', 'id' => '', 'name' => self::LIKED_NAME, 'total' => (int) $liked['total']];
+        $plan = $this->playlistSources(SpotifyApi::API_URL.'/me/playlists', $token);
+        if ($plan === null) {
+            return null;
         }
 
+        if ((int) ($liked['total'] ?? 0) > 0) {
+            array_unshift($plan['sources'], [
+                'kind' => 'liked',
+                'id' => '',
+                'name' => self::LIKED_NAME,
+                'total' => (int) $liked['total'],
+            ]);
+        }
+
+        return $plan;
+    }
+
+    /**
+     * A public profile's playlists, readable with the app's own credentials
+     * (no sign-in): the ones its owner made public. Liked Songs and private
+     * playlists are never visible this way.
+     *
+     * @return array{sources: list<array{kind: string, id: string, name: string, total: int}>, skipped: int}|null null when the profile could not be read
+     */
+    public function planPublicProfile(string $spotifyUserId, string $token): ?array
+    {
+        return $this->playlistSources(SpotifyApi::API_URL.'/users/'.rawurlencode($spotifyUserId).'/playlists', $token);
+    }
+
+    /**
+     * The Spotify user id in a profile link (open.spotify.com/user/…), a
+     * spotify:user: URI, or a bare id; null for anything else.
+     */
+    public static function profileIdFrom(string $input): ?string
+    {
+        $input = trim($input);
+        if (preg_match('#open\.spotify\.com/user/([^/?\#\s]+)#i', $input, $match)) {
+            $input = rawurldecode($match[1]);
+        } elseif (preg_match('#^spotify:user:([^\s:]+)$#i', $input, $match)) {
+            $input = $match[1];
+        }
+
+        return preg_match('/^[A-Za-z0-9._-]{1,64}$/', $input) === 1 ? $input : null;
+    }
+
+    /**
+     * Page through a playlists endpoint. Spotify-made playlists (owner
+     * "spotify", e.g. Discover Weekly) are counted but left out: the API
+     * withholds them from apps in development mode, so importing them would
+     * only fail later.
+     *
+     * @return array{sources: list<array{kind: string, id: string, name: string, total: int}>, skipped: int}|null
+     */
+    private function playlistSources(string $url, string $token): ?array
+    {
+        $sources = [];
+        $skipped = 0;
         $offset = 0;
         do {
-            $data = $this->spotify->getPage(SpotifyApi::API_URL.'/me/playlists', $token, [
-                'offset' => $offset,
-                'limit' => 50,
-            ]);
+            $data = $this->spotify->getPage($url, $token, ['offset' => $offset, 'limit' => 50]);
             if ($data === null) {
                 return null;
             }
-            foreach ($data['items'] ?? [] as $playlist) {
-                if (empty($playlist['id'])) {
+            $items = is_array($data['items'] ?? null) ? $data['items'] : [];
+            foreach ($items as $playlist) {
+                if (! is_array($playlist) || empty($playlist['id'])) {
+                    continue;
+                }
+                if (($playlist['owner']['id'] ?? '') === 'spotify') {
+                    $skipped++;
+
                     continue;
                 }
                 $sources[] = [
@@ -77,7 +133,7 @@ class SpotifyLibraryImporter
             $offset += 50;
         } while (! empty($data['next']));
 
-        return $sources;
+        return ['sources' => $sources, 'skipped' => $skipped];
     }
 
     /**

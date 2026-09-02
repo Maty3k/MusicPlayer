@@ -44,8 +44,16 @@ Route::get('/s/{token}', [SharedPlaylistController::class, 'show'])
     ->middleware('throttle:60,1')
     ->name('shared.show');
 
+// Spotify OAuth. GET serves login/callback/token/status/logout/playlists.
+// It sits outside the auth group because the callback is also where
+// "Continue with Spotify" lands, before there is a session user; the
+// controller checks auth for every other action.
+Route::get('/spotify', [SpotifyController::class, 'handleGet'])->middleware('throttle:60,1');
+
 // ---- Guest auth ----
 Route::middleware('guest')->group(function () {
+    Route::get('/auth/spotify', [SpotifyController::class, 'redirectToLogin'])
+        ->middleware('throttle:10,1')->name('spotify.login');
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
     Route::post('/register', [RegisteredUserController::class, 'store'])->middleware('throttle:10,1');
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -95,9 +103,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/media/{filename}', MediaController::class)
         ->where('filename', '[A-Za-z0-9.\-]+');
 
-    // Spotify: GET serves login/callback/token/status/logout/playlists,
-    // POST serves import_url/playlist_tracks (mirrors the legacy split).
-    Route::get('/spotify', [SpotifyController::class, 'handleGet'])->middleware('throttle:60,1');
+    // Spotify POST serves import_url/playlist_tracks; the GET side lives
+    // outside this group (see below) because its callback also serves guests.
     Route::post('/spotify', [SpotifyController::class, 'handlePost'])->middleware('throttle:30,1');
 
     // Whole-library import (Liked Songs + every playlist). The browser drives

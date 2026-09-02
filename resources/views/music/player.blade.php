@@ -1320,6 +1320,15 @@
                     </div>
                 </div>
                 <p class="settings-hint" id="spotifyImportHint">Paste any public Spotify playlist link. Songs stream from YouTube; each one resolves the first time you play it.</p>
+                <div class="add-song-form-group">
+                    <label for="spotifyProfileUrl">Public profile</label>
+                    <div class="spotify-import-url-row">
+                        <input type="text" id="spotifyProfileUrl" placeholder="https://open.spotify.com/user/...">
+                        <button type="button" class="add-song-btn-save" id="spotifyProfileImportBtn" onclick="importSpotifyProfile()">Import all</button>
+                    </div>
+                    <p class="settings-hint">Every playlist that profile has made public, each as its own playlist here. No Spotify sign-in needed. Liked Songs and private playlists need Connect Spotify or "Continue with Spotify".</p>
+                    <div class="settings-hint spotify-import-all-status" id="spotifyProfileImportStatus" style="display:none" aria-live="polite"></div>
+                </div>
                 <div id="spotifyUserPlaylists" class="add-song-form-group" style="display:none">
                     <label>Your playlists</label>
                     <div class="spotify-import-all">

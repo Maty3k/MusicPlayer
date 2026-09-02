@@ -278,6 +278,86 @@ class SpotifyLibraryImportTest extends TestCase
         $this->assertFalse($user->playlists()->where('slug', 'spotify-pl1')->exists());
     }
 
+    private function plainUser(): User
+    {
+        return User::forceCreate([
+            'name' => 'Visitor',
+            'email' => uniqid().'@example.com',
+            'password' => bcrypt('secret-password'),
+            'email_verified_at' => now(),
+        ]);
+    }
+
+    public function test_plans_a_public_profile_with_the_app_credentials_and_skips_spotify_made_playlists(): void
+    {
+        $playlists = [
+            ['id' => 'pl1', 'name' => 'Road Trip', 'owner' => ['id' => 'matei'], 'tracks' => ['total' => 3]],
+            ['id' => 'dw', 'name' => 'Discover Weekly', 'owner' => ['id' => 'spotify'], 'tracks' => ['total' => 30]],
+        ];
+        Http::fake([
+            'accounts.spotify.com/*' => Http::response(['access_token' => 'app-token', 'expires_in' => 3600]),
+            'api.spotify.com/v1/users/matei/playlists*' => $this->paged($playlists),
+        ]);
+
+        $plan = $this->actingAs($this->plainUser())
+            ->postJson('/spotify-library', ['action' => 'plan', 'profile' => 'https://open.spotify.com/user/matei?si=abc'])
+            ->assertOk()
+            ->assertJson(['success' => true, 'skipped' => 1])
+            ->json();
+
+        $this->assertSame([['kind' => 'playlist', 'id' => 'pl1', 'name' => 'Road Trip', 'total' => 3]], $plan['sources']);
+        Http::assertSent(fn (Request $request) => str_contains($request->url(), 'accounts.spotify.com')
+            && $request['grant_type'] === 'client_credentials');
+        Http::assertSent(fn (Request $request) => str_contains($request->url(), '/users/matei/playlists')
+            && $request->hasHeader('Authorization', 'Bearer app-token'));
+    }
+
+    public function test_imports_a_public_playlist_without_a_connected_account(): void
+    {
+        $tracks = [$this->track('t1', 'One'), $this->track('t2', 'Two')];
+        Http::fake([
+            'accounts.spotify.com/*' => Http::response(['access_token' => 'app-token', 'expires_in' => 3600]),
+            'api.spotify.com/v1/playlists/pl1/tracks*' => $this->paged($tracks),
+            'api.spotify.com/v1/playlists/pl1?*' => Http::response(['name' => 'Road Trip']),
+        ]);
+        $user = $this->plainUser();
+
+        $this->actingAs($user)
+            ->postJson('/spotify-library', ['action' => 'import', 'kind' => 'playlist', 'id' => 'pl1', 'offset' => 0])
+            ->assertOk()
+            ->assertJson(['success' => true, 'done' => true, 'imported' => 2, 'slug' => 'spotify-pl1']);
+
+        $playlist = $user->playlists()->where('slug', 'spotify-pl1')->firstOrFail();
+        $this->assertSame(['One', 'Two'], $playlist->songs()->orderBy('position')->pluck('title')->all());
+    }
+
+    public function test_liked_songs_still_need_a_connected_account(): void
+    {
+        Http::fake();
+
+        $this->actingAs($this->plainUser())
+            ->postJson('/spotify-library', ['action' => 'import', 'kind' => 'liked', 'offset' => 0])
+            ->assertOk()
+            ->assertJson(['success' => false]);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_rejects_a_link_that_is_not_a_profile(): void
+    {
+        Http::fake();
+        $user = $this->connectedUser();
+
+        foreach (['https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M', 'not a profile!'] as $profile) {
+            $this->actingAs($user)
+                ->postJson('/spotify-library', ['action' => 'plan', 'profile' => $profile])
+                ->assertOk()
+                ->assertJson(['success' => false]);
+        }
+
+        Http::assertNothingSent();
+    }
+
     public function test_rejects_malformed_import_requests_before_calling_spotify(): void
     {
         Http::fake();

@@ -12,9 +12,11 @@ use Illuminate\Support\Facades\Cache;
 
 /**
  * Whole-library Spotify import, driven chunk by chunk from the browser:
- * `plan` lists Liked Songs + every playlist, `import` pulls a few pages of
- * one of them per call (see SpotifyLibraryImporter). Same action-based JSON
- * contract as the other endpoints.
+ * `plan` lists the sources, `import` pulls a few pages of one of them per
+ * call (see SpotifyLibraryImporter). Two ways in: the signed-in account's
+ * own library through its OAuth token (Liked Songs + every playlist), or any
+ * public profile through the app's own credentials (its public playlists
+ * only). Same action-based JSON contract as the other endpoints.
  */
 class SpotifyLibraryController extends Controller
 {
@@ -26,15 +28,11 @@ class SpotifyLibraryController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $user = $request->user();
-        $token = $this->spotify->userToken($user);
-        if ($token === null) {
-            return response()->json(['success' => false, 'error' => 'Connect Spotify first']);
-        }
 
         try {
             $payload = match ($request->input('action', '')) {
-                'plan' => $this->plan($token),
-                'import' => $this->import($request, $user, $token),
+                'plan' => $this->plan($request, $user),
+                'import' => $this->import($request, $user),
                 default => ['success' => false, 'error' => 'Invalid action'],
             };
         } catch (SpotifyRateLimited $e) {
@@ -48,17 +46,39 @@ class SpotifyLibraryController extends Controller
         return response()->json($payload);
     }
 
-    private function plan(string $token): array
+    private function plan(Request $request, User $user): array
     {
-        $sources = $this->importer->plan($token);
-        if ($sources === null) {
+        $profile = $request->input('profile');
+        if (is_string($profile) && trim($profile) !== '') {
+            $spotifyUserId = SpotifyLibraryImporter::profileIdFrom($profile);
+            if ($spotifyUserId === null) {
+                return ['success' => false, 'error' => 'Paste a Spotify profile link (open.spotify.com/user/…)'];
+            }
+            $token = $this->spotify->anyToken($user);
+            if ($token === null) {
+                return ['success' => false, 'error' => 'Spotify is not configured on this server'];
+            }
+            $plan = $this->importer->planPublicProfile($spotifyUserId, $token);
+            if ($plan === null) {
+                return ['success' => false, 'error' => 'Could not read that profile. Is it public?'];
+            }
+
+            return ['success' => true] + $plan;
+        }
+
+        $token = $this->spotify->userToken($user);
+        if ($token === null) {
+            return ['success' => false, 'error' => 'Connect Spotify first, or paste a public profile link'];
+        }
+        $plan = $this->importer->plan($token);
+        if ($plan === null) {
             return ['success' => false, 'error' => 'Could not read your Spotify library'];
         }
 
-        return ['success' => true, 'sources' => $sources];
+        return ['success' => true] + $plan;
     }
 
-    private function import(Request $request, User $user, string $token): array
+    private function import(Request $request, User $user): array
     {
         $kind = $request->input('kind');
         $id = $request->input('id', '');
@@ -70,6 +90,16 @@ class SpotifyLibraryController extends Controller
 
         if (! in_array($kind, ['liked', 'playlist'], true) || ! $validId || $offset === false) {
             return ['success' => false, 'error' => 'Invalid import request'];
+        }
+
+        // Liked Songs are only readable through the user's own token; public
+        // playlists can also be read with the app's credentials.
+        $token = $kind === 'liked' ? $this->spotify->userToken($user) : $this->spotify->anyToken($user);
+        if ($token === null) {
+            return [
+                'success' => false,
+                'error' => $kind === 'liked' ? 'Connect Spotify first' : 'Spotify is not configured on this server',
+            ];
         }
 
         // Chunks of one library must not interleave (two tabs, a double

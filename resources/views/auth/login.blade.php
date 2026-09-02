@@ -25,6 +25,14 @@
         <p class="member-start-hint">No email needed — you'll get a member card with your number and PIN.</p>
     </form>
 
+    @if (config('services.spotify.client_id'))
+        {{-- Spotify sign-in: one tap, and the whole library can be imported right after. --}}
+        <a href="{{ route('spotify.login') }}" class="spotify-connect-btn auth-spotify-btn">
+            <span class="spotify-glyph">&#9835;</span> Continue with Spotify
+        </a>
+        <p class="member-start-hint">Signs you in and lets you import your playlists and Liked Songs.</p>
+    @endif
+
     <div class="auth-divider"><span>already a member?</span></div>
 
     <form method="POST" action="{{ route('member.login') }}">
