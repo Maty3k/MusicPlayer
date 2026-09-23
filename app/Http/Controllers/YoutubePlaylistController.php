@@ -15,7 +15,13 @@ use Illuminate\Support\Facades\Http;
  */
 class YoutubePlaylistController extends Controller
 {
-    private const MAX_TRACKS = 200;
+    private const MAX_TRACKS = 1000;
+
+    /** Continuation requests after the first page (~100 videos each). */
+    private const MAX_PAGES = 12;
+
+    /** Used if the page stops exposing INNERTUBE_CLIENT_VERSION. */
+    private const FALLBACK_CLIENT_VERSION = '2.20260922.01.00';
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -42,9 +48,29 @@ class YoutubePlaylistController extends Controller
             return response()->json(['success' => false, 'error' => 'Could not reach YouTube']);
         }
 
-        $videos = YoutubeExtractor::playlistVideos($html);
+        $data = YoutubeExtractor::extractObject($html);
+        $seen = [];
+        $videos = $data === null ? [] : YoutubeExtractor::videosFromData($data, $seen);
         if ($videos === []) {
             return response()->json(['success' => false, 'error' => 'No videos found — is the playlist public?']);
+        }
+
+        // The page only carries the first ~100 videos; page through the rest.
+        // A failed continuation keeps what we have rather than failing the import.
+        $token = YoutubeExtractor::continuationToken($data);
+        $clientVersion = YoutubeExtractor::clientVersion($html) ?? self::FALLBACK_CLIENT_VERSION;
+        $pages = 0;
+        while ($token !== null && count($videos) < self::MAX_TRACKS && $pages++ < self::MAX_PAGES) {
+            $page = $this->fetchContinuation($token, $clientVersion);
+            if ($page === null) {
+                break;
+            }
+            $more = YoutubeExtractor::videosFromData($page, $seen);
+            if ($more === []) {
+                break;
+            }
+            array_push($videos, ...$more);
+            $token = YoutubeExtractor::continuationToken($page);
         }
 
         $songs = [];
@@ -66,6 +92,26 @@ class YoutubePlaylistController extends Controller
             'songs' => $songs,
             'total' => count($songs),
         ]);
+    }
+
+    /** Next page of a playlist from YouTube's internal browse endpoint (no key needed). */
+    private function fetchContinuation(string $token, string $clientVersion): ?array
+    {
+        try {
+            $response = Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept-Language' => 'en-US,en;q=0.9',
+            ])->timeout(12)->post('https://www.youtube.com/youtubei/v1/browse?prettyPrint=false', [
+                'context' => ['client' => ['clientName' => 'WEB', 'clientVersion' => $clientVersion, 'hl' => 'en']],
+                'continuation' => $token,
+            ]);
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        $json = $response->successful() ? $response->json() : null;
+
+        return is_array($json) ? $json : null;
     }
 
     /** Accept a playlist URL or a bare list id. */

@@ -64,21 +64,58 @@ class YoutubeExtractor
      *
      * Walks the parsed ytInitialData for playlistVideoRenderer nodes anywhere
      * in the tree (robust to YouTube shuffling the surrounding structure).
-     * Only the first page renders server-side — long playlists are truncated
-     * to whatever is present, which the caller further caps.
+     * Only the first page (~100 videos) renders server-side; the rest is
+     * fetched via continuationToken() + the browse endpoint.
      */
     public static function playlistVideos(string $html): array
     {
         $data = self::extractObject($html);
-        if ($data === null) {
-            return [];
-        }
 
+        return $data === null ? [] : self::videosFromData($data);
+    }
+
+    /**
+     * Playlist videos from already-parsed JSON — a page's ytInitialData or a
+     * youtubei/v1/browse continuation response.
+     *
+     * @param  array<string,string>  $seen  videoIds to skip (shared across pages)
+     */
+    public static function videosFromData(array $data, array &$seen = []): array
+    {
         $out = [];
-        $seen = [];
         self::collectPlaylistVideos($data, $out, $seen);
 
         return $out;
+    }
+
+    /**
+     * Token for the next page of a playlist, or null on the last page. Looks
+     * only inside continuation items (current view model and legacy renderer)
+     * so unrelated commands elsewhere in the tree are never picked up.
+     */
+    public static function continuationToken(mixed $node, bool $inContinuation = false): ?string
+    {
+        if (! is_array($node)) {
+            return null;
+        }
+        if ($inContinuation && is_string($node['continuationCommand']['token'] ?? null)) {
+            return $node['continuationCommand']['token'];
+        }
+        foreach ($node as $key => $value) {
+            $inside = $inContinuation || $key === 'continuationItemViewModel' || $key === 'continuationItemRenderer';
+            $token = self::continuationToken($value, $inside);
+            if ($token !== null) {
+                return $token;
+            }
+        }
+
+        return null;
+    }
+
+    /** The web client version the page was served with (for browse calls). */
+    public static function clientVersion(string $html): ?string
+    {
+        return preg_match('/"INNERTUBE_CLIENT_VERSION":"([0-9.]+)"/', $html, $m) ? $m[1] : null;
     }
 
     /** @param array<int,array<string,string>> $out */

@@ -5097,21 +5097,32 @@ async function confirmImportSelection() {
 // (dedupe means the count may be lower than what was sent).
 async function bulkAddSongs(songs) {
     if (!Array.isArray(songs) || songs.length === 0) return { success: false };
-    let result;
-    try {
-        const resp = await fetch('/save-music', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'addBatch', songs }),
-        });
-        result = await resp.json();
-    } catch (e) {
-        showBulkToast('Import failed — check your connection');
-        return { success: false };
-    }
-    if (!result.success) {
-        showBulkToast(result.error || 'Import failed');
-        return { success: false };
+    // The server caps one addBatch at 200 songs; long playlists go in chunks.
+    const CHUNK = 200;
+    const result = { success: true, added: 0, skipped: 0 };
+    for (let i = 0; i < songs.length; i += CHUNK) {
+        let part;
+        try {
+            const resp = await fetch('/save-music', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'addBatch', songs: songs.slice(i, i + CHUNK) }),
+            });
+            part = await resp.json();
+        } catch (e) {
+            part = { success: false, error: 'Import failed — check your connection' };
+        }
+        if (!part.success) {
+            // Earlier chunks are already saved; say so rather than hide them.
+            showBulkToast(result.added > 0
+                ? `Added ${result.added}, then stopped: ${part.error || 'import failed'}`
+                : (part.error || 'Import failed'));
+            if (result.added === 0) return { success: false };
+            result.success = false;
+            break;
+        }
+        result.added += part.added || 0;
+        result.skipped += part.skipped || 0;
     }
 
     // Reload the active playlist's songs so local state matches the DB.
@@ -5132,6 +5143,7 @@ async function bulkAddSongs(songs) {
     rebuildSongList();
     updateTrackCount();
 
+    if (!result.success) return result; // partial-failure toast already shown
     const msg = result.skipped > 0
         ? `Added ${result.added} · skipped ${result.skipped} already in playlist`
         : `Added ${result.added} song${result.added === 1 ? '' : 's'}`;
