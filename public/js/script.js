@@ -4960,7 +4960,9 @@ async function fetchYoutubePlaylist() {
         return;
     }
 
-    importSelection = data.songs.slice(0, 200).map(s => ({
+    // No client cap: the server already limits playlists, and bulkAddSongs
+    // saves in 200-song chunks.
+    importSelection = data.songs.map(s => ({
         title: s.title, artist: s.artist || '', album: '', cover: s.cover || '',
         spotify_id: '', youtube_id: s.youtube_id, needsMatch: true, matchLabel: '', checked: true,
     }));
