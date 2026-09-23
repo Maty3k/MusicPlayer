@@ -1,3 +1,7 @@
+// Debug hooks come from player-debug.js; no-ops if it didn't load.
+if (typeof window.pdbg !== 'function') window.pdbg = function () {};
+if (typeof window.__pdbgAttach !== 'function') window.__pdbgAttach = function () {};
+
 // Laravel session auth: the page carries a CSRF token in a <meta> tag. This
 // shim attaches it as X-CSRF-TOKEN on every POST-like request to our own
 // backend endpoints so the VerifyCsrfToken middleware accepts them. GET
@@ -268,6 +272,7 @@ function setActiveSongRow(index) {
 
 // Switch song from sidebar
 async function switchSong(index) {
+    pdbg('tap song #' + (index + 1), songsData[index] ? songsData[index].title : '');
     if (index === currentSongIndex && !currentRadioSong) return;
     if (isChangingSong) return;
 
@@ -664,6 +669,7 @@ function getRandomSongIndex() {
 
 function fetchRadioRecommendations(videoId) {
     if (isFetchingRadio || !videoId) return;
+    pdbg('radio probe player created (smart shuffle)', videoId);
     isFetchingRadio = true;
     showRadioLoading(true);
 
@@ -943,6 +949,7 @@ function whenYouTubeReady(timeoutMs = 8000) {
 function discoverProbeMix(videoId) {
     return new Promise((resolve) => {
         if (typeof YT === 'undefined' || !YT.Player) { resolve([]); return; }
+        pdbg('discover probe player created', videoId);
         let probeDiv = document.getElementById('discoverProbe');
         if (probeDiv) probeDiv.remove();
         probeDiv = document.createElement('div');
@@ -951,6 +958,7 @@ function discoverProbeMix(videoId) {
         document.body.appendChild(probeDiv);
 
         const finish = (ids) => {
+            pdbg('discover probe finished', ids.length + ' songs');
             try { if (discoverProbePlayer) discoverProbePlayer.destroy(); } catch (e) {}
             discoverProbePlayer = null;
             resolve(ids);
@@ -1651,6 +1659,9 @@ function onYouTubeIframeAPIReady() {
         },
         events: {
             'onReady': function(event) {
+                // The API only installs the player methods once ready, so
+                // the debug wrappers go on here, before the initial cue.
+                window.__pdbgAttach(event.target);
                 ytPlayerReady = true;
                 // Set volume
                 if (typeof currentVolume !== 'undefined') {
@@ -2249,6 +2260,7 @@ function restartSong() {
 
 function toggleMusic() {
     const song = currentRadioSong || songsData[currentSongIndex];
+    pdbg('play/pause pressed', { ready: isPlayerReady(), state: ytPlayer && ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : null });
 
     // Activate the right player for this song
     if (song) activatePlayerForSong(song);
@@ -4091,7 +4103,7 @@ function renderStats(stats) {
                             <span class="stats-song-title">${escapeHtml(s.title)}</span>
                             ${artist}
                         </span>
-                        <span class="stats-song-plays">${num(s.plays)}<span class="stats-plays-unit"> plays</span></span>
+                        <span class="stats-song-plays">${num(s.plays)}<span class="stats-plays-unit"> ${s.plays === 1 ? 'play' : 'plays'}</span></span>
                     </li>`;
                 }).join('')}
             </ol>
@@ -4143,8 +4155,9 @@ function showSettingsModal() {
     setSettingsTab('playback');
     document.querySelectorAll('#crossfadeOptions .settings-source-btn').forEach(b =>
         b.classList.toggle('active', parseInt(b.dataset.xf, 10) === crossfadeSeconds));
-    // Sync the room-theme swatches
+    // Sync the room-theme swatches and the sleeve pose
     syncThemeSwatches();
+    syncSleeveStyleButtons();
     // Clear any leftover form status from a previous visit
     const nameStatus = document.getElementById('settingsNameStatus');
     if (nameStatus) nameStatus.textContent = '';
@@ -4182,6 +4195,25 @@ window.setRoomTheme = function (name) {
     if (meta && colors[name]) meta.setAttribute('content', colors[name]);
     try { localStorage.setItem('musicTheme', name); } catch (e) { /* private mode */ }
     syncThemeSwatches();
+};
+
+// Lyrics sleeve pose: 'stand' (default) or 'lean' against the deck. The
+// head script applies the saved choice before first paint.
+function syncSleeveStyleButtons() {
+    const active = document.documentElement.getAttribute('data-sleeve') === 'lean' ? 'lean' : 'stand';
+    document.querySelectorAll('#sleeveStyleOptions .settings-source-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.sleeve === active);
+    });
+}
+
+window.setSleeveStyle = function (style) {
+    if (style === 'lean') {
+        document.documentElement.setAttribute('data-sleeve', 'lean');
+    } else {
+        document.documentElement.removeAttribute('data-sleeve');
+    }
+    try { localStorage.setItem('sleeveStyle', style === 'lean' ? 'lean' : 'stand'); } catch (e) { /* private mode */ }
+    syncSleeveStyleButtons();
 };
 
 function setLyricsEnabledFromSettings(on) {
@@ -5579,6 +5611,7 @@ if (crackleEnabled) setCrackleEnabled(true);
 
 function playCrackleSound() {
     if (!crackleEnabled) return Promise.resolve();
+    pdbg('crackle sound');
     return new Promise(resolve => {
         try {
             if (!crackleAudioCtx) crackleAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -6936,7 +6969,12 @@ window.setSourceFilter = function(value) {
 // real cards overflow the row; otherwise the clones show every playlist
 // twice. Rows toggle between marquee and a static centered layout.
 function updateConveyorMarquee() {
-    document.querySelectorAll('.conveyor-row').forEach(row => {
+    // The static shelf dissolves the rows (display:contents), so measure
+    // with it off and decide afterwards.
+    const conveyor = document.getElementById('recordsConveyor');
+    if (conveyor) conveyor.classList.remove('is-static');
+    const rows = document.querySelectorAll('.conveyor-row');
+    rows.forEach(row => {
         const track = row.querySelector('.conveyor-track');
         if (!track) return;
         // With clones visible the track is double-width, so halve it to get
@@ -6946,6 +6984,10 @@ function updateConveyorMarquee() {
             : track.scrollWidth / 2;
         row.classList.toggle('no-marquee', realWidth <= row.clientWidth);
     });
+    // Every row fits: show one ordered shelf instead of two centered rows.
+    if (conveyor && rows.length) {
+        conveyor.classList.toggle('is-static', [...rows].every(r => r.classList.contains('no-marquee')));
+    }
 }
 window.addEventListener('resize', updateConveyorMarquee);
 

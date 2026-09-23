@@ -7658,6 +7658,43 @@ body.song-dragging .song-list-item { transition: none; }
     width: 100%;
     justify-content: center;
 }
+
+/* "Your playlists" shelf: labelled like "Jump back in" and aligned with it */
+.crate-shelf {
+    width: 100%;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Few playlists: when every row fits, two interleaved centered rows read as
+   a scattered cluster. Collapse them (like the phone grid) into one wrapped
+   shelf in creation order, left-aligned under the label. JS toggles
+   .is-static after measuring the rows. */
+@media (min-width: 601px) {
+    .records-conveyor.is-static {
+        max-width: none;
+        -webkit-mask-image: none;
+                mask-image: none;
+    }
+
+    .records-conveyor.is-static .conveyor-rows {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 18px clamp(20px, 1.8vw, 32px);
+        padding: 16px 4px 6px;
+    }
+
+    .records-conveyor.is-static .conveyor-row,
+    .records-conveyor.is-static .conveyor-track {
+        display: contents;
+    }
+
+    .records-conveyor.is-static .record-card {
+        order: var(--ord, 0);
+    }
+}
 @media (prefers-reduced-motion: reduce) {
     .conveyor-row[data-row="1"] .conveyor-track,
     .conveyor-row[data-row="2"] .conveyor-track { animation: none; }
@@ -7789,12 +7826,18 @@ body.song-dragging .song-list-item { transition: none; }
         padding: clamp(13px, 1.1vw, 19px);
     }
 
+    /* Two lines before the ellipsis: one line cut "Late night drive" to
+       "Late nig…" on a compact sleeve */
     .cover-title {
-        font-size: clamp(1.05rem, 0.55vw + 0.72rem, 1.3rem);
+        font-size: clamp(1rem, 0.5vw + 0.7rem, 1.25rem);
+        line-height: 1.2;
         text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
-        white-space: nowrap;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
         overflow: hidden;
-        text-overflow: ellipsis;
+        overflow-wrap: anywhere;
     }
 
     .cover-count {
@@ -11247,6 +11290,39 @@ html[data-theme="greenroom"] {
     color: var(--cream-40);
 }
 
+/* Collapsed sidebar: one clean column of cover tiles. The collapsed rules
+   up top size the cover as a 24px record label, which left these square
+   covers shrunk into the corner of an empty tile. */
+.music-sidebar.collapsed .song-list { padding: 0 8px; }
+
+.music-sidebar.collapsed .song-drag-handle,
+.music-sidebar.collapsed .song-fav-btn { display: none; }
+
+.music-sidebar.collapsed .song-list-item,
+.music-sidebar.collapsed .song-list-item.active {
+    padding: 4px;
+    margin: 0;
+    background: transparent;
+}
+
+.music-sidebar.collapsed .song-list-vinyl {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.music-sidebar.collapsed .song-list-cover {
+    width: 100%;
+    height: 100%;
+}
+
+.music-sidebar.collapsed .song-list-item:hover .song-list-vinyl { transform: scale(1.06); }
+
+.music-sidebar.collapsed .song-list-item.active .song-list-vinyl {
+    box-shadow: 0 0 0 2px var(--amber), 0 0 14px rgba(242, 180, 92, 0.35);
+}
+
 .song-list-title {
     font-size: 0.88rem;
     color: var(--cream);
@@ -11439,6 +11515,16 @@ html[data-theme="greenroom"] {
         border-right: 0;
         border-radius: 20px;
         box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(242, 232, 216, 0.08);
+    }
+
+    /* Settings → Appearance → "Leaning": the original pose, the sleeve
+       tipped against the deck's edge (html[data-sleeve], set before paint) */
+    html[data-sleeve="lean"] .vinyl-sleeve {
+        margin-right: -8px;
+        transform: rotate(-2deg);
+        transform-origin: bottom right;
+        border-radius: 4px 16px 16px 4px;
+        box-shadow: 6px 4px 18px rgba(0, 0, 0, 0.5), 0 30px 80px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(242, 232, 216, 0.08);
     }
 
     .sleeve-art { background: color-mix(in srgb, var(--sleeve) 70%, #000); }
@@ -13084,4 +13170,94 @@ html[data-theme="greenroom"] {
     height: 5px;
     border-radius: 50%;
     background: var(--amber);
+}
+
+/* ============================================================
+   PHONE POLISH (<=600px) — last in the file so it settles the
+   earlier phone blocks
+   ============================================================ */
+@media (max-width: 600px) {
+    /* Crate toolbar: two full-width rows on the 16px gutters instead of
+       two ragged centered ones — filter + "New" on top, then the three
+       tools in equal thirds */
+    .collection-toolbar {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+        padding: 0 4px; /* lines up with the shelves' own 4px inset */
+    }
+
+    .collection-toolbar .source-filter {
+        grid-column: span 2;
+        display: flex;
+        width: 100%;
+        margin: 0;
+        justify-self: stretch;
+    }
+
+    .collection-toolbar .source-filter-btn {
+        flex: 1 1 0;
+        min-width: 0;
+        padding-left: 4px;
+        padding-right: 4px;
+        text-align: center;
+    }
+
+    .collection-toolbar .new-playlist-btn {
+        width: 100%;
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+
+    .new-playlist-word { display: none; }
+
+    /* The playlist grid sat 16px further in than the shelves around it */
+    .crate-shelf .conveyor-rows {
+        padding: 0;
+    }
+
+    /* Playlist name: two lines before the ellipsis ("Spotify Lik…") */
+    .sidebar-header-row .music-sidebar-title {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        overflow-wrap: anywhere;
+    }
+
+    #playlistTitle {
+        font-size: 1.35rem;
+        line-height: 1.15;
+    }
+
+    /* Play and Shuffle share one height */
+    #mShuffleChip {
+        min-height: 44px;
+    }
+
+    /* The seek knob sits on the bar's ends; inset the bar so the sleeve's
+       overflow clip doesn't cut it in half at 0:00 */
+    .sleeve-progress {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    /* Unsynced lyrics hide the offset nudges. visibility:hidden kept their
+       space (pushing the lyrics toggle off-center) and also caught the
+       expand chevron — the one way back out of full-screen lyrics */
+    .lyrics-controls.no-sync #mLyricsExpand {
+        visibility: visible;
+    }
+
+    body.m-lyrics-open .lyrics-controls.no-sync #lyricsOffsetMinus,
+    body.m-lyrics-open .lyrics-controls.no-sync #lyricsOffsetValue,
+    body.m-lyrics-open .lyrics-controls.no-sync #lyricsOffsetPlus {
+        display: none;
+    }
 }

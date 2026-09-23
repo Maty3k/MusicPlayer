@@ -49,6 +49,9 @@
                     var m = document.querySelector('meta[name="theme-color"]');
                     if (m) m.setAttribute('content', window.__roomThemeColors[t]);
                 }
+                if (localStorage.getItem('sleeveStyle') === 'lean') {
+                    document.documentElement.setAttribute('data-sleeve', 'lean');
+                }
             } catch (e) { /* private mode etc. — default theme */ }
         })();
     </script>
@@ -413,7 +416,7 @@
                             <button class="source-filter-btn"        data-source-filter="user"    onclick="setSourceFilter('user')">Local</button>
                             <button class="source-filter-btn"        data-source-filter="spotify" onclick="setSourceFilter('spotify')">Spotify</button>
                         </div>
-                        <button class="new-playlist-btn" onclick="showPlaylistCreateModal()">+ New playlist</button>
+                        <button class="new-playlist-btn" onclick="showPlaylistCreateModal()" title="New playlist">+ New<span class="new-playlist-word"> playlist</span></button>
                         <button class="new-playlist-btn crate-search-btn" onclick="showSearchModal()" title="Search your whole library"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>Search</button>
                         <button class="new-playlist-btn crate-stats-btn" onclick="showStatsModal()" title="Your listening stats"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg>Stats</button>
                         <button class="new-playlist-btn crate-settings-btn" onclick="showSettingsModal()" title="Settings"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg>Settings</button>
@@ -425,6 +428,8 @@
                         <div class="recent-songs-label">Jump back in</div>
                         <div class="recent-songs-track" id="recentSongsTrack"></div>
                     </div>
+                    <section class="crate-shelf">
+                    <div class="recent-songs-label">Your playlists</div>
                     <div class="records-conveyor" id="recordsConveyor">
                         <div class="conveyor-rows">
                             <div class="conveyor-row" data-row="1">
@@ -446,6 +451,7 @@
                             </div>
                         </div>
                     </div>
+                    </section>
 
                     <div class="collection-stats">
                         <div class="stat-item">
@@ -1194,6 +1200,15 @@
                     </button>
                 </div>
             </div>
+
+            <div class="add-song-form-group">
+                <label>Lyrics sleeve</label>
+                <div class="settings-source-options" id="sleeveStyleOptions">
+                    <button type="button" class="settings-source-btn active" data-sleeve="stand" onclick="setSleeveStyle('stand')">Standing</button>
+                    <button type="button" class="settings-source-btn" data-sleeve="lean" onclick="setSleeveStyle('lean')">Leaning</button>
+                </div>
+                <p class="settings-hint">How the sleeve with the cover and lyrics sits next to the record player: upright on its own, or tipped against the deck like the original.</p>
+            </div>
             </div>
             </div>
 
@@ -1572,6 +1587,7 @@
     </script>
     <!-- gif.js encoder for the Vinyl GIF Maker (client-side GIF encoding + worker) -->
     <script src="{{ asset('vendor/gif.js/gif.js') }}?v={{ filemtime(public_path('vendor/gif.js/gif.js')) }}" defer></script>
+    <script src="{{ asset('js/player-debug.js') }}?v={{ filemtime(public_path('js/player-debug.js')) }}"></script>
     <script src="{{ asset('js/script.js') }}?v={{ filemtime(public_path('js/script.js')) }}"></script>
     <!-- Spotify Web Playback SDK (Premium streaming). Loaded after script.js so
          window.onSpotifyWebPlaybackSDKReady is defined before the SDK fires it. -->
