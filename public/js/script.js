@@ -283,6 +283,20 @@ async function switchSong(index) {
     try {
         const song = songsData[index];
 
+        // Shuffle pass bookkeeping. The outgoing song, if it was only cued
+        // (page load, playlist open) and never played, still gets its turn;
+        // the song picked by hand has had its turn and leaves the queue.
+        if (shuffleMode !== 'off') {
+            const outgoingState = ytPlayer && ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : null;
+            if (!currentRadioSong && songsData[currentSongIndex]
+                && (outgoingState === -1 || outgoingState === 5)
+                && !shuffleQueue.includes(currentSongIndex)) {
+                shuffleQueue.splice(Math.floor(Math.random() * (shuffleQueue.length + 1)), 0, currentSongIndex);
+            }
+            const queued = shuffleQueue.indexOf(index);
+            if (queued !== -1) shuffleQueue.splice(queued, 1);
+        }
+
         // Clear radio state — we're playing a playlist song now
         currentRadioSong = null;
         removeRadioSidebarItem();
@@ -656,11 +670,19 @@ function buildShuffleQueue() {
 
 function getRandomSongIndex() {
     if (songsData.length <= 1) return 0;
+    pruneShuffleQueue();
     // If queue is empty, rebuild it
     if (shuffleQueue.length === 0) {
         buildShuffleQueue();
     }
     return shuffleQueue.shift();
+}
+
+// Drop queue entries that can't be the next song: the one already playing
+// (switchSong would treat it as a no-op tap and playback would just stop)
+// and indexes past the end of the playlist.
+function pruneShuffleQueue() {
+    shuffleQueue = shuffleQueue.filter(i => i !== currentSongIndex && i < songsData.length);
 }
 
 // ============================================================
@@ -1217,29 +1239,68 @@ function playNextByLoop() {
             ytPlayer.seekTo(0);
             ytPlayer.playVideo();
         }
-    } else if (loopMode === 'playlist') {
-        // Smart shuffle: alternate playlist ↔ radio
-        if (shuffleMode === 'smart' && smartShuffleNextIsRadio && radioPool.length > 0) {
-            songHistory.push(currentRadioSong ? {type: 'radio', song: currentRadioSong} : currentSongIndex);
-            const radioSong = radioPool.shift();
-            smartShuffleNextIsRadio = false;
-            playRadioSong(radioSong);
+        return;
+    }
+    if (songsData.length === 0) return;
+
+    // 'playlist' and 'off' both keep going; 'off' plays the playlist through
+    // once and stops instead of wrapping around to the start.
+    if (loopMode === 'off' && playlistPlayedThrough()) {
+        // Deal the next shuffled pass now (the song that just ended included),
+        // so a row tapped or play pressed from here plays on again instead of
+        // stopping after that one song.
+        if (shuffleMode !== 'off') {
+            buildShuffleQueue();
+            shuffleQueue.push(currentSongIndex);
+        }
+        return;
+    }
+
+    // Smart shuffle: alternate playlist ↔ radio
+    if (shuffleMode === 'smart' && smartShuffleNextIsRadio && radioPool.length > 0) {
+        songHistory.push(currentRadioSong ? {type: 'radio', song: currentRadioSong} : currentSongIndex);
+        const radioSong = radioPool.shift();
+        smartShuffleNextIsRadio = false;
+        playRadioSong(radioSong);
+        return;
+    }
+
+    // Play next playlist song (shuffle-aware)
+    const nextIndex = shuffleMode !== 'off'
+        ? getRandomSongIndex()
+        : (currentSongIndex + 1) % songsData.length;
+
+    // A one-song playlist comes back to the song that just ended, which
+    // switchSong ignores as "already playing" — start it over instead.
+    if (nextIndex === currentSongIndex && !currentRadioSong) {
+        // Smart shuffle still mixes radio in: the only playlist song just
+        // played, so radio is up. switchSong's pool refill never runs on a
+        // one-song playlist, so top the pool up from here.
+        if (shuffleMode === 'smart' && radioPool.length > 0) {
+            songHistory.push(currentSongIndex);
+            playRadioSong(radioPool.shift());
             return;
         }
-
-        // Play next playlist song (shuffle-aware)
-        songHistory.push(currentRadioSong ? {type: 'radio', song: currentRadioSong} : currentSongIndex);
-        const nextIndex = shuffleMode !== 'off'
-            ? getRandomSongIndex()
-            : (currentSongIndex + 1) % songsData.length;
-
-        if (shuffleMode === 'smart') {
-            smartShuffleNextIsRadio = true;
-        }
-
-        switchSong(nextIndex);
+        const only = songsData[currentSongIndex];
+        if (shuffleMode === 'smart' && only && only.youtube_id) fetchRadioRecommendations(only.youtube_id);
+        restartSong();
+        return;
     }
-    // 'off' = do nothing, song ends
+
+    songHistory.push(currentRadioSong ? {type: 'radio', song: currentRadioSong} : currentSongIndex);
+    if (shuffleMode === 'smart') {
+        smartShuffleNextIsRadio = true;
+    }
+
+    switchSong(nextIndex);
+}
+
+// Loop 'off': has every playlist song had its turn? In order, that's the
+// last row having played; shuffled, the shuffle queue being used up.
+function playlistPlayedThrough() {
+    if (shuffleMode === 'off') return currentSongIndex >= songsData.length - 1;
+    pruneShuffleQueue();
+    return shuffleQueue.length === 0;
 }
 
 
@@ -1642,6 +1703,25 @@ function showToast(msg) {
     toastTimer = setTimeout(() => { if (t) t.style.display = 'none'; }, 2200);
 }
 
+// The browser refused to start a song nobody tapped for. That mostly happens
+// with the phone locked or the browser in the background, where a toast
+// would come and go unseen — so hold it until the page is back in view, and
+// drop it if playback got going in the meantime.
+let playBlockedHintPending = false;
+function showPlayBlockedHint() {
+    if (!document.hidden) { showToast('Tap play to continue'); return; }
+    if (playBlockedHintPending) return;
+    playBlockedHintPending = true;
+    document.addEventListener('visibilitychange', function onVisible() {
+        if (document.hidden) return;
+        document.removeEventListener('visibilitychange', onVisible);
+        playBlockedHintPending = false;
+        if (!ytPlayer || !ytPlayer.getPlayerState || ytPlayer.getPlayerState() !== 1) {
+            showToast('Tap play to continue');
+        }
+    });
+}
+
 // YouTube IFrame API
 let ytPlayer;
 let ytPlayerReady = false;
@@ -1693,6 +1773,10 @@ function onYouTubeIframeAPIReady() {
                 }
             },
             'onStateChange': onPlayerStateChange,
+            // The browser refused to start a song nobody tapped for (e.g. an
+            // auto-advance on a phone). It's loaded and waiting — say so
+            // rather than looking like the player just stopped.
+            'onAutoplayBlocked': showPlayBlockedHint,
             'onError': function(event) {
                 console.warn('YouTube player error:', event.data);
             }
@@ -4364,13 +4448,22 @@ function createMp3Player() {
     const audio = new Audio();
     audio.preload = 'auto';
 
+    // The browser refused to start a song nobody tapped for (e.g. an
+    // auto-advance on a phone): it's loaded but silent, so call it paused
+    // and say so. Other rejections (a newer src interrupting) stay quiet.
+    const onPlayRefused = (e) => {
+        if (!e || e.name !== 'NotAllowedError') return;
+        mp3PlayerProxy._state = 2;
+        if (ytPlayer === mp3PlayerProxy) showPlayBlockedHint();
+    };
+
     mp3PlayerProxy = {
         _audio: audio,
         _state: -1,
         loadVideoById: function(url) {
             this._state = 3;
             this._audio.src = url;
-            this._audio.play().catch(() => {});
+            this._audio.play().catch(onPlayRefused);
         },
         cueVideoById: function(url) {
             this._state = 5;
@@ -4378,7 +4471,7 @@ function createMp3Player() {
             this._audio.load();
         },
         playVideo: function() {
-            this._audio.play().catch(() => {});
+            this._audio.play().catch(onPlayRefused);
         },
         pauseVideo: function() {
             this._audio.pause();
