@@ -390,6 +390,7 @@ async function selectPlaylistFromCrate(playlistId) {
         // Update local data
         activePlaylistId = playlistId;
         songsData = result.playlist.songs;
+        setCrateCardCount(playlistId, songsData.length);
         currentSongIndex = result.playlist.currentIndex || 0;
         if (shuffleMode !== 'off') buildShuffleQueue();
         // Clear smart shuffle state on playlist switch
@@ -2288,7 +2289,7 @@ function updateAmpDisplay() {
     const song = currentRadioSong || songsData[currentSongIndex];
     const el = document.getElementById('ampDisplayText');
     if (!song || !el) return;
-    const text = (currentRadioSong ? 'RADIO · ' : '') + song.artist + ' - ' + song.title;
+    const text = (currentRadioSong ? 'RADIO · ' : '') + [song.artist, song.title].filter(Boolean).join(' - ');
     el.textContent = text;
     el.classList.remove('scrolling');
     // Check if text overflows the display
@@ -3042,15 +3043,26 @@ function updateTrackCount() {
     const trackCountEl = document.querySelector('.sidebar-track-count');
     if (trackCountEl) trackCountEl.textContent = songsData.length + (songsData.length === 1 ? ' track' : ' tracks');
     // Update crate badge
-    const crateCard = document.querySelector(`.record-card[data-playlist="${activePlaylistId}"]`);
-    if (crateCard) {
-        const badge = crateCard.querySelector('.cover-badge');
-        if (badge) badge.textContent = songsData.length;
+    setCrateCardCount(activePlaylistId, songsData.length);
+    // The first song in: the "start your collection" nudge has done its job.
+    if (songsData.length > 0) {
+        const hint = document.getElementById('crateEmptyHint');
+        if (hint) hint.remove();
     }
     // Keep meta covers in sync
     refreshMetaCovers();
     // Offline toggle only shows for playlists with uploaded/MP3 songs
     if (typeof updateOfflineButton === 'function') updateOfflineButton();
+}
+
+// A crate card's song count: the badge, plus .is-empty (the desktop crate
+// labels empty sleeves and doesn't mark an empty playlist as now playing).
+function setCrateCardCount(playlistId, count) {
+    const card = document.querySelector(`.record-card[data-playlist="${playlistId}"]`);
+    if (!card) return;
+    const badge = card.querySelector('.cover-badge');
+    if (badge) badge.textContent = count;
+    card.classList.toggle('is-empty', count === 0);
 }
 
 function refreshMetaCovers() {
@@ -3768,11 +3780,7 @@ async function copySongTo(toPlaylist, songIndex) {
     if (result.success) {
         playlistsMeta[toPlaylist].songCount = result.toCount;
         // Update target badge on crate
-        const targetCard = document.querySelector(`.record-card[data-playlist="${toPlaylist}"]`);
-        if (targetCard) {
-            const badge = targetCard.querySelector('.cover-badge');
-            if (badge) badge.textContent = result.toCount;
-        }
+        setCrateCardCount(toPlaylist, result.toCount);
         // Flash the song item
         const songItem = document.querySelector(`.song-list-item[data-index="${songIndex}"]`);
         if (songItem) {
@@ -3804,11 +3812,7 @@ async function moveSongTo(toPlaylist, songIndex) {
         rebuildSongList();
         updateTrackCount();
         // Update target badge
-        const targetCard = document.querySelector(`.record-card[data-playlist="${toPlaylist}"]`);
-        if (targetCard) {
-            const badge = targetCard.querySelector('.cover-badge');
-            if (badge) badge.textContent = result.toCount;
-        }
+        setCrateCardCount(toPlaylist, result.toCount);
         if (wasPlaying && songsData.length > 0) {
             const song = songsData[currentSongIndex];
             updateSongDisplay(song);
@@ -3916,7 +3920,27 @@ function updateRecentSongs() {
             </button>`;
     }).join('');
     shelf.classList.remove('hidden');
+    fitRecentSongsRow();
 }
+
+// The desktop crate lays "Jump back in" on the playlist grid's columns as a
+// single row: hide the songs that would wrap to a second one (hidden, not
+// clipped, so they leave the tab order too). Other layouts scroll the shelf
+// and keep them all.
+function fitRecentSongsRow() {
+    const track = document.getElementById('recentSongsTrack');
+    if (!track) return;
+    const songs = track.querySelectorAll('.recent-song');
+    songs.forEach(s => { s.hidden = false; });
+    if (!window.matchMedia('(min-width: 901px) and (min-height: 501px)').matches) return;
+    const columns = getComputedStyle(track).gridTemplateColumns.split(' ').filter(Boolean).length;
+    if (columns > 1) songs.forEach((s, i) => { s.hidden = i >= columns; });
+}
+let fitRecentSongsFrame = 0;
+window.addEventListener('resize', () => {
+    cancelAnimationFrame(fitRecentSongsFrame);
+    fitRecentSongsFrame = requestAnimationFrame(fitRecentSongsRow);
+});
 
 // Reveal the player view (the crate<->player toggle), independent of
 // selectPlaylistFromCrate's in-flight guard so a shelf tap always opens it.
@@ -3988,6 +4012,7 @@ async function toggleFavorite(index) {
             // Keep the Favorites crate card's count/cover roughly in sync.
             if (typeof playlistsMeta === 'object' && playlistsMeta.favorites) {
                 playlistsMeta.favorites.songCount = (playlistsMeta.favorites.songCount || 0) + (data.favorited ? 1 : -1);
+                setCrateCardCount('favorites', playlistsMeta.favorites.songCount);
             }
         } else {
             if (wasFav) favoriteKeys.add(key); else favoriteKeys.delete(key);
@@ -7056,6 +7081,34 @@ window.setSourceFilter = function(value) {
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
     else apply();
+})();
+
+// The desktop crate draws the source filter on the "Your playlists" row and,
+// on wide windows, "+ New playlist" after Settings. Move those nodes there in
+// the DOM too, so Tab follows what's on screen; phones and tablets get the
+// toolbar's markup order back. The queries mirror the DESKTOP CRATE CSS.
+(function initCrateFocusOrder() {
+    const desktop = window.matchMedia('(min-width: 901px) and (min-height: 501px)');
+    const narrow = window.matchMedia('(max-width: 1120px), (max-width: calc(560px + 28.5em))');
+    function place() {
+        const toolbar = document.querySelector('#vinylCrateView .collection-toolbar');
+        const shelf = document.querySelector('#vinylCrateView .crate-shelf');
+        const filter = document.getElementById('sourceFilter');
+        const settings = toolbar && toolbar.querySelector('.crate-settings-btn');
+        const newBtn = toolbar && toolbar.querySelector('.new-playlist-btn:not(.crate-search-btn):not(.crate-stats-btn):not(.crate-settings-btn)');
+        if (!toolbar || !shelf || !filter || !settings || !newBtn) return;
+        if (desktop.matches && !narrow.matches) settings.after(newBtn);
+        else toolbar.prepend(newBtn);
+        if (desktop.matches) shelf.before(filter);  // still a grid item of .room-center
+        else toolbar.prepend(filter);
+    }
+    function init() {
+        place();
+        desktop.addEventListener('change', place);
+        narrow.addEventListener('change', place);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
 })();
 
 // The marquee (and its seamless-loop clones) only earns its keep when the

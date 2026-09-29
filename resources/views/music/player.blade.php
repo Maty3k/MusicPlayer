@@ -208,7 +208,7 @@
                         </div>
                         <div class="stand-shelf">
                             <div class="amp-unit">
-                                <div class="amp-display"><span class="amp-display-text" id="ampDisplayText">{{ ($current['artist'] ?? '') . ' - ' . ($current['title'] ?? 'No song') }}</span></div>
+                                <div class="amp-display"><span class="amp-display-text" id="ampDisplayText">{{ implode(' - ', array_filter([$current['artist'] ?? '', $current['title'] ?? ''])) ?: 'No song' }}</span></div>
                                 <div class="amp-knobs">
                                     <span onclick="prevSong()" title="Previous"></span><span onclick="toggleMusic()" title="Play/Pause"></span><span onclick="nextSong()" title="Next"></span>
                                 </div>
@@ -364,7 +364,7 @@
 
                         $pid        = htmlspecialchars($playlistId);
                         $ord        = (int) ($c['ord'] ?? 0);
-                        $nowPlaying = $playlistId === $activePlaylistId ? ' now-playing' : '';
+                        $nowPlaying = ($playlistId === $activePlaylistId ? ' now-playing' : '') . ($songCount === 0 ? ' is-empty' : '');
                         $plName     = htmlspecialchars($playlist['name']);
                         $vinylImg   = $coverUrl ? '<img src="' . htmlspecialchars($coverUrl) . '" alt="">' : '';
                         $coverMain  = $coverUrl ? '<img src="' . htmlspecialchars($coverUrl) . '" alt="" class="cover-main">' : '';
@@ -421,6 +421,20 @@
                         <button class="new-playlist-btn crate-stats-btn" onclick="showStatsModal()" title="Your listening stats"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg>Stats</button>
                         <button class="new-playlist-btn crate-settings-btn" onclick="showSettingsModal()" title="Settings"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg>Settings</button>
                     </div>
+                    @if ($totalTracks === 0)
+                    {{-- Desktop only (hidden elsewhere by CSS): first-run nudge while the crate has no songs --}}
+                    <div class="crate-empty-hint" id="crateEmptyHint">
+                        <div class="crate-empty-disc" aria-hidden="true"></div>
+                        <div class="crate-empty-copy">
+                            <p class="crate-empty-title">Start your collection</p>
+                            <p class="crate-empty-text">Your playlists are empty. Add a song, or bring a playlist over from YouTube or Spotify.</p>
+                        </div>
+                        <div class="crate-empty-actions">
+                            <button type="button" class="is-primary" onclick="showAddSongModal()">Add a song</button>
+                            <button type="button" onclick="showSpotifyImportModal()">Import a playlist</button>
+                        </div>
+                    </div>
+                    @endif
                     {{-- Recently played songs — a Spotify-style "jump back in"
                          shelf. Filled + shown by updateRecentSongs() from the
                          injected `recentSongs`; stays hidden when empty. --}}
@@ -449,6 +463,11 @@
                                     </div>
                                 </div>
                             </div>
+                            {{-- Desktop only (hidden elsewhere by CSS): an empty sleeve at the end of the grid --}}
+                            <button type="button" class="crate-new-tile" onclick="showPlaylistCreateModal()">
+                                <span class="crate-new-tile-icon" aria-hidden="true">+</span>
+                                <span class="crate-new-tile-label">New playlist</span>
+                            </button>
                         </div>
                     </div>
                     </section>
@@ -457,13 +476,13 @@
                         <div class="stat-item">
                             <span class="stat-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg></span>
                             <span class="stat-num">{{ $totalTracks }}</span>
-                            <span class="stat-text">tracks</span>
+                            <span class="stat-text">{{ Str::plural('track', $totalTracks) }}</span>
                         </div>
                         <div class="stat-divider"></div>
                         <div class="stat-item">
                             <span class="stat-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="6" width="17" height="13" rx="1.5"/><path d="M7 6v13M12 6v13M17 6v13" opacity="0.65"/></svg></span>
                             <span class="stat-num">{{ count($playlists) }}</span>
-                            <span class="stat-text">playlists</span>
+                            <span class="stat-text">{{ Str::plural('playlist', count($playlists)) }}</span>
                         </div>
                         <div class="stat-divider"></div>
                         <div class="stat-item">
