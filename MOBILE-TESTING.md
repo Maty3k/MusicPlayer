@@ -95,6 +95,11 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
   with a "Deleted" note.
 - [ ] A song's ⋯ → Add to Favorites / Remove from Favorites (the hearts are
   gone from the rows).
+- [ ] A song's ⋯ → Add to playlist… → pick one: "Copied to …"; with "Move
+  instead of copy" on it leaves this playlist. Back from the playlist list
+  returns to the song menu; a quick double tap never picks a playlist.
+- [ ] Now Playing → ⋯ → Show in playlist: Now Playing closes and the
+  playlist scrolls to the song, which lights up briefly.
 - [ ] An empty playlist shows Add songs and Import; Import pre-selects
   "Add to <this playlist>".
 

@@ -3372,13 +3372,18 @@ async function deleteSong(index, opts) {
     const label = [victim.title, victim.artist].filter(Boolean).join(' — ');
     // skipConfirm: the mobile song sheet already two-tap confirmed
     if (!(opts && opts.skipConfirm) && !confirm(`Remove "${label}" from this playlist?`)) return;
+    if (songOpBusy()) return;
 
-    const response = await fetch('/save-music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', index })
-    });
-    const result = await response.json();
+    let result = null;
+    songOpInFlight = true;
+    try {
+        result = await saveMusicRequest({ action: 'delete', index });
+    } catch (e) { /* reported below */ }
+    songOpInFlight = false;
+    if (!result || !result.success) {
+        songToast(result && result.error ? `Couldn't remove the song: ${result.error}` : 'Couldn\'t remove the song. Check your connection and try again.');
+        return;
+    }
 
     if (result.success) {
         const wasPlaying = index === currentSongIndex;
@@ -3903,6 +3908,61 @@ async function savePlaylistEdit() {
 
 let activeSendMenu = null;
 
+// A playlist's cover for small thumbnails: the Library card's (the server's
+// pick), else the first cover in its songs.
+function playlistThumbUrl(id) {
+    let img = null;
+    try { img = document.querySelector('.record-card[data-playlist="' + CSS.escape(String(id)) + '"] img.cover-main'); } catch (e) {}
+    if (img && img.getAttribute('src')) return img.getAttribute('src');
+    const meta = playlistsMeta[id] || {};
+    const covers = Array.isArray(meta.covers) ? meta.covers : [];
+    const pick = covers.find(c => c.index === meta.coverSongIndex) || covers[0];
+    return pick ? pick.url : '';
+}
+
+// The song sheet's second page: pick a playlist (copy, or move).
+function showSongPicker() {
+    const menu = activeSendMenu;
+    const main = menu && menu.querySelector('.send-menu-main');
+    const picker = menu && menu.querySelector('.send-menu-picker');
+    if (!main || !picker) return;
+    main.hidden = true;
+    picker.hidden = false;
+    menu.scrollTop = 0;
+    menu._pageSwitchedAt = performance.now();
+    // Start at the page's top (back, title, the move switch), not a playlist.
+    const back = picker.querySelector('.send-menu-picker-back');
+    if (back) back.focus({ preventScroll: true });
+}
+
+// The sheet's pages have different heights: a double tap's second tap lands
+// on whatever moved under the finger. Ignore taps just after a page switch.
+function sendMenuJustSwitched() {
+    const menu = activeSendMenu;
+    return !!menu && performance.now() - (menu._pageSwitchedAt || 0) < 400;
+}
+
+function hideSongPicker() {
+    const menu = activeSendMenu;
+    const main = menu && menu.querySelector('.send-menu-main');
+    const picker = menu && menu.querySelector('.send-menu-picker');
+    if (!main || !picker || picker.hidden) return;
+    picker.hidden = true;
+    main.hidden = false;
+    menu._pageSwitchedAt = performance.now();
+    const opener = main.querySelector('.send-menu-open-picker');
+    if (opener) opener.focus({ preventScroll: true });
+}
+
+function pickSongTarget(toPlaylist, songIndex) {
+    const menu = activeSendMenu;
+    if (!menu || menu.classList.contains('is-busy') || sendMenuJustSwitched()) return; // one pick per sheet
+    if (songOpBusy()) return;
+    menu.classList.add('is-busy');
+    const move = !!menu.querySelector('.send-menu-move-input:checked');
+    if (move) moveSongTo(toPlaylist, songIndex); else copySongTo(toPlaylist, songIndex);
+}
+
 function closeSendMenu() {
     if (activeSendMenu) {
         activeSendMenu.remove();
@@ -3914,13 +3974,14 @@ function closeSendMenu() {
 }
 
 function onSendMenuOutsideClick(e) {
-    if (activeSendMenu && !activeSendMenu.contains(e.target)) {
+    if (activeSendMenu && !activeSendMenu.contains(e.target) && !sendMenuJustSwitched()) {
         closeSendMenu();
     }
 }
 
 function showSendMenu(btn, songIndex) {
     closeSendMenu();
+    if (!songsData[songIndex]) return; // e.g. Now Playing after its playlist emptied
     const isApp = !!window.ReactNativeWebView || new URLSearchParams(window.location.search).has('app');
     // Phones get a bottom sheet (the widened app-mode branch); desktop
     // keeps the anchored popover.
@@ -3930,76 +3991,98 @@ function showSendMenu(btn, songIndex) {
     menu.className = 'send-menu';
     if (useSheet) menu.classList.add('send-menu-sheet');
 
+    const song = songsData[songIndex];
+    const icon = (paths, fill = 'none') => `<span class="send-menu-qicon"><svg viewBox="0 0 24 24" width="15" height="15" fill="${fill}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg></span>`;
+    const row = (cls, action, iconHtml, label, attrs = '') =>
+        `<button type="button" class="send-menu-item${cls}" onclick="event.stopPropagation(); ${action}"${attrs}>${iconHtml}<span class="send-menu-name">${label}</span></button>`;
+
     let html = '';
-    if (useSheet) {
-        const sheetSong = songsData[songIndex];
-        if (sheetSong) {
-            const sheetCover = safeUrl(sheetSong.cover);
-            html += `<div class="send-menu-song">
-                ${sheetCover
-                    ? `<img class="send-menu-song-cover" src="${escapeHtml(sheetCover)}" alt="">`
-                    : '<div class="send-menu-song-cover send-menu-song-cover-empty">&#9834;</div>'}
-                <div class="send-menu-song-meta">
-                    <div class="send-menu-song-title">${escapeHtml(sheetSong.title || '')}</div>
-                    <div class="send-menu-song-artist">${escapeHtml(sheetSong.artist || '')}</div>
-                </div>
-            </div>`;
-        }
+    if (useSheet && song) {
+        const sheetCover = safeUrl(song.cover);
+        html += `<div class="send-menu-song">
+            ${sheetCover
+                ? `<img class="send-menu-song-cover" src="${escapeHtml(sheetCover)}" alt="">`
+                : '<div class="send-menu-song-cover send-menu-song-cover-empty">&#9834;</div>'}
+            <div class="send-menu-song-meta">
+                <div class="send-menu-song-title">${escapeHtml(song.title || '')}</div>
+                <div class="send-menu-song-artist">${escapeHtml(song.artist || '')}</div>
+            </div>
+        </div>`;
     }
 
-    html += `<div class="send-menu-item" onclick="event.stopPropagation(); queuePlayNext(${songIndex})" style="cursor:pointer">
-        <span class="send-menu-qicon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/><path d="M21 18h-6"/></svg></span>
-        <span class="send-menu-name">Play next</span></div>`;
-    html += `<div class="send-menu-item" onclick="event.stopPropagation(); queueAdd(${songIndex})" style="cursor:pointer">
-        <span class="send-menu-qicon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M4 12h12M4 18h8"/><path d="M18 15v6M15 18h6"/></svg></span>
-        <span class="send-menu-name">Add to queue</span></div>`;
+    // The sheet's first page; its "Add to playlist…" page follows below.
+    if (useSheet) html += '<div class="send-menu-main">';
+    html += row('', `queuePlayNext(${songIndex})`, icon('<path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/><path d="M21 18h-6"/>'), 'Play next');
+    html += row('', `queueAdd(${songIndex})`, icon('<path d="M4 6h12M4 12h12M4 18h8"/><path d="M18 15v6M15 18h6"/>'), 'Add to queue');
     // The phone playlist screen hides the row hearts (any pointer at that
     // width), so favoriting lives in this menu there.
     const heartsHidden = !!document.documentElement.dataset.mTab && window.matchMedia('(max-width: 600px)').matches;
-    if ((useSheet || heartsHidden) && songsData[songIndex] && activePlaylistId !== 'favorites') {
-        const liked = favoriteKeys.has(songPlayKey(songsData[songIndex]));
-        html += `<button type="button" class="send-menu-item send-menu-like${liked ? ' is-fav' : ''}" aria-pressed="${liked}" onclick="event.stopPropagation(); likeFromSheet(${songIndex})">
-            <span class="send-menu-qicon"><svg viewBox="0 0 24 24" width="15" height="15" fill="${liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.8-8.85a5.5 5.5 0 0 0 0-7.78z"/></svg></span>
-            <span class="send-menu-name">${liked ? 'Remove from Favorites' : 'Add to Favorites'}</span></button>`;
-    }
-    html += '<div class="send-menu-divider"></div>';
-
-    html += '<div class="send-menu-title">Send to...</div>';
-    for (const [id, meta] of Object.entries(playlistsMeta)) {
-        if (id === activePlaylistId) continue;
-        const idJs = JSON.stringify(String(id));
-        const colorAttr = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#888';
-        html += `
-            <div class="send-menu-item" onclick="event.stopPropagation(); moveSongTo(${escapeHtml(idJs)}, ${songIndex})" style="cursor:pointer">
-                <span class="send-menu-dot" style="background:${colorAttr}"></span>
-                <span class="send-menu-name">${escapeHtml(meta.name)}</span>
-            </div>`;
+    if ((useSheet || heartsHidden) && song && activePlaylistId !== 'favorites') {
+        const liked = favoriteKeys.has(songPlayKey(song));
+        html += row(` send-menu-like${liked ? ' is-fav' : ''}`, `likeFromSheet(${songIndex})`,
+            icon('<path d="M20.8 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.8-8.85a5.5 5.5 0 0 0 0-7.78z"/>', liked ? 'currentColor' : 'none'),
+            liked ? 'Remove from Favorites' : 'Add to Favorites', ` aria-pressed="${liked}"`);
     }
 
+    const targets = Object.keys(playlistsMeta).filter(id => id !== String(activePlaylistId)
+        && !(id === 'favorites' && song && favoriteKeys.has(songPlayKey(song))));
     if (useSheet) {
-        // Copy keeps the song here too — the non-destructive alternative
-        // the popover never offered (first call sites for copySongTo).
-        let copyRows = '';
-        for (const [id, meta] of Object.entries(playlistsMeta)) {
-            if (id === activePlaylistId) continue;
+        // One "Add to playlist…" instead of every playlist twice (send / keep a copy).
+        if (targets.length) {
+            html += row(' send-menu-open-picker', 'showSongPicker()',
+                icon('<path d="M4 6h11M4 12h11M4 18h7"/><path d="M18 14v6M15 17h6"/>'), 'Add to playlist…');
+        }
+        // From Now Playing: jump to the song in its playlist.
+        if (btn && btn.id === 'mNpKebab' && typeof window.mGoToSong === 'function') {
+            html += row('', `mGoToSong(${songIndex})`, icon('<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'), 'Show in playlist');
+        }
+        html += '<div class="send-menu-divider"></div>';
+        html += `<button type="button" class="send-menu-item send-menu-delete" onclick="event.stopPropagation(); mArmDelete(this, ${songIndex})">
+            <span class="send-menu-delete-icon" aria-hidden="true">&#10005;</span>
+            <span class="send-menu-name">Remove from this playlist</span>
+        </button>`;
+        html += `<button type="button" class="send-menu-cancel" onclick="event.stopPropagation(); closeSendMenu()">Cancel</button>`;
+        html += '</div>';
+
+        // Page two: which playlist, and copy or move.
+        const fromName = playlistsMeta[activePlaylistId] ? playlistsMeta[activePlaylistId].name : 'this playlist';
+        html += `<div class="send-menu-picker" hidden>
+            <div class="send-menu-picker-head">
+                <button type="button" class="send-menu-picker-back" onclick="event.stopPropagation(); hideSongPicker()" aria-label="Back">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 5.5-6.5 6.5 6.5 6.5"/></svg>
+                </button>
+                <span class="send-menu-picker-title" role="heading" aria-level="2">Add to playlist</span>
+            </div>
+            <label class="send-menu-move" onclick="event.stopPropagation()">
+                <span class="send-menu-move-text"><b>Move instead of copy</b><small>Takes it out of “${escapeHtml(fromName)}”</small></span>
+                <input type="checkbox" class="send-menu-move-input" role="switch">
+                <span class="send-menu-switch" aria-hidden="true"></span>
+            </label>
+            ${targets.map(id => {
+                const meta = playlistsMeta[id];
+                const thumb = safeUrl(playlistThumbUrl(id));
+                const color = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#d4a574';
+                const count = meta.songCount || 0;
+                return `<button type="button" class="send-menu-item send-menu-pick" data-playlist="${escapeHtml(id)}" onclick="event.stopPropagation(); pickSongTarget(this.dataset.playlist, ${songIndex})">
+                    <span class="send-menu-pick-art" aria-hidden="true" style="--pl-color:${color}">${thumb ? `<img src="${escapeHtml(thumb)}" alt="" loading="lazy">` : '&#9834;'}</span>
+                    <span class="send-menu-pick-text"><span class="send-menu-name">${escapeHtml(meta.name)}</span><small>${count} ${count === 1 ? 'song' : 'songs'}</small></span>
+                </button>`;
+            }).join('')}
+        </div>`;
+    } else {
+        // Desktop popover: send (move) straight to a playlist.
+        html += '<div class="send-menu-divider"></div>';
+        html += '<div class="send-menu-title">Send to...</div>';
+        for (const id of targets) {
+            const meta = playlistsMeta[id];
             const idJs = JSON.stringify(String(id));
             const colorAttr = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#888';
-            copyRows += `
-                <div class="send-menu-item" onclick="event.stopPropagation(); copySongTo(${escapeHtml(idJs)}, ${songIndex})" style="cursor:pointer">
+            html += `
+                <div class="send-menu-item" onclick="event.stopPropagation(); moveSongTo(${escapeHtml(idJs)}, ${songIndex})" style="cursor:pointer">
                     <span class="send-menu-dot" style="background:${colorAttr}"></span>
                     <span class="send-menu-name">${escapeHtml(meta.name)}</span>
                 </div>`;
         }
-        if (copyRows) {
-            html += '<div class="send-menu-divider"></div>';
-            html += '<div class="send-menu-title">Keep a copy in...</div>' + copyRows;
-        }
-        html += '<div class="send-menu-divider"></div>';
-        html += `<div class="send-menu-item send-menu-delete" onclick="event.stopPropagation(); mArmDelete(this, ${songIndex})">
-            <span class="send-menu-delete-icon">&#10005;</span>
-            <span class="send-menu-name">Remove from this playlist</span>
-        </div>`;
-        html += `<div class="send-menu-cancel" onclick="event.stopPropagation(); closeSendMenu()">Cancel</div>`;
     }
 
     menu.innerHTML = html;
@@ -4007,7 +4090,7 @@ function showSendMenu(btn, songIndex) {
     if (useSheet) {
         const smBackdrop = document.createElement('div');
         smBackdrop.className = 'send-menu-backdrop';
-        smBackdrop.onclick = function() { closeSendMenu(); };
+        smBackdrop.onclick = function() { if (!sendMenuJustSwitched()) closeSendMenu(); };
         document.body.appendChild(smBackdrop);
         document.body.appendChild(menu);
     } else {
@@ -4021,7 +4104,12 @@ function showSendMenu(btn, songIndex) {
             menu.style.left = (window.innerWidth - menuRect.width - 8) + 'px';
         }
         if (menuRect.bottom > window.innerHeight - 8) {
-            menu.style.top = (rect.top - menuRect.height - 4) + 'px';
+            // Flip above the button, but never off the top: a long playlist
+            // list scrolls inside the popover instead.
+            menu.style.maxHeight = 'calc(100vh - 16px)';
+            menu.style.overflowY = 'auto';
+            const h = menu.getBoundingClientRect().height;
+            menu.style.top = Math.max(8, Math.min(rect.top - h - 4, window.innerHeight - h - 8)) + 'px';
         }
         // Narrow windows: rect.left - 160 can land off-screen left
         if (menu.getBoundingClientRect().left < 8) {
@@ -4033,14 +4121,63 @@ function showSendMenu(btn, songIndex) {
     setTimeout(() => document.addEventListener('click', onSendMenuOutsideClick), 0);
 }
 
+function songToast(msg) {
+    if (window.mToast && window.matchMedia('(max-width: 600px)').matches) mToast(msg);
+    else showToast(msg);
+}
+
+// A failed copy/move: say why (no connection, or the server's reason).
+function songTransferFailed(verb, result) {
+    songToast(result && result.error
+        ? `Couldn't ${verb} the song: ${result.error}`
+        : `Couldn't ${verb} the song. Check your connection and try again.`);
+}
+
+// Copy, move and remove address a song by its position: while one is still
+// saving, another would hit whatever song slid into that position.
+let songOpInFlight = false;
+function songOpBusy() {
+    if (!songOpInFlight) return false;
+    songToast('Still saving your last change…');
+    return true;
+}
+
+// POST to /save-music, giving up after a while (a hung request must end in
+// the failure message, not keep the next change waiting forever).
+async function saveMusicRequest(body, ms = 15000) {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), ms) : 0;
+    try {
+        const response = await fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: ctl ? ctl.signal : undefined
+        });
+        return await response.json();
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function copySongTo(toPlaylist, songIndex) {
-    const response = await fetch('/save-music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'copySong', fromPlaylist: activePlaylistId, toPlaylist, songIndex })
-    });
-    const result = await response.json();
-    if (result.success) {
+    if (songOpBusy()) return;
+    const menu = activeSendMenu;
+    const song = songsData[songIndex];
+    let result = null;
+    songOpInFlight = true;
+    try {
+        result = await saveMusicRequest({ action: 'copySong', fromPlaylist: activePlaylistId, toPlaylist, songIndex });
+    } catch (e) { /* reported below */ }
+    songOpInFlight = false;
+    if (!result || !result.success) {
+        songTransferFailed('copy', result);
+    } else {
+        // A copy into Favorites is a like.
+        if (toPlaylist === 'favorites' && song) {
+            favoriteKeys.add(songPlayKey(song));
+            updateFavoriteHearts();
+        }
         playlistsMeta[toPlaylist].songCount = result.toCount;
         // Update target badge on crate
         setCrateCardCount(toPlaylist, result.toCount);
@@ -4055,17 +4192,26 @@ async function copySongTo(toPlaylist, songIndex) {
             mToast('Copied to ' + (toMeta ? toMeta.name : 'playlist'));
         }
     }
-    closeSendMenu();
+    if (!menu || activeSendMenu === menu) closeSendMenu();
 }
 
 async function moveSongTo(toPlaylist, songIndex) {
-    const response = await fetch('/save-music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'moveSong', fromPlaylist: activePlaylistId, toPlaylist, songIndex })
-    });
-    const result = await response.json();
-    if (result.success) {
+    if (songOpBusy()) return;
+    const menu = activeSendMenu;
+    const movedKey = songsData[songIndex] ? songPlayKey(songsData[songIndex]) : '';
+    const fromPlaylist = activePlaylistId;
+    let result = null;
+    songOpInFlight = true;
+    try {
+        result = await saveMusicRequest({ action: 'moveSong', fromPlaylist, toPlaylist, songIndex });
+    } catch (e) { /* reported below */ }
+    songOpInFlight = false;
+    if (!result || !result.success) {
+        songTransferFailed('move', result);
+    } else {
+        // Into Favorites is a like; out of Favorites, an unlike.
+        if (movedKey && toPlaylist === 'favorites') favoriteKeys.add(movedKey);
+        if (movedKey && fromPlaylist === 'favorites') favoriteKeys.delete(movedKey);
         const wasPlaying = songIndex === currentSongIndex;
         songsData.splice(songIndex, 1);
         currentSongIndex = result.newIndex;
@@ -4076,7 +4222,9 @@ async function moveSongTo(toPlaylist, songIndex) {
         updateTrackCount();
         // Update target badge
         setCrateCardCount(toPlaylist, result.toCount);
-        if (wasPlaying && songsData.length > 0) {
+        if (songsData.length === 0) {
+            showEmptyPlaylistState(); // the last song left: nothing to show
+        } else if (wasPlaying) {
             const song = songsData[currentSongIndex];
             updateSongDisplay(song);
             playSongSource(song, true);
@@ -4087,7 +4235,7 @@ async function moveSongTo(toPlaylist, songIndex) {
             mToast('Moved to ' + (toMeta ? toMeta.name : 'playlist'));
         }
     }
-    closeSendMenu();
+    if (!menu || activeSendMenu === menu) closeSendMenu();
 }
 
 // ============================================================
@@ -8057,6 +8205,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.mArmDelete = function (row, songIndex) {
         if (row.classList.contains('m-confirm-armed')) {
             closeSendMenu();
+            if (typeof songOpInFlight !== 'undefined' && songOpInFlight) {
+                mToast('Still saving your last change…');
+                return;
+            }
             deleteSong(songIndex, { skipConfirm: true });
             if (window.mToast) mToast('Removed');
             return;
@@ -9436,6 +9588,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================================
     function openNp() {
         if (!onPhone() || document.body.classList.contains('m-np-open')) return;
+        // A song sheet still up (keyboard users can reach the mini player
+        // behind it): close it first, then open.
+        if (songSheetOpen) {
+            afterBack.push(openNp);
+            window.closeSendMenu();
+            return;
+        }
         const fromName = document.getElementById('mNpFromName');
         const title = document.getElementById('playlistTitle');
         if (fromName && title) fromName.textContent = title.textContent;
@@ -9593,12 +9752,98 @@ document.addEventListener('DOMContentLoaded', () => {
     let songSheetOpen = false;
     const origCloseSendMenu = window.closeSendMenu;
     window.closeSendMenu = function () {
-        if (onPhone() && songSheetOpen && topLayerIs('songSheet')) {
-            backOneLayer();
+        // The sheet (and its playlist-picker page, a layer of its own) closes
+        // through history: pop back to below the sheet in one traversal.
+        const sheetAt = layerStack.findIndex((l) => l.name === 'songSheet');
+        if (onPhone() && songSheetOpen && sheetAt >= 0
+            && layerStack.slice(sheetAt).every((l) => l.name === 'songSheet' || l.name === 'songPicker')) {
+            popToDepth(sheetAt);
             return;
         }
         songSheetOpen = false;
         return origCloseSendMenu.apply(this, arguments);
+    };
+
+    // The sheet's "Add to playlist…" page is a step: back returns to the
+    // sheet's first page.
+    const origShowSongPicker = window.showSongPicker;
+    const origHideSongPicker = window.hideSongPicker;
+    window.showSongPicker = function () {
+        const out = origShowSongPicker.apply(this, arguments);
+        if (onPhone() && songSheetOpen && topLayerIs('songSheet')) {
+            openLayer('songPicker', () => origHideSongPicker());
+        }
+        return out;
+    };
+    window.hideSongPicker = function () {
+        if (topLayerIs('songPicker')) {
+            backOneLayer();
+            return;
+        }
+        return origHideSongPicker.apply(this, arguments);
+    };
+
+    // The row "Show in playlist" points at, while it's lit.
+    let rowFlash = null;
+    function markFlashRow() {
+        if (!rowFlash || performance.now() > rowFlash.until) {
+            rowFlash = null;
+            return;
+        }
+        const row = document.querySelector(`#songList .song-list-item[data-index="${rowFlash.index}"]:not(.discover-item)`);
+        if (!row || row.classList.contains('m-row-flash')) return;
+        if (document.activeElement === document.body) {
+            const more = row.querySelector('.song-send-btn');
+            if (more) more.focus({ preventScroll: true });
+        }
+        const left = rowFlash.until - performance.now();
+        row.style.animationDelay = `-${Math.round(1600 - left)}ms`;
+        row.classList.add('m-row-flash');
+        // A timer, not animationend: reduced motion has no animation.
+        setTimeout(() => {
+            row.classList.remove('m-row-flash');
+            row.style.animationDelay = '';
+        }, left);
+    }
+    const flashPrevRebuild = window.rebuildSongList;
+    window.rebuildSongList = function () {
+        const out = flashPrevRebuild.apply(this, arguments);
+        markFlashRow();
+        return out;
+    };
+
+    // Now Playing's song menu → "Show in playlist": close Now Playing, open
+    // the playlist screen if it isn't, and point at the song.
+    window.mGoToSong = function (index) {
+        const show = () => {
+            if (!playerViewActive()) window.openPlayerView();
+            const reveal = () => {
+                const row = document.querySelector(`#songList .song-list-item[data-index="${index}"]:not(.discover-item)`);
+                if (!row) return;
+                row.scrollIntoView({ block: 'center' });
+                // The list is often rebuilt right after (Discover starting):
+                // the rebuild wrapper re-marks the row until the flash is over.
+                rowFlash = { index, until: performance.now() + 1600 };
+                markFlashRow();
+                // Keyboard and screen-reader users land on the song too.
+                const more = row.querySelector('.song-send-btn');
+                if (more) more.focus({ preventScroll: true });
+            };
+            requestAnimationFrame(() => requestAnimationFrame(reveal));
+        };
+        const npAt = layerStack.findIndex((l) => l.name === 'np');
+        // A find query hiding the song would leave nothing to point at: close
+        // find too (that clears it).
+        const findAt = layerStack.findIndex((l) => l.name === 'find');
+        const target = document.querySelector(`#songList .song-list-item[data-index="${index}"]:not(.discover-item)`);
+        const hidden = !!target && target.classList.contains('m-filtered-out');
+        if (npAt >= 0) {
+            afterBack.push(show);
+            popToDepth(hidden && findAt >= 0 && findAt < npAt ? findAt : npAt);
+        } else {
+            window.closeSendMenu();
+            show();
+        }
     };
     const origShowSendMenu = window.showSendMenu;
     window.showSendMenu = function () {
@@ -9633,9 +9878,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (npKebab) {
         npKebab.addEventListener('click', () => {
             if (typeof currentRadioSong !== 'undefined' && currentRadioSong) {
-                if (window.mToast) mToast('Radio track — not in this crate');
+                if (window.mToast) mToast('Radio track — not in this playlist');
                 return;
             }
+            if (!songsData[currentSongIndex]) return; // the playlist emptied
             window.showSendMenu(npKebab, currentSongIndex);
         });
     }
