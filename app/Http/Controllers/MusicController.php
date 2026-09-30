@@ -108,7 +108,7 @@ class MusicController extends Controller
             return ['success' => false, 'error' => 'Invalid active playlist'];
         }
 
-        if (! is_array($song) || empty($song['title'])) {
+        if (! is_array($song) || $this->songText($song['title'] ?? '') === '') {
             return ['success' => false, 'error' => 'Missing song data'];
         }
 
@@ -131,13 +131,13 @@ class MusicController extends Controller
         if ($request->boolean('link') && $mp3Url !== '') {
             $match = $this->findLinkableSong(
                 $playlist,
-                (string) ($song['title'] ?? ''),
-                (string) ($song['artist'] ?? '')
+                $this->songText($song['title'] ?? ''),
+                $this->songText($song['artist'] ?? '')
             );
             if ($match !== null) {
                 $match->update([
                     'mp3_url' => $mp3Url,
-                    'album' => $match->album !== '' ? $match->album : (string) ($song['album'] ?? ''),
+                    'album' => $match->album !== '' ? $match->album : $this->songText($song['album'] ?? ''),
                     'cover' => $match->cover !== '' ? $match->cover : $this->sanitizeUrl($song['cover'] ?? ''),
                 ]);
 
@@ -159,9 +159,9 @@ class MusicController extends Controller
         $newIndex = $playlist->songs()->count();
         $playlist->songs()->create([
             'position' => $newIndex,
-            'title' => (string) ($song['title'] ?? ''),
-            'artist' => (string) ($song['artist'] ?? ''),
-            'album' => (string) ($song['album'] ?? ''),
+            'title' => $this->songText($song['title'] ?? ''),
+            'artist' => $this->songText($song['artist'] ?? ''),
+            'album' => $this->songText($song['album'] ?? ''),
             'cover' => $this->sanitizeUrl($song['cover'] ?? ''),
             'youtube_id' => $youtubeId,
             'mp3_url' => $mp3Url,
@@ -176,10 +176,13 @@ class MusicController extends Controller
     private const BATCH_LIMIT = 200;
 
     /**
-     * Add many songs to the current playlist in one transaction — the bulk
-     * import path (paste-a-list, Spotify playlist). Skips entries already in
-     * the playlist (same youtube_id, or same title+artist) so re-running an
-     * import doesn't duplicate. Returns how many were added vs skipped.
+     * Add many songs in one transaction — the bulk import path (paste-a-list,
+     * YouTube/Spotify playlist). Songs go to a new playlist when
+     * `newPlaylist` names one, to the playlist `playlist` names (the later
+     * chunks of that same import), or else to the current playlist. Skips
+     * entries already in the target (same youtube_id, or same title+artist)
+     * so re-running an import doesn't duplicate. Returns how many were added
+     * vs skipped, and which playlist they went to.
      */
     private function addBatch(Request $request, User $user): array
     {
@@ -191,22 +194,31 @@ class MusicController extends Controller
             return ['success' => false, 'error' => 'Too many songs at once (max '.self::BATCH_LIMIT.')'];
         }
 
-        $activeSlug = $this->activeSlug($user);
-        $playlist = $this->findPlaylist($user, $activeSlug);
+        if ($request->has('newPlaylist')) {
+            $playlist = $this->createImportPlaylist($user, $this->strInput($request, 'newPlaylist'));
+        } elseif ($request->has('playlist')) {
+            $playlist = $this->findPlaylist($user, $this->strInput($request, 'playlist'));
+            if ($playlist === null) {
+                return ['success' => false, 'error' => 'Invalid playlist'];
+            }
+        } else {
+            $activeSlug = $this->activeSlug($user);
+            $playlist = $this->findPlaylist($user, $activeSlug);
 
-        if (! preg_match('/^[A-Za-z0-9_-]{1,64}$/', $activeSlug)
-            || ($playlist === null && $activeSlug !== 'favorites')) {
-            return ['success' => false, 'error' => 'Invalid active playlist'];
-        }
-        if ($playlist === null) {
-            $playlist = $user->playlists()->create([
-                'slug' => 'favorites',
-                'name' => 'Favorites',
-                'color' => '#d4a574',
-                'current_index' => 0,
-                'source' => 'user',
-                'position' => ((int) ($user->playlists()->max('position') ?? -1)) + 1,
-            ]);
+            if (! preg_match('/^[A-Za-z0-9_-]{1,64}$/', $activeSlug)
+                || ($playlist === null && $activeSlug !== 'favorites')) {
+                return ['success' => false, 'error' => 'Invalid active playlist'];
+            }
+            if ($playlist === null) {
+                $playlist = $user->playlists()->create([
+                    'slug' => 'favorites',
+                    'name' => 'Favorites',
+                    'color' => '#d4a574',
+                    'current_index' => 0,
+                    'source' => 'user',
+                    'position' => ((int) ($user->playlists()->max('position') ?? -1)) + 1,
+                ]);
+            }
         }
 
         // Existing songs, keyed for dedupe (by youtube_id and by title|artist).
@@ -222,18 +234,20 @@ class MusicController extends Controller
         $seenKey = [];
 
         foreach ($songs as $song) {
-            if (! is_array($song) || empty($song['title'])) {
+            $title = is_array($song) ? $this->songText($song['title'] ?? '') : '';
+            if ($title === '') {
                 $skipped++;
 
                 continue;
             }
-            $title = (string) $song['title'];
-            $artist = (string) ($song['artist'] ?? '');
+            $artist = $this->songText($song['artist'] ?? '');
             // Client-supplied ids (from search results) — accept only the
-            // canonical 11-char YouTube form, blank anything else so a crafted
-            // value can never reach the player/iframe.
-            $yt = (string) ($song['youtube_id'] ?? '');
+            // canonical forms (11-char YouTube, 22-char Spotify), blank anything
+            // else so a crafted value can never reach the players.
+            $yt = is_string($song['youtube_id'] ?? null) ? $song['youtube_id'] : '';
             $yt = preg_match('/^[A-Za-z0-9_-]{11}$/', $yt) ? $yt : '';
+            $spotifyId = is_string($song['spotify_id'] ?? null) ? $song['spotify_id'] : '';
+            $spotifyId = preg_match('/^[A-Za-z0-9]{22}$/', $spotifyId) ? $spotifyId : '';
             $key = mb_strtolower(trim($title).'|'.trim($artist));
 
             $dupeYt = $yt !== '' && ($haveYt->has($yt) || isset($seenYt[$yt]));
@@ -248,11 +262,11 @@ class MusicController extends Controller
                 'position' => $position,
                 'title' => $title,
                 'artist' => $artist,
-                'album' => (string) ($song['album'] ?? ''),
+                'album' => $this->songText($song['album'] ?? ''),
                 'cover' => $this->sanitizeUrl($song['cover'] ?? ''),
                 'youtube_id' => $yt,
                 'mp3_url' => $this->sanitizeUrl($song['mp3_url'] ?? ''),
-                'spotify_id' => (string) ($song['spotify_id'] ?? ''),
+                'spotify_id' => $spotifyId,
             ]);
             if ($yt !== '') {
                 $seenYt[$yt] = true;
@@ -262,7 +276,36 @@ class MusicController extends Controller
             $added++;
         }
 
-        return ['success' => true, 'added' => $added, 'skipped' => $skipped, 'total' => $position];
+        return [
+            'success' => true,
+            'added' => $added,
+            'skipped' => $skipped,
+            'total' => $position,
+            'playlistId' => $playlist->slug,
+        ];
+    }
+
+    /**
+     * A playlist for an import, named after its source (a YouTube or Spotify
+     * playlist title can run past the 30 characters a hand-made name gets,
+     * so allow up to 90, like copying a shared playlist).
+     */
+    private function createImportPlaylist(User $user, string $name): Playlist
+    {
+        $name = Str::limit(trim(preg_replace('/\s+/u', ' ', $name) ?? ''), 90, '');
+
+        do {
+            $slug = 'pl-'.strtolower(Str::random(10));
+        } while ($user->playlists()->where('slug', $slug)->exists());
+
+        return $user->playlists()->create([
+            'slug' => $slug,
+            'name' => $name !== '' ? $name : 'Imported playlist',
+            'color' => '#d4a574',
+            'current_index' => 0,
+            'source' => 'user',
+            'position' => ((int) ($user->playlists()->max('position') ?? -1)) + 1,
+        ]);
     }
 
     /** Delete a song and reindex; legacy 3-branch currentIndex adjustment. */
@@ -337,9 +380,16 @@ class MusicController extends Controller
             $color = '#d4a574';
         }
 
-        do {
-            $slug = 'pl-'.strtolower(Str::random(10));
-        } while ($user->playlists()->where('slug', $slug)->exists());
+        // A "Favorites" playlist (the welcome wizard's default) is the one the
+        // heart button fills, so hearting a song later doesn't spawn a second
+        // "Favorites" beside it.
+        if (mb_strtolower($name) === 'favorites' && ! $user->playlists()->where('slug', 'favorites')->exists()) {
+            $slug = 'favorites';
+        } else {
+            do {
+                $slug = 'pl-'.strtolower(Str::random(10));
+            } while ($user->playlists()->where('slug', $slug)->exists());
+        }
 
         $playlist = $user->playlists()->create([
             'slug' => $slug,
@@ -1071,6 +1121,16 @@ class MusicController extends Controller
     }
 
     /** String-or-empty request input (legacy treated non-strings as invalid). */
+    /**
+     * A song text field as the songs table can hold it: a string, trimmed,
+     * at most 300 characters. One over-long or malformed title from an
+     * import must not fail the whole batch it arrived in.
+     */
+    private function songText(mixed $value): string
+    {
+        return is_scalar($value) ? mb_substr(trim((string) $value), 0, 300) : '';
+    }
+
     private function strInput(Request $request, string $key): string
     {
         $value = $request->input($key, '');

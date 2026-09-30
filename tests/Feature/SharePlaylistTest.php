@@ -62,7 +62,7 @@ class SharePlaylistTest extends TestCase
             ->assertOk()
             ->assertSee('Road Trip')
             ->assertSee('Thunder')
-            ->assertSee('Log in to save this playlist');
+            ->assertSee('Save this playlist &middot; sign up or log in', false);
     }
 
     public function test_sharing_twice_returns_the_same_token(): void
@@ -171,7 +171,7 @@ class SharePlaylistTest extends TestCase
 
         $this->actingAs($unverified)->get('/s/unverifiedtok')
             ->assertOk()
-            ->assertSee('Log in to save this playlist')
+            ->assertSee('Save this playlist &middot; sign up or log in', false)
             ->assertDontSee('Add to my library');
     }
 

@@ -196,7 +196,7 @@ class SpotifyLibraryImportTest extends TestCase
         ];
         $this->fakeLibrary([], [['id' => 'pl1', 'name' => 'Road Trip', 'tracks' => ['total' => 4]]], ['pl1' => $tracks]);
         // Someone already played t2 here, so its YouTube match is cached.
-        YoutubeMatch::create(['spotify_id' => 't2', 'youtube_id' => 'yyyyyyyyyyy']);
+        YoutubeMatch::create(['spotify_id' => YoutubeMatch::cacheKey('t2', 'Also Me', 'Band'), 'youtube_id' => 'yyyyyyyyyyy']);
         $user = $this->connectedUser();
 
         $this->actingAs($user)

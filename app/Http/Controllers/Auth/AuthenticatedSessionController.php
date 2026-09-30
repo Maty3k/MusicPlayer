@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Playlist;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,8 +12,17 @@ use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
-    public function create(): View
+    public function create(Request $request): View
     {
+        // "Save this playlist" from a share page: remember it, so whichever
+        // way the visitor then signs in or signs up (email, member number,
+        // Spotify), the player offers to save it (PlayerController::pendingShare).
+        $save = $request->query('save');
+        if (is_string($save) && preg_match('/^[A-Za-z0-9]{8,64}$/', $save)
+            && Playlist::where('share_token', $save)->exists()) {
+            $request->session()->put('pending_share', ['token' => $save, 'at' => now()->timestamp]);
+        }
+
         return view('auth.login');
     }
 

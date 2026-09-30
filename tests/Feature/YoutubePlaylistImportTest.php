@@ -60,6 +60,19 @@ class YoutubePlaylistImportTest extends TestCase
         $this->assertSame('Just A Title', $songs[1]['title']);
     }
 
+    public function test_names_the_import_after_the_playlist(): void
+    {
+        $html = $this->fakePlaylistHtml([['id' => 'aaaaaaaaaaa', 'title' => 'Laufey - From the Start']]);
+        // Add the page's own title where YouTube keeps it.
+        $html = str_replace('var ytInitialData = {', 'var ytInitialData = {"metadata":{"playlistMetadataRenderer":{"title":"Late Night Drive"}},', $html);
+        Http::fake(['www.youtube.com/playlist*' => Http::response($html)]);
+
+        $this->actingAs($this->user())
+            ->postJson('/youtube-playlist', ['url' => 'https://www.youtube.com/playlist?list=PLtest123'])
+            ->assertOk()
+            ->assertJson(['success' => true, 'name' => 'Late Night Drive']);
+    }
+
     public function test_rejects_a_non_playlist_url(): void
     {
         $this->actingAs($this->user())
@@ -111,7 +124,7 @@ class YoutubePlaylistImportTest extends TestCase
         $res = $this->actingAs($this->user())
             ->postJson('/youtube-playlist', ['url' => 'https://music.youtube.com/playlist?list=PLlong123'])
             ->assertOk()
-            ->assertJson(['success' => true, 'total' => 230]);
+            ->assertJson(['success' => true, 'total' => 230, 'truncated' => false]);
 
         $this->assertSame('vid00000229', $res->json('songs.229.youtube_id'));
         $this->assertSame('Song 150', $res->json('songs.150.title'));
@@ -135,7 +148,8 @@ class YoutubePlaylistImportTest extends TestCase
         $this->actingAs($this->user())
             ->postJson('/youtube-playlist', ['url' => 'https://www.youtube.com/playlist?list=PLbroken'])
             ->assertOk()
-            ->assertJson(['success' => true, 'total' => 1]);
+            // The rest of the playlist couldn't be loaded: say so, don't pass 1 song off as all of it.
+            ->assertJson(['success' => true, 'total' => 1, 'truncated' => true]);
     }
 
     public function test_requires_authentication(): void

@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -18,8 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // settings/* is consumed by fetch() in the Settings modal — validation
-        // and auth failures must come back as JSON, not redirects.
+        // and auth failures must come back as JSON, not redirects. A rate
+        // limit on any JSON call must too: a 429 from /search-youtube during
+        // an import has to read as "slow down", not as an HTML page.
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->is('settings/*'),
+            fn (Request $request, Throwable $e) => $request->is('api/*') || $request->is('settings/*')
+                || ($e instanceof ThrottleRequestsException && $request->expectsJson()),
         );
     })->create();

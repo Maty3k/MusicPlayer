@@ -237,19 +237,24 @@ class SpotifyLibraryImporter
 
         // Tracks someone already played here resolved to a YouTube video; reuse
         // that so those songs play instantly instead of resolving again.
-        $spotifyIds = array_values(array_filter(array_column($rows, 'spotify_id')));
-        $youtubeIds = $spotifyIds === []
+        $keys = [];
+        foreach ($rows as $i => $row) {
+            if ($row['spotify_id'] !== '') {
+                $keys[$i] = YoutubeMatch::cacheKey($row['spotify_id'], $row['title'], $row['artist']);
+            }
+        }
+        $youtubeIds = $keys === []
             ? []
-            : YoutubeMatch::query()->whereIn('spotify_id', $spotifyIds)->pluck('youtube_id', 'spotify_id')->all();
+            : YoutubeMatch::query()->whereIn('spotify_id', array_values($keys))->pluck('youtube_id', 'spotify_id')->all();
 
         $position = ((int) ($playlist->songs()->max('position') ?? -1)) + 1;
         $now = now();
         $inserts = [];
-        foreach ($rows as $row) {
+        foreach ($rows as $i => $row) {
             $inserts[] = $row + [
                 'playlist_id' => $playlist->id,
                 'position' => $position++,
-                'youtube_id' => $youtubeIds[$row['spotify_id']] ?? null,
+                'youtube_id' => isset($keys[$i]) ? ($youtubeIds[$keys[$i]] ?? null) : null,
                 'mp3_url' => null,
                 'created_at' => $now,
                 'updated_at' => $now,

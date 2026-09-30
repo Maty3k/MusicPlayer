@@ -11,6 +11,27 @@ namespace App\Support;
 class YoutubeExtractor
 {
     /**
+     * A playlist page's own title, so an import can be named after it. The
+     * metadata renderer is the stable home; the header shapes are fallbacks.
+     */
+    public static function playlistTitle(array $data): ?string
+    {
+        $candidates = [
+            $data['metadata']['playlistMetadataRenderer']['title'] ?? null,
+            $data['header']['playlistHeaderRenderer']['title']['simpleText'] ?? null,
+            $data['header']['pageHeaderRenderer']['pageTitle'] ?? null,
+            $data['microformat']['microformatDataRenderer']['title'] ?? null,
+        ];
+        foreach ($candidates as $title) {
+            if (is_string($title) && trim($title) !== '') {
+                return trim($title);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Parse the ytInitialData JSON object out of a search-results page.
      */
     public static function extractObject(string $html): ?array

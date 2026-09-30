@@ -67,11 +67,17 @@ class YoutubePlaylistController extends Controller
             }
             $more = YoutubeExtractor::videosFromData($page, $seen);
             if ($more === []) {
+                $token = null; // an empty page: the playlist has ended
+
                 break;
             }
             array_push($videos, ...$more);
             $token = YoutubeExtractor::continuationToken($page);
         }
+
+        // Stopped with pages still to go (or more videos than we keep): tell
+        // the user they got the first MAX_TRACKS, not the whole playlist.
+        $truncated = count($videos) > self::MAX_TRACKS || $token !== null;
 
         $songs = [];
         foreach (array_slice($videos, 0, self::MAX_TRACKS) as $v) {
@@ -88,9 +94,10 @@ class YoutubePlaylistController extends Controller
 
         return response()->json([
             'success' => true,
-            'name' => 'YouTube playlist',
+            'name' => YoutubeExtractor::playlistTitle($data) ?? 'YouTube playlist',
             'songs' => $songs,
             'total' => count($songs),
+            'truncated' => $truncated,
         ]);
     }
 

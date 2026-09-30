@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\SpotifyApi;
+use App\Support\SpotifyRateLimited;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -300,7 +301,29 @@ class SpotifyController extends Controller
             return response()->json(['success' => false, 'error' => 'Could not fetch playlist — is it public?']);
         }
 
-        $songs = $this->fetchPlaylistTracks($playlistId, $token);
+        ['songs' => $songs, 'complete' => $complete, 'retryAfter' => $retryAfter] = $this->fetchPlaylistTracks($playlistId, $token);
+        $playlistTotal = (int) ($info['tracks']['total'] ?? count($songs));
+
+        // Spotify was busy or unreachable before any songs came back: that's
+        // "try again", not a verdict on the playlist.
+        if (! $complete && $songs === []) {
+            return response()->json([
+                'success' => false,
+                'error' => $retryAfter > 0
+                    ? "Spotify is busy right now. Try again in {$retryAfter} seconds."
+                    : 'Couldn’t read this playlist’s songs from Spotify. Try again in a minute, or paste the songs as a list.',
+                'retry_after' => $retryAfter,
+            ]);
+        }
+
+        // Spotify now shares a playlist's songs only with its owner, so a
+        // readable playlist can still come back empty: say that, not "0 songs".
+        if ($songs === [] && $playlistTotal > 0) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Spotify didn’t share this playlist’s songs (it now only does that for playlists you own). Paste the songs as a list instead.',
+            ]);
+        }
 
         return response()->json([
             'success' => true,
@@ -308,6 +331,8 @@ class SpotifyController extends Controller
             'image' => $info['images'][0]['url'] ?? '',
             'songs' => $songs,
             'total' => count($songs),
+            'playlistTotal' => max($playlistTotal, count($songs)),
+            'incomplete' => ! $complete,
         ]);
     }
 
@@ -326,7 +351,7 @@ class SpotifyController extends Controller
             return response()->json(['success' => false, 'error' => 'Not authenticated']);
         }
 
-        $songs = $this->fetchPlaylistTracks($playlistId, $token);
+        $songs = $this->fetchPlaylistTracks($playlistId, $token)['songs'];
 
         return response()->json(['success' => true, 'songs' => $songs]);
     }
@@ -346,22 +371,36 @@ class SpotifyController extends Controller
 
     /**
      * Page through a playlist's tracks (100/page), preferring covers >= 300px.
+     * `complete` is false when a page failed (rate limit, error, timeout)
+     * rather than the list ending; `retryAfter` is Spotify's wait, if it gave one.
      *
-     * @return array<int, array<string, mixed>>
+     * @return array{songs: array<int, array<string, mixed>>, complete: bool, retryAfter: int}
      */
     private function fetchPlaylistTracks(string $playlistId, string $token): array
     {
         $songs = [];
         $offset = 0;
+        $complete = true;
+        $retryAfter = 0;
         $fields = 'items(track(id,name,artists,album(name,images),duration_ms)),total,next';
 
         do {
-            $data = $this->spotify->get("https://api.spotify.com/v1/playlists/{$playlistId}/tracks", $token, [
-                'offset' => $offset,
-                'limit' => 100,
-                'fields' => $fields,
-            ]);
-            if (! $data || empty($data['items'])) {
+            try {
+                $data = $this->spotify->getPage("https://api.spotify.com/v1/playlists/{$playlistId}/tracks", $token, [
+                    'offset' => $offset,
+                    'limit' => 100,
+                    'fields' => $fields,
+                ]);
+            } catch (SpotifyRateLimited $e) {
+                $data = null;
+                $retryAfter = $e->retryAfter;
+            }
+            // A failed page (429, 5xx, timeout) is not the end of the list.
+            if ($data === null) {
+                $complete = false;
+                break;
+            }
+            if (empty($data['items'])) {
                 break;
             }
 
@@ -395,6 +434,6 @@ class SpotifyController extends Controller
             $offset += 100;
         } while (! empty($data['next']));
 
-        return $songs;
+        return ['songs' => $songs, 'complete' => $complete, 'retryAfter' => $retryAfter];
     }
 }

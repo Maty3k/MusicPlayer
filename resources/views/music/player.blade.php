@@ -65,6 +65,17 @@
         <div class="app-flash" id="appFlash">{{ session('status') }}</div>
         <script>setTimeout(function () { var f = document.getElementById('appFlash'); if (f) f.remove(); }, 4200);</script>
         @endif
+        @if (!empty($pendingShare))
+        {{-- Saved from a share page before signing in: offered, never copied without a click --}}
+        <form class="app-flash app-flash-offer" id="pendingShareOffer" method="POST" action="{{ route('shared.add', $pendingShare['token']) }}">
+            @csrf
+            <span>Save “{{ $pendingShare['name'] }}” ({{ $pendingShare['count'] }} {{ Str::plural('song', $pendingShare['count']) }}) to your library?</span>
+            <span class="app-flash-actions">
+                <button type="submit" class="app-flash-btn">Save</button>
+                <button type="button" class="app-flash-btn app-flash-btn-quiet" onclick="this.closest('form').remove()">No thanks</button>
+            </span>
+        </form>
+        @endif
         <div class="vinyl-crate-view" id="vinylCrateView">
             <!-- Room Background -->
             <div class="room-bg">
@@ -1331,7 +1342,7 @@
                     <label for="pasteImportInput">One song per line &mdash; &ldquo;Artist &ndash; Title&rdquo;</label>
                     <textarea id="pasteImportInput" class="import-textarea" rows="6" placeholder="Laufey &ndash; From the Start&#10;Don Toliver &ndash; No Pole&#10;Clairo &ndash; Pretty Girl"></textarea>
                 </div>
-                <p class="settings-hint">Paste from anywhere &mdash; up to 50 at a time. Each line is matched to a YouTube video you can review before adding.</p>
+                <p class="settings-hint">Paste from anywhere &mdash; a whole playlist is fine. Each line is matched to a YouTube video you can review before adding; a long list takes a few minutes.</p>
                 <div class="add-song-modal-buttons">
                     <button type="button" class="add-song-btn-save" onclick="resolvePasteList()">Find matches</button>
                 </div>
@@ -1384,6 +1395,17 @@
             <div id="spotifyImportPreview" class="spotify-import-preview" style="display:none">
                 <div class="spotify-import-info" id="spotifyImportInfo"></div>
                 <div class="spotify-import-tracks import-checklist" id="spotifyImportTracks"></div>
+                {{-- Where the import lands: set up by setImportTarget() in script.js --}}
+                <div class="import-target" role="radiogroup" aria-label="Save to">
+                    <div class="import-target-label">Save to</div>
+                    <div class="import-target-options">
+                        <label class="import-target-option"><input type="radio" name="importTarget" value="new" onchange="updateImportTarget()"><span>New playlist</span></label>
+                        <label class="import-target-option"><input type="radio" name="importTarget" value="current" onchange="updateImportTarget()"><span id="importTargetCurrent">Current playlist</span></label>
+                    </div>
+                    <div class="add-song-form-group import-target-name-group" id="importTargetNameGroup">
+                        <input type="text" id="importTargetName" maxlength="90" placeholder="Playlist name" aria-label="New playlist name">
+                    </div>
+                </div>
                 <div class="add-song-modal-buttons">
                     <button type="button" class="add-song-btn-cancel" onclick="resetImportPreview()">Back</button>
                     <button type="button" class="add-song-btn-save" id="importAddBtn" onclick="confirmImportSelection()">Add songs</button>

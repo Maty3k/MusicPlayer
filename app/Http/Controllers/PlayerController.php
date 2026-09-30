@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Playlist;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -14,6 +15,8 @@ class PlayerController extends Controller
      */
     public function show(Request $request): View
     {
+        $pendingShare = $this->pendingShare($request);
+
         $user = $request->user()->load('playlists.songs');
 
         $playlists = [];
@@ -51,6 +54,31 @@ class PlayerController extends Controller
             'recentSongs' => $user->recentSongs(),
             'favoriteKeys' => $favoriteKeys,
             'shareTokens' => $shareTokens,
+            'pendingShare' => $pendingShare,
         ]);
+    }
+
+    /**
+     * A playlist the visitor asked to save from a share page before signing
+     * in (see AuthenticatedSessionController::create), offered once on their
+     * first visit to the player. It's an offer, not a copy: the ?save= link
+     * could have come from anyone, so saving takes the user's own click
+     * (a CSRF-protected POST to the share page's add route).
+     *
+     * @return array{token: string, name: string, count: int}|null
+     */
+    private function pendingShare(Request $request): ?array
+    {
+        $pending = $request->session()->pull('pending_share');
+        if (! is_array($pending) || ! is_string($pending['token'] ?? null)
+            || now()->timestamp - (int) ($pending['at'] ?? 0) > 15 * 60) {
+            return null;
+        }
+        $source = Playlist::where('share_token', $pending['token'])->withCount('songs')->first();
+        if ($source === null || $source->user_id === $request->user()->id) {
+            return null;
+        }
+
+        return ['token' => $source->share_token, 'name' => (string) $source->name, 'count' => (int) $source->songs_count];
     }
 }

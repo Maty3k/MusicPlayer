@@ -22,23 +22,27 @@ class SpotifyResolveController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
     {
-        $spotifyId = trim((string) $request->input('spotify_id', ''));
-        $playlistKey = trim((string) $request->input('playlist_key', ''));
+        $text = fn (string $key) => is_string($value = $request->input($key, '')) ? trim($value) : '';
+        $spotifyId = $text('spotify_id');
+        $spotifyId = preg_match('/^[A-Za-z0-9]{22}$/', $spotifyId) ? $spotifyId : '';
+        $playlistKey = $text('playlist_key');
         $songIndex = -1;
         if ($request->has('song_index')) {
             $validated = filter_var($request->input('song_index'), FILTER_VALIDATE_INT);
             $songIndex = $validated === false ? -1 : $validated;
         }
-        $title = trim((string) $request->input('title', ''));
-        $artist = trim((string) $request->input('artist', ''));
+        $title = $text('title');
+        $artist = $text('artist');
 
         if ($title === '') {
             return response()->json(['success' => false, 'error' => 'Missing title']);
         }
 
+        $cacheKey = $spotifyId !== '' ? YoutubeMatch::cacheKey($spotifyId, $title, $artist) : null;
+
         // Fast path: cache hit.
-        if ($spotifyId !== '') {
-            $cached = YoutubeMatch::query()->where('spotify_id', $spotifyId)->first();
+        if ($cacheKey !== null) {
+            $cached = YoutubeMatch::query()->where('spotify_id', $cacheKey)->first();
             if ($cached !== null) {
                 return response()->json(['success' => true, 'youtube_id' => $cached->youtube_id, 'cached' => true]);
             }
@@ -54,22 +58,27 @@ class SpotifyResolveController extends Controller
         }
 
         // Persist in the shared resolution cache.
-        if ($spotifyId !== '') {
+        if ($cacheKey !== null) {
             YoutubeMatch::query()->updateOrCreate(
-                ['spotify_id' => $spotifyId],
+                ['spotify_id' => $cacheKey],
                 ['youtube_id' => $ytId],
             );
         }
 
-        // Persist onto the specific song — but only when the stored song's
-        // spotify_id matches this request's, so playlist_key/song_index can't be
-        // used to overwrite an arbitrary (e.g. non-Spotify) song's youtube_id
-        // with a chosen video.
-        if ($playlistKey !== '' && $songIndex >= 0 && $spotifyId !== ''
+        // Persist onto the specific song — but only when the stored song is the
+        // one this request describes, so playlist_key/song_index can't be used
+        // to overwrite an arbitrary song's youtube_id with a chosen video:
+        // a Spotify track by its spotify_id, or a title-only import (no
+        // source id at all yet) by its exact title and artist.
+        if ($playlistKey !== '' && $songIndex >= 0
             && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $playlistKey)) {
             $playlist = $request->user()->playlists()->where('slug', $playlistKey)->first();
             $song = $playlist?->songs->values()->get($songIndex);
-            if ($song !== null && ($song->spotify_id ?? '') === $spotifyId) {
+            $sameSpotifyTrack = $spotifyId !== '' && ($song->spotify_id ?? '') === $spotifyId;
+            $sameTitleOnlySong = $spotifyId === '' && $song !== null
+                && ($song->spotify_id ?? '') === '' && ($song->youtube_id ?? '') === '' && ($song->mp3_url ?? '') === ''
+                && trim((string) $song->title) === $title && trim((string) $song->artist) === $artist;
+            if ($song !== null && ($sameSpotifyTrack || $sameTitleOnlySong)) {
                 $song->youtube_id = $ytId;
                 $song->save();
             }

@@ -101,7 +101,8 @@
                 <button type="submit" class="btn btn-gold">Add to my library</button>
             </form>
         @else
-            <a class="btn btn-gold" href="/login">Log in to save this playlist</a>
+            {{-- ?save= carries this playlist through sign-in or sign-up: it's in their library on arrival --}}
+            <a class="btn btn-gold" href="/login?save={{ urlencode($token) }}">Save this playlist &middot; sign up or log in</a>
         @endif
     </div>
     @if ($count === 0)

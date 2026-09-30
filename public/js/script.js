@@ -289,6 +289,7 @@ async function switchSong(index) {
         if (shuffleMode !== 'off') {
             const outgoingState = ytPlayer && ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : null;
             if (!currentRadioSong && songsData[currentSongIndex]
+                && !songsData[currentSongIndex]._unplayable  // a failed song has had its turn
                 && (outgoingState === -1 || outgoingState === 5)
                 && !shuffleQueue.includes(currentSongIndex)) {
                 shuffleQueue.splice(Math.floor(Math.random() * (shuffleQueue.length + 1)), 0, currentSongIndex);
@@ -1109,6 +1110,29 @@ window.setDiscoverSource = function (src) {
     rebuildSongList();
 };
 
+// POST JSON to one of our own endpoints. The YouTube-backed ones are rate
+// limited per user; on a 429 wait as long as the server says (Retry-After)
+// and try again, up to `retries` times, so a long import slows down instead
+// of reading as "no match". `onWait(seconds)` lets the caller say why it
+// paused. A 429 that outlasts the retries comes back as { rateLimited: true }.
+async function postJsonRetrying(url, body, { retries = 3, onWait, cancelled } = {}) {
+    for (let attempt = 0; ; attempt++) {
+        if (cancelled && cancelled()) return { success: false, cancelled: true };
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (resp.status !== 429) return resp.json();
+        if (attempt >= retries) {
+            return { success: false, rateLimited: true, error: 'Too many searches right now: try again in a minute' };
+        }
+        const wait = Math.min(90, Math.max(1, parseInt(resp.headers.get('Retry-After'), 10) || 10));
+        if (onWait) onWait(wait);
+        await new Promise(resolve => setTimeout(resolve, wait * 1000));
+    }
+}
+
 // AI suggestions arrive as title/artist only — resolve to a playable
 // video on demand through the server's YouTube search.
 async function resolveDiscoverItem(item) {
@@ -1116,12 +1140,7 @@ async function resolveDiscoverItem(item) {
     if (item._resolving) return false;
     item._resolving = true;
     try {
-        const resp = await fetch('/search-youtube', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ query: `${item.artist} ${item.title}` }),
-        });
-        const data = await resp.json();
+        const data = await postJsonRetrying('/search-youtube', { query: `${item.artist} ${item.title}` }, { retries: 1 });
         const hit = data.success && Array.isArray(data.results) ? data.results[0] : null;
         if (hit && hit.videoId) {
             item.youtube_id = hit.videoId;
@@ -1757,6 +1776,7 @@ function onYouTubeIframeAPIReady() {
                         if (songUsesMp3(song)) {
                             playSongSource(song, false);
                         } else {
+                            noteSongRequest(song, true);
                             event.target.loadVideoById(source);
                         }
                     }
@@ -1768,6 +1788,7 @@ function onYouTubeIframeAPIReady() {
                         if (songUsesMp3(currentSong)) {
                             playSongSource(currentSong, true);
                         } else {
+                            noteSongRequest(currentSong, false);
                             event.target.cueVideoById(source);
                         }
                     }
@@ -1780,6 +1801,7 @@ function onYouTubeIframeAPIReady() {
             'onAutoplayBlocked': showPlayBlockedHint,
             'onError': function(event) {
                 console.warn('YouTube player error:', event.data);
+                if (ytPlayer === ytPlayerReal) handleUnplayableSong(lastRequestedSong, youtubeErrorReason(event.data));
             }
         }
     });
@@ -1805,6 +1827,14 @@ function onPlayerStateChange(event) {
     var isApp = !!window.ReactNativeWebView;
 
     if (event.data === YT.PlayerState.PLAYING) {
+        // It plays after all: clear the failure run and any "can't play" flag.
+        unplayableStreak = 0;
+        if (lastRequestedSong && lastRequestedSong._unplayable) {
+            delete lastRequestedSong._unplayable;
+            const idx = songsData.indexOf(lastRequestedSong);
+            const row = idx >= 0 ? document.querySelector(`#songList .song-list-item[data-index="${idx}"]`) : null;
+            if (row) { row.classList.remove('song-unplayable'); row.removeAttribute('title'); }
+        }
         if (vinyl) vinyl.classList.add('playing');
         if (tonearm) tonearm.classList.add('playing');
         if (platterVinyl) platterVinyl.classList.add('spinning');
@@ -2332,8 +2362,20 @@ document.addEventListener('DOMContentLoaded', () => {
         checkSpotifyStatus();
     } else if (spotifyReturn === 'signed-in') {
         checkSpotifyStatus().then(() => { showSpotifyImportModal(); setImportTab('spotify'); });
+    } else if (spotifyReturn === 'error') {
+        showBulkToast('Spotify didn’t connect. Please try again.');
+    }
+    // Handled once: drop the flag so a reload doesn't reopen the import.
+    if (spotifyReturn) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('spotify');
+        history.replaceState(history.state, '', url.pathname + url.search + url.hash);
     }
 });
+
+// A new "Continue with Spotify" account arrives to import its library: the
+// import window opens for it, so the first-run wizard stays out of the way.
+const arrivedFromSpotifySignIn = new URLSearchParams(window.location.search).get('spotify') === 'signed-in';
 
 function restartSong() {
     if (!ytPlayer || !ytPlayer.seekTo) return;
@@ -2370,11 +2412,16 @@ function toggleMusic() {
         // Unstarted (-1), cued (5), ended (0), or buffering (3)
         const source = getPlaybackSource(song);
         if (song && source) {
+            noteSongRequest(song, true);
             ytPlayer.loadVideoById(source);
             // Cold-start of a cued song bypasses playSongSource, so log the
             // play here too — otherwise the first play of a session (pressing
             // play without tapping a row) never reaches the shelf.
             recordPlay(song);
+        } else if (song && song.title) {
+            // Nothing stored to play yet (a title-only import): resolve a
+            // match, or say why it can't play.
+            playSongSource(song, false);
         }
         // Load lyrics on first play if not yet loaded
         if (!currentLyrics && activeLyricIndex === -1) {
@@ -2649,13 +2696,13 @@ async function runAddSongSearch() {
     const seq = ++addSearchSeq;
     renderAddSearchResults([], 'Searching…');
     try {
-        const resp = await fetch('/search-youtube', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ query: q }),
-        });
-        const data = await resp.json();
+        // No retries while typing: a newer keystroke will search again anyway.
+        const data = await postJsonRetrying('/search-youtube', { query: q }, { retries: 0 });
         if (seq !== addSearchSeq) return;  // a newer search superseded this one
+        if (data.rateLimited) {
+            renderAddSearchResults([], 'Searching too fast: wait a few seconds and try again.');
+            return;
+        }
         if (!data.success || !Array.isArray(data.results) || data.results.length === 0) {
             renderAddSearchResults([], 'No matches — try different words, or use "More options" below.');
             return;
@@ -2732,6 +2779,9 @@ const DIRECT_AUDIO_URL = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac)(\?[^\s]*)?$/i;
 function classifyAddSongInput(value) {
     const text = (value || '').trim();
     if (!text) return { kind: '', error: 'Paste a link first.' };
+
+    // A file just uploaded to this app comes back as /media/<name>.
+    if (/^\/media\/[A-Za-z0-9.-]+$/.test(text)) return { kind: 'mp3', mp3Url: text };
 
     const spotifyId = extractSpotifyId(text);
     if (spotifyId) return { kind: 'spotify', spotifyId };
@@ -2892,7 +2942,8 @@ function updateMediaSession(song) {
 function buildSongListItem(song, index) {
     const itemCover = safeUrl(song.cover);
     return `
-        <li class="song-list-item ${index === currentSongIndex ? 'active' : ''}"
+        <li class="song-list-item ${index === currentSongIndex ? 'active' : ''}${song._unplayable ? ' song-unplayable' : ''}"
+            ${song._unplayable ? `title="Can't play: ${escapeHtml(song._unplayable)}"` : ''}
             data-index="${index}"
             data-src="${song.mp3_url ? 'mp3' : (song.youtube_id ? 'yt' : 'spotify')}"
             onclick="switchSong(${index})">
@@ -3413,7 +3464,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
     if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
-        && document.getElementById('playlistEditModal')) {
+        && document.getElementById('playlistEditModal') && !arrivedFromSpotifySignIn) {
         showFirstRunWizard();
         return;
     }
@@ -4535,6 +4586,14 @@ function createMp3Player() {
     audio.addEventListener('waiting', () => {
         mp3PlayerProxy._state = 3;
     });
+    // A file that won't load (deleted upload, dead link, bad format).
+    audio.addEventListener('error', () => {
+        if (ytPlayer !== mp3PlayerProxy || !audio.error || !audio.currentSrc) return;
+        // Unstarted, not paused: pressing play then reloads the file (and
+        // explains or skips again) instead of calling play() on a dead element.
+        mp3PlayerProxy._state = -1;
+        handleUnplayableSong(lastRequestedSong, "its audio file couldn't be loaded");
+    });
 
     return mp3PlayerProxy;
 }
@@ -4592,27 +4651,95 @@ function getPlaybackSource(song) {
 }
 
 // Unified play/cue function
+// The song the player was last asked to load, and whether that was a real
+// start (a tap, a skip, an auto-advance) or a silent cue. A cued song that
+// turns out to be broken is only flagged; a started one moves on.
+let lastRequestedSong = null;
+let playRequested = false;
+let unplayableStreak = 0;
+// Bumped on every load/cue request, so a slow lookup can tell it's stale.
+let songRequestSeq = 0;
+
+function noteSongRequest(song, isPlay) {
+    lastRequestedSong = song || null;
+    playRequested = !!isPlay;
+    songRequestSeq++;
+}
+
+// A song that can't play (YouTube refused or removed the video, the audio
+// file is broken, or no match was found) must never leave the player sitting
+// silent: say so, flag its row, and move on as if it had ended. Several
+// failures in a row stop playback instead of racing through the list.
+function handleUnplayableSong(song, reason) {
+    if (song) {
+        song._unplayable = reason;
+        const idx = songsData.indexOf(song);
+        const row = idx >= 0 ? document.querySelector(`#songList .song-list-item[data-index="${idx}"]`) : null;
+        if (row) {
+            row.classList.add('song-unplayable');
+            row.title = `Can't play: ${reason}`;
+        }
+    }
+    if (!playRequested || !song || song !== lastRequestedSong) return;
+    playRequested = false;
+    const name = song.title ? `“${song.title}”` : 'This song';
+    unplayableStreak++;
+    const alone = loopMode === 'single' || (!currentRadioSong && songsData.length <= 1);
+    if (alone || unplayableStreak >= Math.min(5, songsData.length || 1)) {
+        unplayableStreak = 0;
+        showBulkToast(`${name} can't play: ${reason}.`
+            + (alone ? '' : ' Several songs in a row couldn’t play, so playback stopped.'));
+        return;
+    }
+    showBulkToast(`${name} can't play: ${reason}. Skipping to the next song.`);
+    // The failure can land mid-switch (switchSong holds isChangingSong until
+    // it has saved), when a skip would be ignored: wait for the switch.
+    let waited = 0;
+    (function advance() {
+        if (isChangingSong && waited < 5000) { waited += 100; setTimeout(advance, 100); return; }
+        playNextByLoop();
+    })();
+}
+
+function youtubeErrorReason(code) {
+    if (code === 100) return 'the video was removed or made private';
+    if (code === 101 || code === 150) return "its owner doesn't allow playing it outside YouTube";
+    if (code === 2) return 'the video link is invalid';
+    if (code === 5) return "the video can't play in this browser";
+    return 'YouTube error ' + code;
+}
+
 async function playSongSource(song, cueOnly) {
+    noteSongRequest(song, !cueOnly);
+    const request = songRequestSeq;
     let source = getPlaybackSource(song);
-    // Spotify-only track with nothing else to play from.
-    if (!source && song && song.spotify_id && !song.youtube_id && !song.mp3_url && song.title) {
-        if (spotifyPremium && spotifyConnected && !spotifyDeviceId && !spotifySdkGaveUp) {
+    // Nothing playable stored yet: a Spotify-only track, or a title-only
+    // import. Resolve a matching YouTube video so it still plays.
+    if (!source && song && !song.youtube_id && !song.mp3_url && song.title) {
+        const spotifyCanPlay = !!song.spotify_id && spotifyPremium && spotifyConnected;
+        if (spotifyCanPlay && !spotifyDeviceId && !spotifySdkGaveUp) {
             // Premium and connected, but the Web Playback SDK hasn't reported
             // a device yet (it connects asynchronously after load): give it a
             // moment instead of failing silently. If it never shows up, stop
             // waiting for the rest of this session.
             spotifySdkGaveUp = !(await waitForSpotifyDevice(4000));
+            if (request !== songRequestSeq) return; // another song was asked for meanwhile
             source = getPlaybackSource(song);
         }
         if (!source) {
-            // Not Premium, not connected, or the SDK never came up: resolve a
-            // matching YouTube video so the track still plays. Only remember
-            // the match when Spotify playback isn't an option at all, so a
-            // slow SDK start doesn't permanently demote a Premium track.
-            source = await resolveYoutubeIdForSong(song, !(spotifyPremium && spotifyConnected));
+            // Only remember the match when Spotify playback isn't an option
+            // at all, so a slow SDK start doesn't permanently demote a
+            // Premium track.
+            source = await resolveYoutubeIdForSong(song, !spotifyCanPlay);
+            // Another song was tapped, skipped to or started meanwhile; the
+            // match is still saved on this song for next time.
+            if (request !== songRequestSeq) return;
         }
     }
-    if (!source) return;
+    if (!source) {
+        if (!cueOnly && song && song.title) handleUnplayableSong(song, 'no matching video was found on YouTube');
+        return;
+    }
     activatePlayerForSong(song);
     if (cueOnly) {
         if (ytPlayer && ytPlayer.cueVideoById) ytPlayer.cueVideoById(source);
@@ -4636,18 +4763,13 @@ async function playSongSource(song, cueOnly) {
 async function resolveYoutubeIdForSong(song, remember = true) {
     try {
         const idx = (remember && typeof songsData !== 'undefined') ? songsData.indexOf(song) : -1;
-        const resp = await fetch('/spotify-resolve', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                spotify_id: song.spotify_id || '',
-                title: song.title || '',
-                artist: song.artist || '',
-                playlist_key: (remember && typeof activePlaylistId !== 'undefined') ? activePlaylistId : '',
-                song_index: idx
-            })
-        });
-        const data = await resp.json();
+        const data = await postJsonRetrying('/spotify-resolve', {
+            spotify_id: song.spotify_id || '',
+            title: song.title || '',
+            artist: song.artist || '',
+            playlist_key: (remember && typeof activePlaylistId !== 'undefined') ? activePlaylistId : '',
+            song_index: idx
+        }, { retries: 2 });
         if (data.success && data.youtube_id) {
             if (remember) song.youtube_id = data.youtube_id;
             return data.youtube_id;
@@ -4906,6 +5028,7 @@ function showSpotifyImportModal() {
 }
 
 function hideSpotifyImportModal() {
+    importRunSeq++;
     document.getElementById('spotifyImportModal').classList.remove('active');
     spotifyImportData = null;
 }
@@ -5052,6 +5175,9 @@ function hideImportLoading() {
 // ---- Unified import checklist (Spotify link + paste list) ----------------
 // Every import path fills importSelection and renders one reviewable list.
 let importSelection = []; // {title, artist, album, cover, spotify_id, youtube_id, matchLabel, checked}
+// Bumped when the import window resets or closes: a paste match still
+// running from before (it can take minutes) stops instead of taking over.
+let importRunSeq = 0;
 
 function activeImportTab() {
     const active = document.querySelector('#importTabs .import-tab.active');
@@ -5066,6 +5192,7 @@ function setImportTab(tab) {
 
 // Restore the input view for the active tab (also the "Back" target).
 function resetImportPreview() {
+    importRunSeq++;
     importSelection = [];
     const prev = document.getElementById('spotifyImportPreview');
     if (prev) prev.style.display = 'none';
@@ -5116,10 +5243,48 @@ async function fetchYoutubePlaylist() {
         title: s.title, artist: s.artist || '', album: '', cover: s.cover || '',
         spotify_id: '', youtube_id: s.youtube_id, needsMatch: true, matchLabel: '', checked: true,
     }));
-    renderImportChecklist(data.name || 'YouTube playlist');
+    renderImportChecklist(data.name || 'YouTube playlist', true,
+        data.truncated ? `This playlist is longer: these are the first ${importSelection.length} songs.` : '');
 }
 
-function renderImportChecklist(title) {
+// Where an import lands. A playlist (or a long pasted list) defaults to a new
+// playlist named after its source, so it keeps its identity; a handful of
+// pasted songs defaults to the playlist that's open.
+let importSourceName = '';
+
+function setImportTarget(sourceName, preferNew) {
+    importSourceName = sourceName || '';
+    const nameEl = document.getElementById('importTargetName');
+    if (nameEl) nameEl.value = importSourceName;
+    const current = document.getElementById('importTargetCurrent');
+    const meta = typeof playlistsMeta === 'object' ? playlistsMeta[activePlaylistId] : null;
+    if (current) current.textContent = meta && meta.name ? `Add to “${meta.name}”` : 'Current playlist';
+    // No playlist yet (a brand-new account): there's no "current" to add to,
+    // so the import makes its own playlist.
+    const currentRadio = document.querySelector('input[name="importTarget"][value="current"]');
+    if (currentRadio) {
+        currentRadio.disabled = !meta;
+        const option = currentRadio.closest('.import-target-option');
+        if (option) option.style.display = meta ? '' : 'none';
+    }
+    const radio = document.querySelector(`input[name="importTarget"][value="${preferNew || !meta ? 'new' : 'current'}"]`);
+    if (radio) radio.checked = true;
+    updateImportTarget();
+}
+
+function importTargetChoice() {
+    const checked = document.querySelector('input[name="importTarget"]:checked');
+    return checked ? checked.value : 'current';
+}
+
+function updateImportTarget() {
+    const group = document.getElementById('importTargetNameGroup');
+    if (group) group.hidden = importTargetChoice() !== 'new';
+}
+
+// `note` says what didn't come through (never cut a list silently).
+function renderImportChecklist(title, preferNew = true, note = '') {
+    setImportTarget(title, preferNew);
     hideImportLoading();
     const info = document.getElementById('spotifyImportInfo');
     const tracks = document.getElementById('spotifyImportTracks');
@@ -5127,7 +5292,8 @@ function renderImportChecklist(title) {
     const noMatch = importSelection.length - matched;
     info.innerHTML = `<div><strong>${escapeHtml(title || 'Import')}</strong><br>`
         + `<span style="font-size:0.75rem;color:var(--app-text-dim)">${importSelection.length} songs`
-        + (noMatch > 0 ? ` &middot; ${noMatch} without a match` : '') + `</span></div>`;
+        + (noMatch > 0 ? ` &middot; ${noMatch} without a match` : '') + `</span>`
+        + (note ? `<br><span class="import-note">${escapeHtml(note)}</span>` : '') + `</div>`;
 
     tracks.innerHTML = importSelection.map((s, i) => {
         const disabled = s.youtube_id === null && s.needsMatch;
@@ -5151,12 +5317,16 @@ function renderImportChecklist(title) {
     updateImportAddBtn();
 }
 
+// One import at a time: a double-click (or a second click during a slow,
+// multi-chunk import) would send newPlaylist twice and make two playlists.
+let importSaving = false;
+
 function updateImportAddBtn() {
     // Addable = checked and playable. Spotify tracks use '' (resolve on play);
     // an unmatched paste line uses null and can't be added.
     const n = importSelection.filter(s => s.checked && s.youtube_id !== null).length;
     const btn = document.getElementById('importAddBtn');
-    if (btn) {
+    if (btn && !importSaving) {
         btn.textContent = n > 0 ? `Add ${n} song${n === 1 ? '' : 's'}` : 'Add songs';
         btn.disabled = n === 0;
     }
@@ -5166,12 +5336,18 @@ function updateImportAddBtn() {
 // they need no per-song match here (youtube_id '' is playable via resolve).
 function showImportPreview(data) {
     hideImportLoading();
-    const songs = (data.songs || []).slice(0, 200);
+    const songs = data.songs || [];
     importSelection = songs.map(s => ({
         title: s.title, artist: s.artist, album: s.album || '', cover: s.cover || '',
         spotify_id: s.spotify_id || '', youtube_id: '', matchLabel: '', needsMatch: false, checked: true,
     }));
-    renderImportChecklist(data.name || 'Playlist');
+    const missing = (data.playlistTotal || 0) - songs.length;
+    const note = data.incomplete
+        ? `Spotify stopped answering after ${songs.length} of ${data.playlistTotal} songs. Go back and try again to get them all.`
+        : missing > 0
+            ? `Spotify shared ${songs.length} of its ${data.playlistTotal} songs (local files and unavailable songs stay behind).`
+            : '';
+    renderImportChecklist(data.name || 'Playlist', true, note);
 }
 
 // Paste list: parse "Artist - Title" lines, resolve each to a YouTube video
@@ -5179,8 +5355,13 @@ function showImportPreview(data) {
 async function resolvePasteList() {
     const raw = (document.getElementById('pasteImportInput').value || '').trim();
     if (!raw) return;
-    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 50);
+    const PASTE_MAX = 1000;
+    const allLines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = allLines.slice(0, PASTE_MAX);
     if (lines.length === 0) return;
+    const pasteNote = allLines.length > PASTE_MAX
+        ? `Matched the first ${PASTE_MAX} of ${allLines.length} lines: paste the rest as a second import.`
+        : '';
 
     const parsed = lines.map(line => {
         const m = line.split(/\s+[-–—]\s+/); // "Artist - Title" (hyphen/en/em dash)
@@ -5196,43 +5377,55 @@ async function resolvePasteList() {
     document.getElementById('importPastePane').style.display = 'none';
 
     // Resolve with limited concurrency to stay friendly to the throttle.
-    importSelection = new Array(parsed.length);
+    // Results collect locally and only become the preview if this run is
+    // still current when it finishes (Back, a tab switch or closing cancels it).
+    const run = ++importRunSeq;
+    const stale = () => run !== importRunSeq;
+    const results = new Array(parsed.length);
     let done = 0;
     const CONCURRENCY = 4;
     let cursor = 0;
     async function worker() {
-        while (cursor < parsed.length) {
+        while (cursor < parsed.length && !stale()) {
             const idx = cursor++;
             const p = parsed[idx];
             let match = null;
+            let rateLimited = false;
             try {
-                const resp = await fetch('/search-youtube', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ query: p.query }),
+                const data = await postJsonRetrying('/search-youtube', { query: p.query }, {
+                    retries: 8,
+                    cancelled: stale,
+                    onWait: (s) => {
+                        if (loadingText && !stale()) loadingText.textContent = `Matching ${done}/${parsed.length}… pausing ${s}s for YouTube's search limit`;
+                    },
                 });
-                const data = await resp.json();
+                rateLimited = !!data.rateLimited;
                 match = data.success && Array.isArray(data.results) ? data.results[0] : null;
             } catch (e) { /* leave unmatched */ }
-            importSelection[idx] = match ? {
+            if (stale()) return;
+            results[idx] = match ? {
                 title: p.title, artist: p.artist, album: '', cover: match.thumbnail || '',
                 spotify_id: '', youtube_id: match.videoId, needsMatch: true,
                 matchLabel: `▸ ${match.title}${match.channel ? ' · ' + match.channel : ''}`, checked: true,
             } : {
                 title: p.title, artist: p.artist, album: '', cover: '',
                 spotify_id: '', youtube_id: null, needsMatch: true,
-                matchLabel: 'No match found', checked: false,
+                matchLabel: rateLimited ? 'Not searched: too many searches, try again in a minute' : 'No match found',
+                checked: false,
             };
             done++;
             if (loadingText) loadingText.textContent = `Matching ${done}/${parsed.length}…`;
         }
     }
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, parsed.length) }, worker));
+    if (stale()) return;
 
-    renderImportChecklist('Pasted list');
+    importSelection = results;
+    renderImportChecklist('Pasted list', parsed.length >= 20, pasteNote);
 }
 
 async function confirmImportSelection() {
+    if (importSaving) return;
     const songs = importSelection
         .filter(s => s.checked && s.youtube_id !== null)
         .map(s => ({
@@ -5240,25 +5433,61 @@ async function confirmImportSelection() {
             youtube_id: s.youtube_id || '', mp3_url: '', spotify_id: s.spotify_id || '',
         }));
     if (songs.length === 0) return;
-    const result = await bulkAddSongs(songs);
-    if (result && result.success) hideSpotifyImportModal();
+    const nameEl = document.getElementById('importTargetName');
+    const target = importTargetChoice() === 'new'
+        ? { newPlaylist: ((nameEl && nameEl.value) || '').trim() || importSourceName || 'Imported playlist' }
+        : {};
+
+    importSaving = true;
+    const btn = document.getElementById('importAddBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = `Adding ${songs.length} song${songs.length === 1 ? '' : 's'}…`;
+    }
+    let result = null;
+    try {
+        result = await bulkAddSongs(songs, target);
+    } finally {
+        // A new playlist ends in a reload: stay locked until the page goes.
+        if (!(result && result.reload)) {
+            importSaving = false;
+            updateImportAddBtn();
+        }
+    }
+    if (!result) return;
+    if (result.reload) {
+        // Close first, then reload: on phones closing is a history.back(),
+        // and a reload started before it would be cancelled by it.
+        let started = false;
+        const reload = () => { if (!started) { started = true; location.reload(); } };
+        window.addEventListener('popstate', reload, { once: true });
+        hideSpotifyImportModal();
+        setTimeout(reload, 400); // desktop: closing was immediate, no popstate
+        return;
+    }
+    if (result.success) hideSpotifyImportModal();
 }
 
-// Add many songs in ONE request (bulk import path). Reloads the playlist
+// Add many songs in ONE request (bulk import path). `target` is {} for the
+// playlist that's open, or { newPlaylist: name } to create one: the first
+// chunk creates it and later chunks follow it by id. Reloads the playlist
 // from the server afterward so songsData reflects exactly what was stored
-// (dedupe means the count may be lower than what was sent).
-async function bulkAddSongs(songs) {
+// (dedupe means the count may be lower than what was sent). A new playlist
+// instead returns { reload: true }: the caller closes the import window and
+// reloads onto it, since crate cards are server-rendered.
+async function bulkAddSongs(songs, target = {}) {
     if (!Array.isArray(songs) || songs.length === 0) return { success: false };
     // The server caps one addBatch at 200 songs; long playlists go in chunks.
     const CHUNK = 200;
-    const result = { success: true, added: 0, skipped: 0 };
+    const result = { success: true, added: 0, skipped: 0, playlistId: '' };
+    let where = target;
     for (let i = 0; i < songs.length; i += CHUNK) {
         let part;
         try {
             const resp = await fetch('/save-music', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'addBatch', songs: songs.slice(i, i + CHUNK) }),
+                body: JSON.stringify({ action: 'addBatch', songs: songs.slice(i, i + CHUNK), ...where }),
             });
             part = await resp.json();
         } catch (e) {
@@ -5266,16 +5495,41 @@ async function bulkAddSongs(songs) {
         }
         if (!part.success) {
             // Earlier chunks are already saved; say so rather than hide them.
-            showBulkToast(result.added > 0
+            const stopped = result.added > 0
                 ? `Added ${result.added}, then stopped: ${part.error || 'import failed'}`
-                : (part.error || 'Import failed'));
-            if (result.added === 0) return { success: false };
+                : (part.error || 'Import failed');
+            if (result.added === 0) { showBulkToast(stopped); return { success: false }; }
             result.success = false;
+            result.message = stopped;
             break;
         }
         result.added += part.added || 0;
         result.skipped += part.skipped || 0;
+        if (part.playlistId) {
+            result.playlistId = part.playlistId;
+            where = { playlist: part.playlistId };  // later chunks: same playlist
+        }
     }
+
+    if (target.newPlaylist && result.playlistId) {
+        // Land on the new playlist: make it the active one; the caller then
+        // reloads so its crate card renders, and the toast waits for that page.
+        try {
+            await fetch('/save-music', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'switchPlaylist', playlist: result.playlistId }),
+            });
+        } catch (e) { /* the playlist exists either way; the reload shows it */ }
+        const skipped = result.skipped > 0
+            ? ` · ${result.skipped} duplicate${result.skipped === 1 ? '' : 's'} skipped`
+            : '';
+        const msg = result.message
+            || `Imported “${target.newPlaylist}” · ${result.added} song${result.added === 1 ? '' : 's'}${skipped}`;
+        toastAfterReload(msg);
+        return { ...result, reload: true }; // the caller closes the window, then reloads
+    }
+    if (result.message) showBulkToast(result.message);
 
     // Reload the active playlist's songs so local state matches the DB.
     try {
@@ -5297,11 +5551,24 @@ async function bulkAddSongs(songs) {
 
     if (!result.success) return result; // partial-failure toast already shown
     const msg = result.skipped > 0
-        ? `Added ${result.added} · skipped ${result.skipped} already in playlist`
+        ? `Added ${result.added} · skipped ${result.skipped} duplicate${result.skipped === 1 ? '' : 's'}`
         : `Added ${result.added} song${result.added === 1 ? '' : 's'}`;
     showBulkToast(msg);
     return result;
 }
+
+// A toast for the next page load, for actions that end in location.reload().
+function toastAfterReload(msg) {
+    try { sessionStorage.setItem('toastAfterReload', msg); } catch (e) { /* private mode: no toast */ }
+}
+document.addEventListener('DOMContentLoaded', () => {
+    let msg = null;
+    try {
+        msg = sessionStorage.getItem('toastAfterReload');
+        sessionStorage.removeItem('toastAfterReload');
+    } catch (e) { /* storage blocked */ }
+    if (msg) setTimeout(() => showBulkToast(msg), 400);
+});
 
 // Reuse the mobile toast when present; otherwise a lightweight fallback.
 function showBulkToast(msg) {
@@ -5845,12 +6112,7 @@ async function handleScanFiles(fileList) {
 
         try {
             const base64 = await fileToBase64(img);
-            const resp = await fetch('/scan-cover', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: base64, mimeType: img.type })
-            });
-            const data = await resp.json();
+            const data = await postJsonRetrying('/scan-cover', { image: base64, mimeType: img.type }, { retries: 3 });
 
             if (data.success && data.artist) {
                 const songs = data.songs && data.songs.length > 0 ? data.songs : [data.album || 'Unknown'];
@@ -5922,12 +6184,7 @@ async function handleScanFiles(fileList) {
 
         try {
             const query = `${r.artist} ${r.title} official audio`;
-            const resp = await fetch('/search-youtube', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query })
-            });
-            const data = await resp.json();
+            const data = await postJsonRetrying('/search-youtube', { query }, { retries: 8 });
 
             if (data.success && data.results && data.results.length > 0) {
                 r.youtube = data.results[0];
@@ -7542,7 +7799,8 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.className = 'm-toast';
         toast.textContent = text;
         document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2000);
+        // Long enough to read: 2s, plus a little per character, up to 6s.
+        setTimeout(() => toast.remove(), Math.min(6000, 2000 + String(text).length * 40));
     };
 
     // Two-tap inline delete confirm: first tap arms the row for 3s
@@ -7773,6 +8031,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // control must not fire two history.back()s (two layers would close,
     // or the user would leave the page from the last one).
     let pendingBack = false;
+    // Layers opened while that back is still in flight wait for its
+    // popstate: pushing first would let the queued back pop the new entry
+    // ("close this sheet, open that one" would close both).
+    const afterBack = [];
 
     function openLayer(name, closeFn) {
         layerStack.push({ name, closeFn });
@@ -7795,6 +8057,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const layer = layerStack.pop();
             try { layer.closeFn(); } catch (e) {}
         }
+        afterBack.splice(0).forEach((open) => { try { open(); } catch (e) {} });
     });
 
     function topLayerIs(name) {
@@ -7863,12 +8126,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const out = origShow.apply(this, arguments);
             if (onPhone() && !modalOpen[key]) {
                 modalOpen[key] = true;
-                openLayer('modal:' + key, () => {
-                    if (modalOpen[key]) {
-                        modalOpen[key] = false;
-                        modalOrigHide[key]();
-                    }
-                });
+                const push = () => {
+                    if (!modalOpen[key]) return; // closed before the back landed
+                    openLayer('modal:' + key, () => {
+                        if (modalOpen[key]) {
+                            modalOpen[key] = false;
+                            modalOrigHide[key]();
+                        }
+                    });
+                };
+                if (pendingBack) afterBack.push(push); else push();
             }
             return out;
         };
@@ -7890,6 +8157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapModalPair('showSettingsModal', 'hideSettingsModal', 'settings');
     wrapModalPair('showAddSongModal', 'hideAddSongModal', 'addSong');
     wrapModalPair('showScanModal', 'hideScanModal', 'scan');
+    wrapModalPair('showSpotifyImportModal', 'hideSpotifyImportModal', 'import');
     wrapModalPair('showPlaylistEditModal', 'hidePlaylistEditModal', 'playlistEdit');
     wrapModalPair('showPlaylistCreateModal', 'hidePlaylistEditModal', 'playlistEdit');
 
