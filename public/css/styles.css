@@ -14272,7 +14272,8 @@ html[data-theme="greenroom"] {
 
 /* ============================================================
    PHONE TABS — Home / Search / Library on portrait phones.
-   The LAST block in the file (later rules win equal-specificity ties).
+   Followed by PHONE PLAYLIST SCREEN, the last block (later rules win
+   equal-specificity ties).
    Gated on html[data-m-tab], which the pre-paint script in
    player.blade.php sets on the web page but never in the React Native
    app (?app=1) — the app's WebView matches (max-width: 600px) too.
@@ -14404,6 +14405,7 @@ html.app-shell { --m-dock-h: 0px; }
 
 .m-menu-sheet .m-sheet-title {
     margin: 0 44px 10px 4px;
+    overflow-wrap: anywhere;
     font: 600 1.2rem/1.2 var(--display);
     color: var(--cream);
 }
@@ -14950,5 +14952,454 @@ html.app-shell { --m-dock-h: 0px; }
         font-size: 0.95rem;
         line-height: 1.45;
         color: var(--cream-60);
+    }
+}
+
+/* ============================================================
+   PHONE PLAYLIST SCREEN — portrait web shell only (html[data-m-tab];
+   never the ?app=1 app, landscape or desktop). The LAST block.
+   The sidebar is the one scroller: a sticky top bar, then a big title
+   and the action row that scroll away, then the songs.
+   ============================================================ */
+
+/* Every layout: the empty playlist's second line and its Import button */
+.song-list-empty-sub {
+    max-width: 260px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: rgba(242, 232, 216, 0.62);
+}
+
+/* The collapsed desktop sidebar has no room for the extra line or button */
+.music-sidebar.collapsed .song-list-empty-sub,
+.music-sidebar.collapsed .song-list-empty-import { display: none; }
+
+/* The song menu's Like row is a real button among the menu's div rows */
+button.send-menu-item {
+    width: 100%;
+    margin: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.song-list-empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.song-list-empty-import {
+    border: 1px solid rgba(242, 232, 216, 0.25);
+    background: none;
+    color: rgba(242, 232, 216, 0.75);
+    padding: 6px 16px;
+    border-radius: 18px;
+    font-size: 0.75rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.song-list-empty-import:hover { background: rgba(242, 232, 216, 0.08); }
+
+/* The playlist ⋯ menu has nine rows: keep them compact */
+.m-menu-sheet .m-sheet-compact {
+    min-height: 52px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+
+.m-menu-sheet .m-sheet-row[hidden] { display: none; }
+.m-menu-sheet .m-sheet-danger { color: #f08a9c; }
+
+.m-menu-sheet .m-sheet-danger .m-sheet-ic {
+    background: rgba(232, 93, 117, 0.14);
+    color: #f08a9c;
+}
+
+.m-menu-sheet .m-sheet-danger.m-confirm-armed { background: rgba(232, 93, 117, 0.16); }
+
+@media (max-width: 600px) {
+    /* ---- One scroller, tinted with the playlist's colour at the top */
+    html[data-m-tab] #musicSidebar {
+        --m-pl-top: color-mix(in srgb, var(--pl-color, var(--sleeve)) 30%, var(--ink));
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding-top: 0;
+        border-right: 0;
+        background: linear-gradient(180deg, var(--m-pl-top) 0, var(--ink) 340px);
+        scroll-padding-top: 60px;
+        scroll-padding-bottom: calc(var(--m-dock-h) + 8px + var(--m-tabs-h, 0px) + 12px);
+    }
+
+    /* Clears the mini player (8px off the bottom) and the tab bar; the
+       page's own padding already takes the home indicator off. */
+    html[data-m-tab] #musicSidebar .song-list {
+        flex: none;
+        overflow: visible;
+        padding: 4px 8px calc(var(--m-dock-h) + 8px + var(--m-tabs-h, 0px) + 20px);
+    }
+
+    /* Notched phones: paint the strip above the bar in the bar's colour */
+    html[data-m-tab].m-pv #music-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1;
+        height: env(safe-area-inset-top, 0px);
+        background: color-mix(in srgb, var(--pl-color, var(--sleeve)) 30%, var(--ink));
+        pointer-events: none;
+    }
+
+    /* ---- Top bar */
+    html[data-m-tab] #mPlBar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex: 0 0 auto;
+        height: 52px;
+        margin: 0;
+        padding: 0 6px 0 4px;
+        background: transparent;
+        transition: background-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    html[data-m-tab] #musicSidebar.m-pl-raised #mPlBar {
+        background: var(--m-pl-top);
+        box-shadow: 0 1px 0 var(--line);
+    }
+
+    html[data-m-tab] #mPlBar .m-icon-btn {
+        margin: 0;
+        color: var(--cream);
+    }
+
+    html[data-m-tab] #mPlFind[aria-expanded="true"] { color: var(--amber); }
+
+    html[data-m-tab] #mPlBarTitle {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 0 6px;
+        font: 600 1.05rem/1.2 var(--display);
+        color: var(--cream);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    html[data-m-tab] #musicSidebar.m-pl-titled #mPlBarTitle {
+        opacity: 1;
+        transform: none;
+    }
+
+    html[data-m-tab] #mPlDone { display: none; }
+
+    /* The bar replaces the old back pill and the header's icon circles:
+       queue, scan, offline and add live in the ⋯ menu and the action row,
+       settings behind the Home avatar. */
+    html[data-m-tab] #backToCrate,
+    html[data-m-tab] .sidebar-header-row > button { display: none; }
+
+    /* ---- Header: a big title that scrolls away under the bar */
+    html[data-m-tab] #musicSidebar .sidebar-header-area {
+        margin: 0;
+        padding: 2px 16px 8px;
+        border-bottom: 0;
+    }
+
+    html[data-m-tab] #playlistTitle {
+        margin: 0;
+        font: 600 2rem/1.08 var(--display);
+        letter-spacing: -0.02em;
+        color: var(--cream);
+        -webkit-line-clamp: 3;
+        line-clamp: 3;
+    }
+
+    html[data-m-tab] #musicSidebar .sidebar-track-count {
+        margin-top: 6px;
+        font-size: 0.85rem;
+        color: color-mix(in srgb, var(--cream) 62%, transparent);
+    }
+
+    /* ---- Action row: Add songs · shuffle · a round Play */
+    html[data-m-tab] #musicSidebar .m-hero-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 14px 0 2px;
+        padding: 0;
+    }
+
+    html[data-m-tab] #mPlAdd {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 36px;
+        margin: 0;
+        padding: 0 16px 0 12px;
+        border: 1px solid color-mix(in srgb, var(--cream) 28%, transparent);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--cream);
+        font: 600 0.86rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    html[data-m-tab] #mPlAdd::after {
+        content: '';
+        position: absolute;
+        inset: -4px 0; /* a 44px target */
+    }
+
+    html[data-m-tab] #mPlAdd:active { background: rgba(255, 245, 233, 0.08); }
+
+    html[data-m-tab] #mShuffleChip {
+        position: relative;
+        flex: 0 0 auto;
+        width: 44px;
+        height: 44px;
+        min-height: 44px;
+        margin: 0 0 0 auto;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 50%;
+        background: none;
+        box-shadow: none;
+        color: color-mix(in srgb, var(--cream) 62%, transparent);
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    html[data-m-tab] #mShuffleChip[aria-pressed="true"] {
+        background: none;
+        color: var(--amber);
+    }
+
+    /* On: a dot under the icon. Smart mix: a spark as well. */
+    html[data-m-tab] #mShuffleChip[aria-pressed="true"]::after {
+        content: '';
+        position: absolute;
+        bottom: 3px;
+        left: 50%;
+        width: 4px;
+        height: 4px;
+        margin-left: -2px;
+        border-radius: 50%;
+        background: var(--amber);
+    }
+
+    html[data-m-tab] #mShuffleChip[data-mode="smart"]::before {
+        content: '\2726';
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        font-size: 10px;
+        line-height: 1;
+        color: var(--amber);
+    }
+
+    html[data-m-tab] #mShuffleChip .m-shuffle-label,
+    html[data-m-tab] #mPlayAll .m-play-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+
+    html[data-m-tab] #mPlayAll {
+        flex: 0 0 56px;
+        width: 56px;
+        height: 56px;
+        min-height: 56px;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 50%;
+        background: var(--amber);
+        color: var(--on-amber);
+        box-shadow: 0 6px 18px rgba(var(--amber-rgb), 0.28);
+        transition: transform 120ms ease;
+    }
+
+    html[data-m-tab] #mPlayAll:active { transform: scale(0.95); }
+    html[data-m-tab] #mPlayAll svg { width: 24px; height: 24px; }
+    html[data-m-tab] #mPlayAll .m-when-paused svg { margin-left: 3px; }
+
+    /* ---- Find: the field only while it's open */
+    html[data-m-tab] #musicSidebar:not(.m-find-open) #mFilterInput { display: none; }
+    html[data-m-tab] #musicSidebar.m-find-open #mFilterInput { margin: 12px 0 2px; }
+
+    html[data-m-tab] #mFilterEmpty:not(:empty) {
+        display: block;
+        overflow-wrap: anywhere;
+        padding: 18px 4px 0;
+        text-align: center;
+        font-size: 0.9rem;
+        color: color-mix(in srgb, var(--cream) 62%, transparent);
+    }
+
+    /* ---- Rows: the heart lives in the song sheet now; handles only in
+       reorder mode; YouTube art without its letterbox bars */
+    html[data-m-tab] #songList .song-fav-btn { display: none; }
+    html[data-m-tab] #musicSidebar:not(.m-reordering) #songList .song-drag-handle { display: none; }
+    html[data-m-tab] #songList .song-list-vinyl { overflow: hidden; }
+
+    html[data-m-tab] #songList .song-list-cover[src*="hqdefault"],
+    html[data-m-tab] #songList .song-list-cover[src*="sddefault"] { transform: scale(1.34); }
+
+    /* ---- Reorder mode */
+    html[data-m-tab] #musicSidebar.m-reordering #mPlFind,
+    html[data-m-tab] #musicSidebar.m-reordering #mPlMore,
+    html[data-m-tab] #musicSidebar.m-reordering .m-hero-actions,
+    html[data-m-tab] #musicSidebar.m-reordering #songList .song-actions,
+    html[data-m-tab] #musicSidebar.m-reordering #songList .discover-header,
+    html[data-m-tab] #musicSidebar.m-reordering #songList .discover-item,
+    html[data-m-tab] #musicSidebar.m-reordering #songList .discover-note { display: none; }
+
+    html[data-m-tab] #musicSidebar.m-reordering #mPlDone {
+        display: inline-flex;
+        align-items: center;
+        min-height: 36px;
+        margin: 0 4px 0 auto;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--amber);
+        color: var(--on-amber);
+        font: 700 0.9rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        cursor: pointer;
+    }
+
+    html[data-m-tab] #musicSidebar.m-reordering #mPlBarTitle {
+        opacity: 1;
+        transform: none;
+    }
+
+    html[data-m-tab] #musicSidebar.m-reordering #songList .song-drag-handle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 44px;
+        width: 44px;
+        height: 44px;
+        margin: -6px -4px -6px -8px;
+        color: var(--cream);
+        opacity: 0.85;
+    }
+
+    html[data-m-tab] #musicSidebar.m-reordering #songList .song-drag-handle svg { width: 22px; height: 22px; }
+    html[data-m-tab] #musicSidebar.m-reordering #songList .song-list-item:active { transform: none; }
+
+    /* ---- Empty playlist: its card leads; Play, shuffle and find step aside */
+    html[data-m-tab] #musicSidebar.m-pl-empty .m-hero-actions,
+    html[data-m-tab] #musicSidebar.m-pl-empty #mPlFind { display: none; }
+
+    html[data-m-tab] #songList .song-list-empty {
+        flex: none;
+        width: auto;
+        min-width: 0;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        margin: 16px 4px 0;
+        padding: 28px 20px 22px;
+        border-radius: 18px;
+        border: 1px solid color-mix(in srgb, var(--cream) 7%, transparent);
+        background: rgba(255, 245, 233, 0.06);
+        text-align: center;
+    }
+
+    html[data-m-tab] #songList .song-list-empty-icon {
+        width: 64px;
+        height: 64px;
+        border: 0;
+        background: radial-gradient(circle, var(--amber) 0 18%, #151515 19% 38%, #0e0e0e 39% 100%);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+        color: transparent;
+    }
+
+    html[data-m-tab] #songList .song-list-empty-text {
+        font: 600 1.3rem/1.2 var(--display);
+        letter-spacing: 0;
+        color: var(--cream);
+    }
+
+    html[data-m-tab] #songList .song-list-empty-sub {
+        max-width: 280px;
+        font-size: 0.9rem;
+        color: color-mix(in srgb, var(--cream) 62%, transparent);
+    }
+
+    html[data-m-tab] #songList .song-list-empty-actions {
+        flex-direction: column;
+        align-self: stretch;
+        gap: 10px;
+        margin-top: 4px;
+    }
+
+    html[data-m-tab] #songList .song-list-empty-add,
+    html[data-m-tab] #songList .song-list-empty-import {
+        min-height: 48px;
+        padding: 0 16px;
+        border-radius: 999px;
+        font: 600 0.95rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    html[data-m-tab] #songList .song-list-empty-add {
+        border: 1px solid var(--amber);
+        background: var(--amber);
+        color: var(--on-amber);
+    }
+
+    html[data-m-tab] #songList .song-list-empty-import {
+        border: 1px solid var(--line);
+        background: none;
+        color: var(--cream);
+    }
+}
+
+@media (max-width: 600px) {
+    /* The app (?app=1) keeps the older phone rule that lays the empty card
+       out in one row: stack it, now that it has a second line and buttons */
+    html.app-shell .song-list-empty {
+        flex-direction: column;
+    }
+
+    html.app-shell .song-list-empty-add,
+    html.app-shell .song-list-empty-import {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 600px) and (prefers-reduced-motion: reduce) {
+    html[data-m-tab] #mPlayAll:active { transform: none; }
+
+    html[data-m-tab] #mPlBarTitle {
+        transform: none;
+        transition: opacity 180ms ease;
     }
 }

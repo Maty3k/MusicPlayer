@@ -431,13 +431,13 @@ async function selectPlaylistFromCrate(playlistId) {
         rebuildSongList();
         // A NEW playlist starts at the top — the scroll preservation in
         // rebuildSongList is for in-place edits (delete/move), not switches.
-        const songListEl = document.getElementById('songList');
-        if (songListEl) songListEl.scrollTop = 0;
+        const songScroller = songListScroller();
+        if (songScroller) songScroller.scrollTop = 0;
         updateOfflineButton();
 
         // Update track count
         const trackCountEl = document.querySelector('.sidebar-track-count');
-        if (trackCountEl) trackCountEl.textContent = songsData.length + (songsData.length === 1 ? ' track' : ' tracks');
+        if (trackCountEl) trackCountEl.textContent = songsData.length + (songsData.length === 1 ? ' song' : ' songs');
 
         // Update the record player with first song
         const currentSong = songsData[currentSongIndex] || {};
@@ -3040,6 +3040,21 @@ const mediaSessionKeeper = (() => {
     };
 })();
 
+// Whichever element scrolls the song list: the list itself in some layouts,
+// the whole sidebar in others (desktop, landscape phones, and the phone
+// playlist screen, whose top bar stays put while the header scrolls away).
+function songListScroller() {
+    const list = document.getElementById('songList');
+    if (list && /auto|scroll/.test(getComputedStyle(list).overflowY)) return list;
+    return document.getElementById('musicSidebar') || list;
+}
+
+// The phone playlist screen (portrait web shell): its top bar covers the
+// scroller's top edge and the mini player + tab bar its bottom.
+function onPhonePlaylistScreen() {
+    return !!document.documentElement.dataset.mTab && window.matchMedia('(max-width: 600px)').matches;
+}
+
 function buildSongListItem(song, index) {
     const itemCover = safeUrl(song.cover);
     return `
@@ -3071,7 +3086,7 @@ function buildSongListItem(song, index) {
             </button>`}
             <span class="song-list-num">${String(index + 1).padStart(2, '0')}</span>
             <div class="song-actions">
-                <button class="song-send-btn" onclick="event.stopPropagation(); showSendMenu(this, ${index})" title="Send to playlist">
+                <button class="song-send-btn" onclick="event.stopPropagation(); showSendMenu(this, ${index})" title="Send to playlist" aria-label="More options for ${escapeHtml(song.title)}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13">
                         <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
                     </svg>
@@ -3081,20 +3096,34 @@ function buildSongListItem(song, index) {
         </li>`;
 }
 
+// A rebuild while a song is being dragged would detach the dragged row: it
+// waits for the drop (startSongDrag runs it).
+let songListRebuildDeferred = false;
+
 function rebuildSongList() {
+    if (document.body.classList.contains('song-dragging')) {
+        songListRebuildDeferred = true;
+        return;
+    }
+    songListRebuildDeferred = false;
     const songList = document.getElementById('songList');
     if (songsData.length === 0) {
         songList.innerHTML = `
             <li class="song-list-empty">
                 <div class="song-list-empty-icon">&#9834;</div>
                 <div class="song-list-empty-text">This playlist is empty</div>
-                <button class="song-list-empty-add" onclick="showAddSongModal()">+ Add a song</button>
+                <div class="song-list-empty-sub">Search for songs to add, or bring some over from Spotify or YouTube.</div>
+                <div class="song-list-empty-actions">
+                    <button class="song-list-empty-add" onclick="showAddSongModal()">+ Add songs</button>
+                    <button class="song-list-empty-import" onclick="showSpotifyImportModal({ into: 'current' })">Import</button>
+                </div>
             </li>`;
         return;
     }
     // The innerHTML swap resets scroll — a delete halfway down a long list
     // must not fling the user back to the top.
-    const scrollTop = songList.scrollTop;
+    const scroller = songListScroller() || songList;
+    const scrollTop = scroller.scrollTop;
     songList.innerHTML = songsData.map((song, index) => buildSongListItem(song, index)).join('')
         + renderDiscoverSection();
     // The innerHTML swap wipes the now-playing radio row — re-add it so a
@@ -3103,7 +3132,7 @@ function rebuildSongList() {
         document.querySelectorAll('#songList .song-list-item').forEach(item => item.classList.remove('active'));
         addRadioSidebarItem(currentRadioSong);
     }
-    songList.scrollTop = scrollTop;
+    scroller.scrollTop = scrollTop;
 
     // Discover starts working only once the user actually scrolls it into
     // view — no probe players or API calls for a shelf nobody looked at.
@@ -3134,8 +3163,7 @@ function startSongDrag(e) {
     li.classList.add('dragging');
     document.body.classList.add('song-dragging');
 
-    const move = (ev) => {
-        const y = ev.clientY;
+    const place = (y) => {
         const others = [...list.querySelectorAll('.song-list-item:not(.discover-item):not(.radio-song-item)')]
             .filter(r => r !== li);
         let placed = false;
@@ -3145,13 +3173,52 @@ function startSongDrag(e) {
         }
         if (!placed && others.length) others[others.length - 1].after(li);
     };
+
+    // Near the scroller's top or bottom edge, keep scrolling so a song can
+    // travel further than one screen: one animation-frame loop, stopped for
+    // good on release.
+    const scroller = songListScroller() || list;
+    const phoneScreen = onPhonePlaylistScreen();
+    let lastY = e.clientY;
+    let edgeFrame = 0;
+    let ended = false;
+    const edgeScroll = () => {
+        edgeFrame = 0;
+        if (ended) return;
+        const box = scroller.getBoundingClientRect();
+        const zone = 64;
+        const top = Math.max(box.top, 0) + (phoneScreen ? 52 : 0);
+        const bottom = Math.min(box.bottom, window.innerHeight) - (phoneScreen ? 140 : 0);
+        let dy = 0;
+        if (lastY < top + zone) dy = -Math.ceil((top + zone - lastY) / 4);
+        else if (lastY > bottom - zone) dy = Math.ceil((lastY - (bottom - zone)) / 4);
+        if (!dy) return;
+        const before = scroller.scrollTop;
+        scroller.scrollTop += Math.max(-24, Math.min(24, dy));
+        if (scroller.scrollTop !== before) {
+            place(lastY);
+            edgeFrame = requestAnimationFrame(edgeScroll);
+        }
+    };
+
+    const move = (ev) => {
+        if (ended) return;
+        lastY = ev.clientY;
+        place(lastY);
+        if (!edgeFrame) edgeFrame = requestAnimationFrame(edgeScroll);
+    };
     const end = () => {
+        ended = true;
         document.removeEventListener('pointermove', move);
         document.removeEventListener('pointerup', end);
         document.removeEventListener('pointercancel', end);
+        if (edgeFrame) cancelAnimationFrame(edgeFrame);
+        edgeFrame = 0;
         li.classList.remove('dragging');
         document.body.classList.remove('song-dragging');
         finishSongDrag();
+        // A rebuild asked for mid-drag (a Discover fetch landing) runs now.
+        if (songListRebuildDeferred) rebuildSongList();
     };
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', end);
@@ -3170,6 +3237,8 @@ function finishSongDrag() {
     songsData = order.map(oldIndex => songsData[oldIndex]);
     const newCur = order.indexOf(currentSongIndex);
     if (newCur !== -1) currentSongIndex = newCur;
+    // The shuffle order holds indices, which just moved.
+    if (shuffleMode !== 'off') buildShuffleQueue();
     rebuildSongList();
 
     try {
@@ -3193,7 +3262,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function updateTrackCount() {
     const trackCountEl = document.querySelector('.sidebar-track-count');
-    if (trackCountEl) trackCountEl.textContent = songsData.length + (songsData.length === 1 ? ' track' : ' tracks');
+    if (trackCountEl) trackCountEl.textContent = songsData.length + (songsData.length === 1 ? ' song' : ' songs');
     // Update crate badge
     setCrateCardCount(activePlaylistId, songsData.length);
     // The first song in: the "start your collection" nudge has done its job.
@@ -3468,21 +3537,32 @@ function showPlaylistCreateModal() {
     document.getElementById('playlistEditName').focus();
 }
 
-async function deleteCurrentPlaylist() {
-    const id = editingPlaylistId;
+// opts.confirmed: the caller already asked (the phone playlist menu's
+// two-tap row), so skip the browser dialog.
+async function deleteCurrentPlaylist(playlistId, opts = {}) {
+    const id = typeof playlistId === 'string' && playlistId ? playlistId : editingPlaylistId;
     const meta = playlistsMeta[id];
     if (!id || !meta) return;
     const trackNote = meta.songCount > 0 ? ` and its ${meta.songCount} song${meta.songCount === 1 ? '' : 's'}` : '';
-    if (!confirm(`Delete "${meta.name}"${trackNote}? This cannot be undone.`)) return;
+    if (!opts.confirmed && !confirm(`Delete "${meta.name}"${trackNote}? This cannot be undone.`)) return;
 
-    const response = await fetch('/save-music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'deletePlaylist', playlist: id })
-    });
-    const result = await response.json();
+    let result;
+    try {
+        const response = await fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'deletePlaylist', playlist: id })
+        });
+        result = await response.json();
+    } catch (e) {
+        const msg = 'Couldn\'t delete the playlist. Check your connection and try again.';
+        if (typeof window.mToast === 'function' && window.matchMedia('(max-width: 600px)').matches) window.mToast(msg);
+        else alert(msg);
+        return;
+    }
     if (result.success) {
         // Crate cards, conveyor rows, and recents all shift — let the server re-render.
+        toastAfterReload(`Deleted “${meta.name}”`);
         location.reload();
     } else {
         alert(result.error || 'Could not delete playlist');
@@ -3584,6 +3664,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+// The song menu's Like row: close the menu, toggle, say what happened (the
+// save can fail and roll back).
+async function likeFromSheet(index) {
+    const song = songsData[index];
+    if (!song) return;
+    const key = songPlayKey(song);
+    const wasFav = favoriteKeys.has(key);
+    closeSendMenu();
+    await toggleFavorite(index);
+    const nowFav = favoriteKeys.has(key);
+    const msg = nowFav === wasFav ? 'Couldn\'t update Favorites. Try again.'
+        : (nowFav ? 'Added to Favorites' : 'Removed from Favorites');
+    if (typeof window.mToast === 'function') window.mToast(msg);
+}
 
 function copyMemberCard(btn) {
     const number = document.getElementById('memberCardNumber');
@@ -3858,6 +3953,15 @@ function showSendMenu(btn, songIndex) {
     html += `<div class="send-menu-item" onclick="event.stopPropagation(); queueAdd(${songIndex})" style="cursor:pointer">
         <span class="send-menu-qicon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M4 12h12M4 18h8"/><path d="M18 15v6M15 18h6"/></svg></span>
         <span class="send-menu-name">Add to queue</span></div>`;
+    // The phone playlist screen hides the row hearts (any pointer at that
+    // width), so favoriting lives in this menu there.
+    const heartsHidden = !!document.documentElement.dataset.mTab && window.matchMedia('(max-width: 600px)').matches;
+    if ((useSheet || heartsHidden) && songsData[songIndex] && activePlaylistId !== 'favorites') {
+        const liked = favoriteKeys.has(songPlayKey(songsData[songIndex]));
+        html += `<button type="button" class="send-menu-item send-menu-like${liked ? ' is-fav' : ''}" aria-pressed="${liked}" onclick="event.stopPropagation(); likeFromSheet(${songIndex})">
+            <span class="send-menu-qicon"><svg viewBox="0 0 24 24" width="15" height="15" fill="${liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.8-8.85a5.5 5.5 0 0 0 0-7.78z"/></svg></span>
+            <span class="send-menu-name">${liked ? 'Remove from Favorites' : 'Add to Favorites'}</span></button>`;
+    }
     html += '<div class="send-menu-divider"></div>';
 
     html += '<div class="send-menu-title">Send to...</div>';
@@ -5108,7 +5212,12 @@ function disconnectSpotify() {
 }
 
 // Import modal
-function showSpotifyImportModal() {
+// opts.into === 'current': opened from a playlist ("Import into this
+// playlist"), so its preview pre-selects that playlist over a new one.
+let importIntoCurrent = false;
+
+function showSpotifyImportModal(opts) {
+    importIntoCurrent = !!(opts && opts.into === 'current');
     spotifyImportData = null;
     importSelection = [];
     const pasteEl = document.getElementById('pasteImportInput');
@@ -5401,7 +5510,8 @@ function setImportTarget(sourceName, preferNew) {
         const option = currentRadio.closest('.import-target-option');
         if (option) option.style.display = meta ? '' : 'none';
     }
-    const radio = document.querySelector(`input[name="importTarget"][value="${preferNew || !meta ? 'new' : 'current'}"]`);
+    const wantNew = !meta || (preferNew && !importIntoCurrent);
+    const radio = document.querySelector(`input[name="importTarget"][value="${wantNew ? 'new' : 'current'}"]`);
     if (radio) radio.checked = true;
     updateImportTarget();
 }
@@ -7835,7 +7945,11 @@ function offlineUrlsForActivePlaylist() {
     return [...urls];
 }
 
+// A save in progress (the phone menu can be reopened meanwhile).
+let offlineSaving = false;
+
 async function toggleOfflinePlaylist() {
+    if (offlineSaving) return;
     if (!('caches' in window)) {
         alert('Offline storage is not supported by this browser.');
         return;
@@ -7862,6 +7976,7 @@ async function toggleOfflinePlaylist() {
         return;
     }
 
+    offlineSaving = true;
     btn.classList.add('offline-saving');
     const cache = await caches.open(OFFLINE_MEDIA_CACHE);
     let done = 0, failed = 0;
@@ -7879,6 +7994,7 @@ async function toggleOfflinePlaylist() {
         btn.title = `Saving for offline… ${done}/${urls.length}`;
     }
     btn.classList.remove('offline-saving');
+    offlineSaving = false;
 
     if (failed === 0) {
         setOfflinePlaylists([...saved, activePlaylistId]);
@@ -8092,7 +8208,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chip) {
             chip.dataset.mode = shuffleMode;
             chip.setAttribute('aria-pressed', shuffleMode !== 'off' ? 'true' : 'false');
-            chip.textContent = shuffleMode === 'smart' ? 'Smart mix' : 'Shuffle';
+            // The label is its own span: the phone action row shows just the icon.
+            const label = chip.querySelector('.m-shuffle-label');
+            const text = shuffleMode === 'smart' ? 'Smart mix' : 'Shuffle';
+            if (label) label.textContent = text; else chip.textContent = text;
+            chip.setAttribute('aria-label', shuffleMode === 'smart' ? 'Smart mix (on)' : (shuffleMode === 'shuffle' ? 'Shuffle (on)' : 'Shuffle'));
         }
         const npShuffle = document.getElementById('mShuffleBtn');
         if (npShuffle) {
@@ -8173,9 +8293,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ---- Find in this crate: client-side row filter ----
     const filterInput = document.getElementById('mFilterInput');
+    const filterEmpty = document.getElementById('mFilterEmpty');
     function applyRowFilter() {
         if (!filterInput) return;
-        const q = filterInput.value.trim().toLowerCase();
+        const raw = filterInput.value.trim();
+        const q = raw.toLowerCase();
+        let shown = 0;
         // Only filter library songs — Discover rows and the now-playing radio
         // row aren't part of the crate.
         document.querySelectorAll('#songList .song-list-item:not(.discover-item):not(.radio-song-item)').forEach((row) => {
@@ -8185,8 +8308,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const text = ((row.querySelector('.song-list-title') || {}).textContent || '')
                 + ' ' + ((row.querySelector('.song-list-artist') || {}).textContent || '');
-            row.classList.toggle('m-filtered-out', !text.toLowerCase().includes(q));
+            const match = text.toLowerCase().includes(q);
+            row.classList.toggle('m-filtered-out', !match);
+            if (match) shown++;
         });
+        const echo = raw.length > 40 ? raw.slice(0, 40) + '…' : raw;
+        if (filterEmpty) filterEmpty.textContent = q && shown === 0 ? `No songs here match “${echo}”.` : '';
     }
     if (filterInput) filterInput.addEventListener('input', applyRowFilter);
 
@@ -8357,6 +8484,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setBackLabel() {
         if (backText) backText.textContent = onPhone() ? TAB_NAMES[currentTab] : 'Crate';
+        const barBack = document.getElementById('mPlBack');
+        if (barBack) barBack.setAttribute('aria-label', 'Back to ' + TAB_NAMES[currentTab]);
     }
 
     function setTab(t) {
@@ -8914,6 +9043,322 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ============================================================
+    // Playlist screen (portrait): the whole sidebar scrolls under a compact
+    // top bar (back, the title once the big one has scrolled away, find, ⋯),
+    // the action row, find, the ⋯ menu and reorder mode. Find, the menu and
+    // reorder are history layers, so back closes them first.
+    // ============================================================
+    const plSidebar = document.getElementById('musicSidebar');
+    const plBar = document.getElementById('mPlBar');
+    const plBarTitle = document.getElementById('mPlBarTitle');
+    const plTitle = document.getElementById('playlistTitle');
+    const plFind = document.getElementById('mPlFind');
+    const plSheet = document.getElementById('mPlaylistSheet');
+    const musicSection = document.getElementById('music-section');
+    let reordering = false; // reorder mode (below); the bar then says so
+
+    // The bar's title and the menu's heading follow the playlist's name
+    // (switches and renames both rewrite #playlistTitle).
+    function syncPlTitle() {
+        const name = plTitle ? plTitle.textContent.trim() : '';
+        if (plBarTitle && !reordering) plBarTitle.textContent = name;
+        const sheetTitle = document.getElementById('mPlaylistSheetTitle');
+        if (sheetTitle) sheetTitle.textContent = name || 'Playlist';
+    }
+    if (plTitle) {
+        new MutationObserver(syncPlTitle).observe(plTitle, { childList: true, characterData: true, subtree: true });
+    }
+
+    // The screen takes on the playlist's colour at the top.
+    function syncPlColor() {
+        if (!musicSection) return;
+        const meta = typeof playlistsMeta === 'object' && playlistsMeta ? playlistsMeta[activePlaylistId] : null;
+        const color = meta && /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '';
+        if (color) musicSection.style.setProperty('--pl-color', color);
+        else musicSection.style.removeProperty('--pl-color');
+    }
+
+    // An empty playlist leads with its empty card: Play, shuffle and find step aside.
+    function syncPlEmpty() {
+        if (plSidebar) plSidebar.classList.toggle('m-pl-empty', !Array.isArray(songsData) || songsData.length === 0);
+    }
+
+    // The bar gets a background once content slides under it, and the title
+    // once the big one has scrolled past it.
+    let plScrollFrame = 0;
+    function syncPlScroll() {
+        plScrollFrame = 0;
+        if (!plSidebar || !plBar) return;
+        plSidebar.classList.toggle('m-pl-raised', plSidebar.scrollTop > 2);
+        const titled = !!plTitle && plTitle.getBoundingClientRect().bottom <= plBar.getBoundingClientRect().bottom;
+        plSidebar.classList.toggle('m-pl-titled', titled);
+    }
+    if (plSidebar) {
+        plSidebar.addEventListener('scroll', () => {
+            if (!plScrollFrame) plScrollFrame = requestAnimationFrame(syncPlScroll);
+        }, { passive: true });
+    }
+
+    function plScreenShown() {
+        // Every visit starts at the top (the same playlist opens without a
+        // reload, so nothing else resets it).
+        if (plSidebar && onPhone()) plSidebar.scrollTop = 0;
+        syncPlTitle();
+        syncPlColor();
+        syncPlEmpty();
+        syncPlScroll();
+    }
+    if (playerView) {
+        new MutationObserver(() => { if (playerViewActive()) plScreenShown(); })
+            .observe(playerView, { attributes: true, attributeFilter: ['class'] });
+    }
+    // Song adds/removes and playlist switches rebuild the list; switches and
+    // edits (name, colour) also refresh the crate records.
+    const plPrevRebuild = window.rebuildSongList;
+    window.rebuildSongList = function () {
+        const out = plPrevRebuild.apply(this, arguments);
+        syncPlEmpty();
+        // Fewer than two songs left: nothing to reorder.
+        if (reordering && (!Array.isArray(songsData) || songsData.length < 2)) {
+            if (topLayerIs('reorder')) backOneLayer(); else exitReorder();
+        }
+        return out;
+    };
+    const plPrevCrateRecords = window.updateCrateRecords;
+    window.updateCrateRecords = function () {
+        const out = plPrevCrateRecords.apply(this, arguments);
+        syncPlColor();
+        return out;
+    };
+    plScreenShown();
+
+    const plBack = document.getElementById('mPlBack');
+    if (plBack) plBack.addEventListener('click', () => window.showPlaylistPicker());
+    const plAdd = document.getElementById('mPlAdd');
+    if (plAdd) plAdd.addEventListener('click', () => window.showAddSongModal());
+
+    // ---- Find: the field shows under the header; back closes it (and clears it).
+    const findOpen = () => !!plSidebar && plSidebar.classList.contains('m-find-open');
+    function closeFind() {
+        if (!plSidebar) return;
+        plSidebar.classList.remove('m-find-open');
+        if (plFind) plFind.setAttribute('aria-expanded', 'false');
+        if (filterInput) {
+            if (filterInput.value) {
+                filterInput.value = '';
+                applyRowFilter();
+            }
+            if (document.activeElement === filterInput) filterInput.blur();
+        }
+    }
+    function openFind() {
+        if (!plSidebar || !filterInput) return;
+        plSidebar.classList.add('m-find-open');
+        if (plFind) plFind.setAttribute('aria-expanded', 'true');
+        plSidebar.scrollTop = 0;
+        filterInput.focus(); // synchronously, so iOS raises the keyboard
+        openLayer('find', closeFind);
+    }
+    if (plFind) {
+        plFind.addEventListener('click', () => {
+            if (!findOpen()) openFind();
+            else if (topLayerIs('find')) backOneLayer();
+            else closeFind();
+        });
+    }
+
+    // ---- Reorder mode: handles appear, the ⋯ and hearts go, taps don't play.
+    function exitReorder() {
+        const hadDoneFocus = document.activeElement && document.activeElement.id === 'mPlDone';
+        reordering = false;
+        if (plSidebar) plSidebar.classList.remove('m-reordering');
+        syncPlTitle();
+        // Done hides itself: keep keyboard focus in the bar.
+        if (hadDoneFocus || document.activeElement === document.body) {
+            const more = document.getElementById('mPlMore');
+            if (more && hadDoneFocus) more.focus({ preventScroll: true });
+        }
+    }
+    function enterReorder() {
+        // Converges like switchTab: wait for a closing sheet, and close find first.
+        if (pendingBack) {
+            afterBack.push(enterReorder);
+            return;
+        }
+        if (topLayerIs('find')) {
+            afterBack.push(enterReorder);
+            backOneLayer();
+            return;
+        }
+        if (!plSidebar || reordering || !Array.isArray(songsData) || songsData.length < 2) return;
+        reordering = true;
+        const a = document.activeElement;
+        const focusWasInBar = !a || a === document.body || (plBar && plBar.contains(a)) || (plSheet && plSheet.contains(a));
+        plSidebar.classList.add('m-reordering');
+        if (plBarTitle) plBarTitle.textContent = 'Reorder songs';
+        // The ⋯ hides in reorder mode: hand keyboard focus to Done.
+        const done = document.getElementById('mPlDone');
+        if (done && focusWasInBar) done.focus({ preventScroll: true });
+        openLayer('reorder', exitReorder);
+    }
+    const plDone = document.getElementById('mPlDone');
+    if (plDone) {
+        plDone.addEventListener('click', () => {
+            if (topLayerIs('reorder')) backOneLayer();
+            else exitReorder();
+        });
+    }
+    const songListEl = document.getElementById('songList');
+    if (songListEl) {
+        songListEl.addEventListener('click', (e) => {
+            if (!reordering || e.target.closest('.song-drag-handle, .song-list-empty')) return;
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+    }
+
+    // ---- The ⋯ playlist menu
+    const plRow = (key) => (plSheet ? plSheet.querySelector(`[data-m-pl="${key}"]`) : null);
+    let plDeleteTimer = 0;
+    function disarmPlDelete() {
+        clearTimeout(plDeleteTimer);
+        const r = plRow('delete');
+        if (!r) return;
+        r.classList.remove('m-confirm-armed');
+        r.disabled = false;
+        r.querySelector('b').textContent = 'Delete playlist';
+    }
+    function syncPlSheet() {
+        const count = Array.isArray(songsData) ? songsData.length : 0;
+        const reorderRow = plRow('reorder');
+        if (reorderRow) reorderRow.hidden = count < 2;
+        const queueSub = document.getElementById('mPlSheetQueueSub');
+        const queued = typeof playQueue !== 'undefined' && Array.isArray(playQueue) ? playQueue.length : 0;
+        if (queueSub) queueSub.textContent = queued ? (queued === 1 ? '1 song queued' : queued + ' songs queued') : 'Nothing queued';
+        // Offline only works for uploaded songs (YouTube and Spotify always stream).
+        const offlineRow = plRow('offline');
+        if (offlineRow) {
+            const saved = getOfflinePlaylists().includes(activePlaylistId);
+            const offlinable = count > 0 && songsData.some((s) => s.mp3_url && s.mp3_url.startsWith('/media/'));
+            const saving = typeof offlineSaving !== 'undefined' && offlineSaving;
+            offlineRow.hidden = !('caches' in window) || !(saved || offlinable || saving);
+            offlineRow.disabled = saving;
+            offlineRow.querySelector('b').textContent = saving ? 'Saving for offline…' : (saved ? 'Remove download' : 'Save for offline');
+            const sub = document.getElementById('mPlSheetOfflineSub');
+            if (sub) sub.textContent = saved ? 'Saved on this phone' : 'Keep the uploaded songs on this phone';
+        }
+        disarmPlDelete();
+    }
+    window.mShowPlaylistSheet = function () {
+        if (!plSheet) return;
+        syncPlSheet();
+        plSheet.classList.add('active');
+        const first = plSheet.querySelector('.m-sheet-row:not([hidden])');
+        if (first) first.focus({ preventScroll: true });
+    };
+    window.mHidePlaylistSheet = function () {
+        if (!plSheet) return;
+        const hadFocus = plSheet.contains(document.activeElement);
+        plSheet.classList.remove('active');
+        disarmPlDelete();
+        if (hadFocus && !document.querySelector('.add-song-modal.active')) {
+            const more = document.getElementById('mPlMore');
+            if (more) more.focus({ preventScroll: true });
+        }
+    };
+    wrapModalPair('mShowPlaylistSheet', 'mHidePlaylistSheet', 'playlistMenu');
+    const plMore = document.getElementById('mPlMore');
+    if (plMore) plMore.addEventListener('click', () => window.mShowPlaylistSheet());
+
+    // Share: the playlist's link (the server returns the existing one or
+    // makes one — asking every time means a link stopped elsewhere is never
+    // handed out); the phone's share sheet when there is one, else the clipboard.
+    async function sharePlaylistLink(id) {
+        const meta = playlistsMeta[id];
+        if (!meta) return;
+        let url = '';
+        try {
+            const res = await fetch('/save-music', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'share', playlist: id })
+            });
+            const d = await res.json();
+            if (d && d.success && d.url) {
+                url = d.url;
+                if (typeof shareTokens === 'object' && shareTokens) shareTokens[id] = url;
+            }
+        } catch (e) { /* handled below */ }
+        if (!url) {
+            window.mToast('Couldn\'t make a share link. Try again.');
+            return;
+        }
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: meta.name, url });
+                return;
+            } catch (e) {
+                if (e && e.name === 'AbortError') return; // the user closed the share sheet
+            }
+        }
+        try {
+            await navigator.clipboard.writeText(url);
+            window.mToast('Link copied');
+        } catch (e) {
+            window.mToast(url);
+        }
+    }
+
+    async function offlineFromMenu() {
+        const wasSaved = getOfflinePlaylists().includes(activePlaylistId);
+        if (!wasSaved) window.mToast('Saving for offline…');
+        await toggleOfflinePlaylist();
+        const nowSaved = getOfflinePlaylists().includes(activePlaylistId);
+        if (nowSaved !== wasSaved) window.mToast(nowSaved ? 'Saved for offline' : 'Download removed');
+    }
+
+    if (plSheet) {
+        plSheet.addEventListener('click', (e) => {
+            if (e.target.closest('[data-m-pl-close]')) {
+                window.mHidePlaylistSheet();
+                return;
+            }
+            const row = e.target.closest('[data-m-pl]');
+            if (!row || row.disabled) return;
+            const id = String(activePlaylistId);
+            const action = row.dataset.mPl;
+            if (action === 'delete') {
+                // Two taps: the first arms the row for a few seconds.
+                if (!row.classList.contains('m-confirm-armed')) {
+                    row.classList.add('m-confirm-armed');
+                    row.querySelector('b').textContent = 'Tap again to delete';
+                    clearTimeout(plDeleteTimer);
+                    plDeleteTimer = setTimeout(disarmPlDelete, 3500);
+                    return;
+                }
+                clearTimeout(plDeleteTimer);
+                row.disabled = true;
+                row.querySelector('b').textContent = 'Deleting…';
+                // It reloads on success (the sheet's history entry is dropped
+                // by adoptHistory); on failure it says why.
+                Promise.resolve(deleteCurrentPlaylist(id, { confirmed: true })).finally(() => {
+                    if (row.isConnected) disarmPlDelete();
+                });
+                return;
+            }
+            window.mHidePlaylistSheet();
+            if (action === 'add') window.showAddSongModal();
+            else if (action === 'import') window.showSpotifyImportModal({ into: 'current' });
+            else if (action === 'reorder') enterReorder();
+            else if (action === 'edit') window.showPlaylistEditModal(id);
+            else if (action === 'share') sharePlaylistLink(id);
+            else if (action === 'queue') window.openQueueModal();
+            else if (action === 'offline') offlineFromMenu();
+            else if (action === 'scan') window.showScanModal();
+        });
+    }
+
     // ---- Reload: history.state survives it (back stays in this document),
     // so rebuild what the page can still show — the tab, and the playlist
     // screen if it's still the active playlist (it's already rendered) —
@@ -8926,8 +9371,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const depth = st && typeof st.mDepth === 'number' ? st.mDepth : 0;
         const saved = st && Array.isArray(st.mStack) ? st.mStack : [];
         let i = 0;
+        // Still the active playlist, and still there (deleting the last one
+        // leaves 'favorites' active with no such playlist).
         const playlistAt = (k) => inShell() && !!saved[k] && saved[k].n === 'playlist'
-            && saved[k].p === String(activePlaylistId);
+            && saved[k].p === String(activePlaylistId)
+            && typeof playlistsMeta === 'object' && !!playlistsMeta
+            && Object.prototype.hasOwnProperty.call(playlistsMeta, saved[k].p);
         if (saved[i] && saved[i].n === 'tab' && (saved[i].t === 'search' || saved[i].t === 'library')
             && (onPhone() || playlistAt(i + 1))) {
             // Landscape keeps [tab, playlist] too (a rotation does); a bare
@@ -9304,13 +9753,18 @@ document.addEventListener('DOMContentLoaded', () => {
             dock.classList.remove('m-dock-hidden');
             document.body.classList.remove('m-np-open', 'm-lyrics-open', 'm-scrubbing');
             window.__mScrubbing = false;
-            // Keep the find-in-songs query across the breakpoint — the filter
-            // works on desktop too now, so don't wipe it when leaving phone.
+            // Leaving portrait closes find (a layer), which clears its query.
         } else if (modalOpen.search) {
             // Back to portrait with the landscape search open: carry on in
             // the Search tab (the switch waits for the modal's back).
             window.hideSearchModal();
             switchTab('search');
+        }
+        // A find query typed in landscape (where the field always shows) must
+        // not leave the portrait list filtered behind a closed find.
+        if (e.matches && filterInput && filterInput.value && !findOpen()) {
+            filterInput.value = '';
+            applyRowFilter();
         }
         setBackLabel();
         updateDockVisibility();

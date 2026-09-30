@@ -77,6 +77,27 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] New member signup: back while the number + PIN card is up does
   nothing (and doesn't freeze); after Continue, tabs work.
 
+## Playlist screen
+
+- [ ] Open a playlist: the name slides into the top bar as you scroll; the
+  bar stays put and the list ends above the mini player.
+- [ ] Round Play starts the playlist and opens Now Playing; the shuffle
+  icon cycles off → on (dot) → Smart mix (spark).
+- [ ] Find (magnifier): the keyboard opens, typing filters, back closes it
+  and shows every song again.
+- [ ] ⋯ → Share: the phone's share sheet opens with the playlist's link.
+- [ ] ⋯ → Reorder songs: drag a song by its handle past the bottom of the
+  screen (the list scrolls along), let go; Done or back ends it and the
+  order sticks after a reload.
+- [ ] ⋯ → Save for offline (only on playlists with uploaded songs), then
+  airplane mode: those songs still play.
+- [ ] ⋯ → Delete playlist needs two taps; the app reloads on your library
+  with a "Deleted" note.
+- [ ] A song's ⋯ → Add to Favorites / Remove from Favorites (the hearts are
+  gone from the rows).
+- [ ] An empty playlist shows Add songs and Import; Import pre-selects
+  "Add to <this playlist>".
+
 ## Keyboard & safe areas
 
 - [ ] Tap the find-in-playlist filter: keyboard opens, dock hides, filter

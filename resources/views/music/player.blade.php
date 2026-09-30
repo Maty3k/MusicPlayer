@@ -615,6 +615,23 @@
             <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
             <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar">&#8249;</button>
 
+            {{-- Phone playlist screen: a compact top bar (portrait web shell only,
+                 wired by the phone shell in script.js). The title slides in once
+                 the big one scrolls away; Done ends reorder mode. --}}
+            <div class="m-pl-bar m-only" id="mPlBar">
+                <button type="button" class="m-icon-btn m-pl-back" id="mPlBack" aria-label="Back">
+                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 5.5-6.5 6.5 6.5 6.5"/></svg>
+                </button>
+                <span class="m-pl-bar-title" id="mPlBarTitle" aria-hidden="true"></span>
+                <button type="button" class="m-icon-btn m-pl-find" id="mPlFind" aria-label="Find in this playlist" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m20 20-4.4-4.4"/></svg>
+                </button>
+                <button type="button" class="m-icon-btn m-pl-more" id="mPlMore" aria-label="Playlist options" aria-haspopup="dialog">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>
+                </button>
+                <button type="button" class="m-pl-done" id="mPlDone">Done</button>
+            </div>
+
             <button class="back-to-crate" id="backToCrate" onclick="showPlaylistPicker()">
                 <span class="back-arrow">&#8592;</span>
                 <span class="back-text">Crate</span>
@@ -642,23 +659,35 @@
                     </button>
                     <button class="add-song-btn" onclick="showAddSongModal()" title="Add a song">+</button>
                 </div>
-                <div class="sidebar-track-count">{{ count($songs) }} {{ count($songs) === 1 ? 'track' : 'tracks' }}</div>
+                <div class="sidebar-track-count">{{ count($songs) }} {{ count($songs) === 1 ? 'song' : 'songs' }}</div>
                 {{-- Phone-only hero actions + find-in-playlist (hidden by .m-only off-phone) --}}
                 <div class="m-hero-actions m-only">
-                    <button type="button" id="mPlayAll">
-                        <span class="m-when-paused"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg>Play</span>
-                        <span class="m-when-playing"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg>Pause</span>
+                    <button type="button" class="m-pl-add" id="mPlAdd">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                        Add songs
                     </button>
-                    <button type="button" id="mShuffleChip" aria-pressed="false">Shuffle</button>
+                    <button type="button" id="mShuffleChip" aria-pressed="false">
+                        <svg class="m-shuffle-ic" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h4v4"/><path d="M4 20 20 4"/><path d="M20 16v4h-4"/><path d="m15 15 5 5"/><path d="m4 4 5 5"/></svg>
+                        <span class="m-shuffle-label">Shuffle</span>
+                    </button>
+                    <button type="button" id="mPlayAll">
+                        <span class="m-when-paused"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg><span class="m-play-label">Play</span></span>
+                        <span class="m-when-playing"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg><span class="m-play-label">Pause</span></span>
+                    </button>
                 </div>
-                <input class="crate-filter" type="search" id="mFilterInput" placeholder="Find in these songs" autocomplete="off">
+                <input class="crate-filter" type="search" id="mFilterInput" placeholder="Find in these songs" autocomplete="off" aria-label="Find in these songs">
+                <div class="m-filter-empty m-only" id="mFilterEmpty" role="status"></div>
             </div>
             <ul class="song-list" id="songList">
                 @if (count($songs) === 0)
                 <li class="song-list-empty">
                     <div class="song-list-empty-icon">&#9834;</div>
                     <div class="song-list-empty-text">This playlist is empty</div>
-                    <button class="song-list-empty-add" onclick="showAddSongModal()">+ Add a song</button>
+                    <div class="song-list-empty-sub">Search for songs to add, or bring some over from Spotify or YouTube.</div>
+                    <div class="song-list-empty-actions">
+                        <button class="song-list-empty-add" onclick="showAddSongModal()">+ Add songs</button>
+                        <button class="song-list-empty-import" onclick="showSpotifyImportModal({ into: 'current' })">Import</button>
+                    </div>
                 </li>
                 @endif
                 @foreach ($songs as $index => $song)
@@ -1205,6 +1234,52 @@
                 @csrf
                 <button type="submit" class="m-account-logout">Log out</button>
             </form>
+        </div>
+    </div>
+    {{-- Phone: the playlist screen's ⋯ (everything about the playlist on
+         screen, which is always the active one). Opened and registered for
+         back by the phone shell in script.js; rows it can't use are hidden. --}}
+    <div class="add-song-modal m-menu-sheet" id="mPlaylistSheet" role="dialog" aria-modal="true" aria-labelledby="mPlaylistSheetTitle">
+        <div class="add-song-modal-backdrop" data-m-pl-close></div>
+        <div class="add-song-modal-panel">
+            <button type="button" class="add-song-modal-close" data-m-pl-close aria-label="Close">&times;</button>
+            <h2 class="m-sheet-title" id="mPlaylistSheetTitle">Playlist</h2>
+            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="add">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
+                <span class="m-sheet-text"><b>Add songs</b></span>
+            </button>
+            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="import">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg></span>
+                <span class="m-sheet-text"><b>Import into this playlist</b><small id="mPlSheetImportSub">From a Spotify or YouTube link, or a list</small></span>
+            </button>
+            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="reorder">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16"/><path d="m4 7 3-3 3 3"/><path d="M17 20V4"/><path d="m14 17 3 3 3-3"/></svg></span>
+                <span class="m-sheet-text"><b>Reorder songs</b></span>
+            </button>
+            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="edit">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>
+                <span class="m-sheet-text"><b>Edit details</b><small id="mPlSheetEditSub">Name, colour and cover</small></span>
+            </button>
+            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="share">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 12v7.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V12"/></svg></span>
+                <span class="m-sheet-text"><b>Share</b><small id="mPlSheetShareSub">A link anyone can open</small></span>
+            </button>
+            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="queue">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/></svg></span>
+                <span class="m-sheet-text"><b>Up next</b><small id="mPlSheetQueueSub">Nothing queued</small></span>
+            </button>
+            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="offline">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v8"/><path d="m8.5 12 3.5 3.5 3.5-3.5"/></svg></span>
+                <span class="m-sheet-text"><b>Save for offline</b><small id="mPlSheetOfflineSub">Keep the uploaded songs on this phone</small></span>
+            </button>
+            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="scan">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3.2"/></svg></span>
+                <span class="m-sheet-text"><b>Scan covers or files</b><small id="mPlSheetScanSub">Photograph album covers or pick audio files</small></span>
+            </button>
+            <button type="button" class="m-sheet-row m-sheet-compact m-sheet-danger" data-m-pl="delete">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 13h9l1-13"/></svg></span>
+                <span class="m-sheet-text"><b>Delete playlist</b></span>
+            </button>
         </div>
     </div>
     {{-- Phone: the Library "+" (a new playlist, or bring one over). Opened
