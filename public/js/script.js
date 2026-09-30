@@ -2,6 +2,12 @@
 if (typeof window.pdbg !== 'function') window.pdbg = function () {};
 if (typeof window.__pdbgAttach !== 'function') window.__pdbgAttach = function () {};
 
+// YT.PlayerState is read on every state change, uploaded songs included, so
+// it must exist even before (or without) YouTube's IFrame API — a page
+// opened offline still plays its uploaded songs. The API merges into this
+// object when it loads; "is the API ready" checks look for YT.Player.
+if (!window.YT) window.YT = { PlayerState: { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 } };
+
 // Laravel session auth: the page carries a CSRF token in a <meta> tag. This
 // shim attaches it as X-CSRF-TOKEN on every POST-like request to our own
 // backend endpoints so the VerifyCsrfToken middleware accepts them. GET
@@ -374,15 +380,22 @@ async function selectPlaylistFromCrate(playlistId) {
         clickedRecord.classList.add('pulling');
     }
 
-    // Fetch playlist from server
-    const response = await fetch('/save-music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'switchPlaylist', playlist: playlistId })
-    });
-    const result = await response.json();
+    // try/finally: a failed request must not leave isChangingPlaylist stuck
+    // (every later playlist tap would be ignored until a reload).
+    try {
+        // Fetch playlist from server
+        const response = await fetch('/save-music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'switchPlaylist', playlist: playlistId })
+        });
+        const result = await response.json();
 
-    if (result.success) {
+        if (!result.success) {
+            showToast('Couldn\'t open that playlist. Try again.');
+            return;
+        }
+
         // Update now-playing indicator on crate
         document.querySelectorAll('.record-card.now-playing').forEach(c => c.classList.remove('now-playing'));
         const newActive = document.querySelector(`.record-card[data-playlist="${playlistId}"]`);
@@ -458,24 +471,22 @@ async function selectPlaylistFromCrate(playlistId) {
 
         // Load lyrics for the new playlist's first song
         loadLyricsForSong(currentSong);
+
+        if (!window.ReactNativeWebView) {
+            // Wait for pull animation
+            const pullMs = window.matchMedia('(max-width: 600px)').matches ? 250 : 500;
+            await new Promise(resolve => setTimeout(resolve, pullMs));
+        }
+
+        // Transition to player view
+        vinylCrate.classList.add('hidden');
+        playerView.classList.add('active');
+    } catch (e) {
+        showToast('Couldn\'t open that playlist. Check your connection.');
+    } finally {
+        if (clickedRecord) clickedRecord.classList.remove('pulling');
+        isChangingPlaylist = false;
     }
-
-    if (!window.ReactNativeWebView) {
-        // Wait for pull animation
-        const pullMs = window.matchMedia('(max-width: 600px)').matches ? 250 : 500;
-        await new Promise(resolve => setTimeout(resolve, pullMs));
-    }
-
-    // Transition to player view
-    vinylCrate.classList.add('hidden');
-    playerView.classList.add('active');
-
-    // Reset the vinyl animation
-    if (clickedRecord) {
-        clickedRecord.classList.remove('pulling');
-    }
-
-    isChangingPlaylist = false;
 }
 
 // Show playlist picker (go back to crate)
@@ -1818,11 +1829,14 @@ function onPlayerStateChange(event) {
     const led = document.getElementById('turntableLed');
     const eqVis = document.getElementById('playerEqVis');
 
-    // Keep the lock-screen play/pause button in sync
+    // Keep the lock-screen play/pause button in sync (buffering between
+    // songs still counts as playing, so the controls don't flicker)
     if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState =
-            event.data === YT.PlayerState.PLAYING ? 'playing' : 'paused';
+            (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.BUFFERING) ? 'playing' : 'paused';
     }
+    // …and keep the headset/notification controls on this page (see mediaSessionKeeper).
+    mediaSessionKeeper.sync(event.data);
 
     var isApp = !!window.ReactNativeWebView;
 
@@ -2905,7 +2919,9 @@ function updateMediaSession(song) {
     const artwork = [];
     const cover = safeUrl(song.cover);
     if (cover) {
-        artwork.push({ src: new URL(cover, location.origin).href, sizes: '512x512' });
+        // No `sizes`: covers come in many shapes (YouTube's are 480x360), and
+        // a wrong size is worse than none.
+        artwork.push({ src: new URL(cover, location.origin).href });
     }
     navigator.mediaSession.metadata = new MediaMetadata({
         title: song.title || '',
@@ -2921,14 +2937,24 @@ function updateMediaSession(song) {
     try {
         // Idempotent: the OS may send 'play' while already playing (or the
         // reverse) — blindly toggling would invert the intended state.
+        const playerState = () => (ytPlayer && ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : -1);
         navigator.mediaSession.setActionHandler('play', safe(() => {
-            if (!ytPlayer || !ytPlayer.getPlayerState || ytPlayer.getPlayerState() !== 1) toggleMusic();
+            const state = playerState();
+            pdbg('media key: play', { state });
+            // Playing, or still starting (buffering): nothing to do — a
+            // toggle would restart a loading song from the top.
+            if (state !== 1 && state !== 3) toggleMusic();
         }));
         navigator.mediaSession.setActionHandler('pause', safe(() => {
-            if (ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === 1) toggleMusic();
+            const state = playerState();
+            pdbg('media key: pause', { state });
+            // Playing or still loading: pause it. (mediaSessionKeeper stops
+            // when the player reports the pause, not here: stopping it first
+            // would hand the controls back to YouTube's frame.)
+            if ((state === 1 || state === 3) && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
         }));
-        navigator.mediaSession.setActionHandler('previoustrack', safe(() => prevSong()));
-        navigator.mediaSession.setActionHandler('nexttrack', safe(() => nextSong()));
+        navigator.mediaSession.setActionHandler('previoustrack', safe(() => { pdbg('media key: previous'); prevSong(); }));
+        navigator.mediaSession.setActionHandler('nexttrack', safe(() => { pdbg('media key: next'); nextSong(); }));
         navigator.mediaSession.setActionHandler('seekto', (details) => {
             try {
                 if (ytPlayer && ytPlayer.seekTo && details.seekTime != null) {
@@ -2937,6 +2963,81 @@ function updateMediaSession(song) {
             } catch (e) {}
         });
     } catch (e) { /* some handlers unsupported on some platforms */ }
+})();
+
+// Headset buttons (AirPods press / double press / triple press), the media
+// notification and the lock screen go to one page's media session. Chromium
+// picks the top-most frame that has its own playing or paused media player —
+// and YouTube songs play inside YouTube's iframe, so the phone ends up
+// talking to YouTube's embed: play/pause only, no skip, none of the
+// handlers above. A silent looping <audio> in this page gives us a player
+// of our own, so the controls come here and follow our playlist.
+// Chromium browsers only (Brave, Chrome, Edge, Samsung Internet): on
+// iPhones a second playing element can pause the YouTube video. Off in the
+// React Native shell (native playback owns the controls there) and for the
+// MP3 engine (its <audio> already lives in this page).
+const mediaSessionKeeper = (() => {
+    const ua = navigator.userAgent;
+    const iOS = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const chromium = /(Chrome|Chromium)\//.test(ua) && !iOS;
+    if (!chromium || !('mediaSession' in navigator) || window.ReactNativeWebView) {
+        return { sync() {}, stop() {} };
+    }
+
+    let audio = null;
+    let idleTimer = null;
+
+    // 10 s of 8 kHz, 8-bit mono silence (~80 KB), built in memory. Over
+    // Chromium's 5 s floor for a "content" player; looped, it runs as long
+    // as the music does.
+    function silence() {
+        const rate = 8000, frames = rate * 10;
+        const buf = new ArrayBuffer(44 + frames), v = new DataView(buf);
+        const tag = (at, s) => { for (let i = 0; i < s.length; i++) v.setUint8(at + i, s.charCodeAt(i)); };
+        tag(0, 'RIFF'); v.setUint32(4, 36 + frames, true); tag(8, 'WAVE');
+        tag(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+        v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+        tag(36, 'data'); v.setUint32(40, frames, true);
+        new Uint8Array(buf, 44).fill(128); // unsigned 8-bit: 128 is silence
+        return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    }
+
+    function stop() {
+        clearTimeout(idleTimer);
+        idleTimer = null;
+        if (audio && !audio.paused) {
+            pdbg('media keeper: stop');
+            audio.pause();
+        }
+    }
+
+    return {
+        // Mirror the real player: run while music plays and through the
+        // short gap between songs; pause when the user pauses, and give up
+        // if nothing is playing again within 15 s (end of the playlist, a
+        // start the browser refused).
+        sync(state) {
+            if (ytPlayer !== ytPlayerReal) { stop(); return; }
+            if (state === 1) {
+                clearTimeout(idleTimer);
+                idleTimer = null;
+                if (!audio) {
+                    audio = new Audio(silence());
+                    audio.loop = true;
+                }
+                if (audio.paused) {
+                    audio.play()
+                        .then(() => pdbg('media keeper: start (headset controls → this page)'))
+                        .catch((e) => pdbg('media keeper: refused', e && e.name)); // controls stay with YouTube
+                }
+            } else if (state === 2) {
+                stop();
+            } else if (audio && !audio.paused && !idleTimer) {
+                idleTimer = setTimeout(stop, 15000);
+            }
+        },
+        stop,
+    };
 })();
 
 function buildSongListItem(song, index) {
@@ -4158,6 +4259,9 @@ async function playSearchResult(i) {
     if (!r) return;
     hideSearchModal();
     await selectPlaylistFromCrate(String(r.playlistSlug));
+    // The playlist didn't load (offline, or deleted meanwhile): don't play a
+    // song from whichever playlist is still showing.
+    if (String(activePlaylistId) !== String(r.playlistSlug)) return;
     const position = parseInt(r.position, 10);
     // selectPlaylistFromCrate only cues the song at the playlist's saved index;
     // if that's the hit, start it explicitly (switchSong would early-return on
@@ -7830,6 +7934,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const mq = window.matchMedia('(max-width: 600px)');
     const onPhone = () => mq.matches;
+    // Back-button layers (playlist screen, modals) serve both phone shells:
+    // portrait, and short landscape phones (same query as the CSS dock).
+    // Now Playing, lyrics and the song sheet stay portrait-only (onPhone).
+    const shellMq = window.matchMedia('(max-width: 600px), (min-width: 601px) and (max-height: 500px) and (pointer: coarse)');
+    const inShell = () => shellMq.matches;
 
     const dock = document.getElementById('mDock');
     if (!dock) return;
@@ -8090,24 +8199,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Playlist screen is a layer over the crate
+    const crateVisible = () => {
+        const crate = document.getElementById('vinylCrateView');
+        return !!crate && !crate.classList.contains('hidden');
+    };
+    const playerViewActive = () =>
+        document.getElementById('musicPlayerView').classList.contains('active');
+
+    // Every way into the playlist screen (crate card, Jump back in, a search
+    // hit) records one 'playlist' layer. While a back is still in flight
+    // (a search hit closes the search sheet first) the push waits for it.
+    function pushPlaylistLayer() {
+        const push = () => {
+            if (!playerViewActive() || layerStack.some((l) => l.name === 'playlist')) return;
+            openLayer('playlist', () => {
+                if (playerViewActive()) origShowPicker();
+            });
+        };
+        if (pendingBack) afterBack.push(push); else push();
+    }
+
     const origSelectPlaylist = window.selectPlaylistFromCrate;
     window.selectPlaylistFromCrate = async function () {
-        const crate = document.getElementById('vinylCrateView');
-        const wasCrate = crate && !crate.classList.contains('hidden');
+        const wasCrate = crateVisible();
         const out = await origSelectPlaylist.apply(this, arguments);
-        if (onPhone() && wasCrate && !topLayerIs('playlist')) {
-            openLayer('playlist', () => {
-                if (document.getElementById('musicPlayerView').classList.contains('active')) {
-                    origShowPicker();
-                }
-            });
-        }
+        if (inShell() && wasCrate) pushPlaylistLayer();
+        return out;
+    };
+
+    // Jump back in opens the player directly (playRecentSong)
+    const origOpenPlayerView = window.openPlayerView;
+    window.openPlayerView = function () {
+        const wasCrate = crateVisible();
+        const out = origOpenPlayerView.apply(this, arguments);
+        if (inShell() && wasCrate) pushPlaylistLayer();
         return out;
     };
 
     const origShowPicker = window.showPlaylistPicker;
     window.showPlaylistPicker = function () {
-        if (onPhone() && topLayerIs('playlist')) {
+        if (inShell() && topLayerIs('playlist')) {
             backOneLayer();
             return;
         }
@@ -8124,7 +8255,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof origShow !== 'function') return;
         window[showName] = function () {
             const out = origShow.apply(this, arguments);
-            if (onPhone() && !modalOpen[key]) {
+            if (inShell() && !modalOpen[key]) {
                 modalOpen[key] = true;
                 const push = () => {
                     if (!modalOpen[key]) return; // closed before the back landed
@@ -8144,7 +8275,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof origHide !== 'function') return;
             modalOrigHide[key] = origHide;
             window[hideName] = function () {
-                if (onPhone() && modalOpen[key] && topLayerIs('modal:' + key)) {
+                if (inShell() && modalOpen[key] && topLayerIs('modal:' + key)) {
                     backOneLayer();
                     return;
                 }
@@ -8160,6 +8291,10 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapModalPair('showSpotifyImportModal', 'hideSpotifyImportModal', 'import');
     wrapModalPair('showPlaylistEditModal', 'hidePlaylistEditModal', 'playlistEdit');
     wrapModalPair('showPlaylistCreateModal', 'hidePlaylistEditModal', 'playlistEdit');
+    wrapModalPair('showSearchModal', 'hideSearchModal', 'search');
+    wrapModalPair('showStatsModal', 'hideStatsModal', 'stats');
+    wrapModalPair('openQueueModal', 'hideQueueModal', 'queue');
+    wrapModalPair('openVinylGifModal', 'closeVinylGifModal', 'vinylGif');
 
     // The member welcome card shows the PIN exactly once and must not be
     // dismissible — a hardware back would otherwise leave the page and

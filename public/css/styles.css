@@ -9548,8 +9548,12 @@ html[data-theme="greenroom"] {
    ============================================================ */
 @media (min-width: 601px) and (max-height: 500px) and (pointer: coarse) {
     /* Crate: centered flex inside overflow:hidden clips both ends on a
-       short screen — scroll from the top and clear the dock. */
+       short screen — scroll from the top and clear the dock. The stretch
+       caps it at the screen height (.room-content centers its children,
+       which let it grow to its content and be clipped, not scrolled). */
     .room-center {
+        align-self: stretch;
+        min-height: 0;
         justify-content: flex-start;
         overflow-y: auto;
         overflow-x: hidden;
