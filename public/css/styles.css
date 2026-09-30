@@ -9200,18 +9200,26 @@ html[data-theme="greenroom"] {
 }
 
 /* ============================================================
-   ===== MOBILE V2 — must remain the LAST block in this file =====
+   ===== MOBILE V2 =====
    Phone redesign: Spotify-grade ergonomics, vinyl identity.
-   Everything here is (a) the unscoped .m-only default hide, or
-   (b) scoped to @media (max-width:600px) / (hover:none)+(pointer:coarse).
-   The legacy 600px block at ~5028 loses equal-specificity ties to the
-   desktop rules that come after it — this block wins those ties by
-   being last in the file. Never add rules below it.
+   Everything here is (a) the unscoped .m-only default hide and the
+   .m-mq-flip rotation guard, or (b) scoped to @media (max-width:600px) /
+   (hover:none)+(pointer:coarse). NOTE: it is no longer the last block —
+   QUIET ROOM, MODALS, DESKTOP CRATE and PHONE POLISH come later and win
+   equal-specificity ties. New phone rules go at the end of the file
+   (PHONE TABS is the last block).
    ============================================================ */
 
 /* Mobile-only DOM is hidden everywhere by default; the 600px section
    re-enables it. Desktop safety never depends on media-query support. */
 .m-only { display: none; }
+
+/* One frame without transitions when the 600px breakpoint flips (set by
+   script.js): the playlist fade and the Now Playing slide must not play
+   across a rotation. */
+.m-mq-flip .music-player-view,
+.m-mq-flip .music-sidebar,
+.m-mq-flip .music-main { transition: none !important; }
 
 /* Tokens + the dock serve BOTH mobile shells: portrait phones and short
    landscape phones (where the dock is likewise the only transport). */
@@ -9384,7 +9392,7 @@ html[data-theme="greenroom"] {
         position: fixed;
         left: 8px;
         right: 8px;
-        bottom: calc(8px + var(--m-safe-b));
+        bottom: calc(8px + var(--m-tabs-h, 0px) + var(--m-safe-b));
         height: var(--m-dock-h);
         z-index: 9000;
         align-items: center;
@@ -9398,7 +9406,7 @@ html[data-theme="greenroom"] {
     }
 
     #mDock.m-dock-hidden {
-        transform: translateY(calc(120% + var(--m-safe-b)));
+        transform: translateY(calc(120% + var(--m-tabs-h, 0px) + var(--m-safe-b)));
     }
 
     body.m-np-open #mDock {
@@ -9728,7 +9736,7 @@ html[data-theme="greenroom"] {
        column mid-screen, leaving a dead band above the title */
     .room-center {
         align-self: stretch;
-        padding-bottom: calc(var(--m-dock-h) + 12px + var(--m-safe-b));
+        padding-bottom: calc(var(--m-dock-h) + var(--m-tabs-h, 0px) + 12px + var(--m-safe-b));
     }
 
     .music-main {
@@ -9736,7 +9744,7 @@ html[data-theme="greenroom"] {
     }
 
     .import-toast {
-        bottom: calc(var(--m-dock-h) + 16px + var(--m-safe-b));
+        bottom: calc(var(--m-dock-h) + var(--m-tabs-h, 0px) + 16px + var(--m-safe-b));
     }
 
     /* ============================================================
@@ -9904,7 +9912,7 @@ html[data-theme="greenroom"] {
         overflow-y: auto;
         overflow-x: hidden;
         gap: 2px;
-        padding: 4px 8px calc(var(--m-dock-h) + 12px + var(--m-safe-b));
+        padding: 4px 8px calc(var(--m-dock-h) + var(--m-tabs-h, 0px) + 12px + var(--m-safe-b));
         -webkit-overflow-scrolling: touch;
     }
 
@@ -10021,16 +10029,35 @@ html[data-theme="greenroom"] {
 
     /* ============================================================
        Now Playing sheet: .music-main promoted to a full-screen layer.
-       The YouTube iframe lives inside it and is never display:none'd,
-       so playback survives open/close.
+       Never display:none'd (keepPlayerAlive in script.js moves the YouTube
+       iframe to <body>, but the sheet's own state must survive too). It
+       opens over any tab: see the opacity note on .music-player-view.
        ============================================================ */
 
-    /* Release the containing block: the view's translateY made it the
-       containing block for fixed descendants. Both states covered; the
-       .active opacity fade still runs. */
+    /* The view must never be an opacity group, stacking context or
+       containing block on phones: the NP sheet (.music-main, fixed, z 250)
+       lives inside it and must paint over the crate / any tab while the
+       view is inactive (a child can't be more opaque than an opacity:0
+       parent, and opacity < 1 would trap it under the crate's z-index 10).
+       The crate <-> playlist fade moves to the sidebar, the view's only
+       in-flow child at this width. */
     .music-player-view,
     .music-player-view.active {
         transform: none;
+        opacity: 1;
+        transition: none;
+    }
+
+    .music-sidebar {
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.5s ease, visibility 0s linear 0.5s, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease, padding 0.3s ease;
+    }
+
+    .music-player-view.active .music-sidebar {
+        opacity: 1;
+        visibility: visible;
+        transition-delay: 0s;
     }
 
     .music-main {
@@ -10060,6 +10087,7 @@ html[data-theme="greenroom"] {
     body.m-np-open .music-main {
         transform: translateY(0);
         visibility: visible;
+        pointer-events: auto;
         will-change: transform;
         transition: transform 300ms cubic-bezier(0.32, 0.72, 0.28, 1);
     }
@@ -10935,7 +10963,7 @@ html[data-theme="greenroom"] {
     max-width: 560px;
     margin-inline: auto;
     text-align: center;
-    bottom: calc(64px + 16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(64px + var(--m-tabs-h, 0px) + 16px + env(safe-area-inset-bottom, 0px));
     z-index: 10006;
     background: linear-gradient(180deg, #2c251d, #1e1a14);
     border: 1px solid rgba(212, 165, 116, 0.35);
@@ -14239,5 +14267,539 @@ html[data-theme="greenroom"] {
     body.m-lyrics-open .lyrics-controls.no-sync #lyricsOffsetValue,
     body.m-lyrics-open .lyrics-controls.no-sync #lyricsOffsetPlus {
         display: none;
+    }
+}
+
+/* ============================================================
+   PHONE TABS — Home / Search / Library on portrait phones.
+   The LAST block in the file (later rules win equal-specificity ties).
+   Gated on html[data-m-tab], which the pre-paint script in
+   player.blade.php sets on the web page but never in the React Native
+   app (?app=1) — the app's WebView matches (max-width: 600px) too.
+   Like the rest of the phone shell it is width-only: landscape phones
+   and windows wider than 600px keep the full crate; a landscape screen
+   600px wide or less (e.g. 568x320) gets the tabs. Not gated on
+   orientation or height on purpose: a keyboard that shrinks the layout
+   viewport would flip the whole layout mid-typing.
+   ============================================================ */
+
+/* The app has native transport: the dock (never wired there) and the
+   Play/Shuffle hero go, with the room they reserve. */
+html.app-shell #mDock,
+html.app-shell .m-hero-actions { display: none !important; }
+html.app-shell { --m-dock-h: 0px; }
+
+.m-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Avatar coin: the Home header and the account sheet */
+.m-avatar {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.25), transparent 55%), var(--amber);
+    color: var(--on-amber);
+    font: 600 1.05rem/1 var(--display);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: transform 120ms ease;
+}
+
+.m-avatar-lg {
+    width: 52px;
+    height: 52px;
+    font-size: 1.4rem;
+}
+
+/* The avatar's sheet (stats, settings, log out) */
+#mAccountSheet .m-account-who {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 44px 14px 4px; /* clear of the close button */
+}
+
+#mAccountSheet .m-account-id {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+#mAccountSheet .m-account-id b {
+    font: 600 1.15rem/1.2 var(--display);
+    color: var(--cream);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#mAccountSheet .m-account-id small,
+#mAccountSheet .m-account-text small {
+    font-size: 0.8rem;
+    color: color-mix(in srgb, var(--cream) 65%, transparent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#mAccountSheet .m-account-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    min-height: 60px;
+    padding: 8px 6px;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--cream);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#mAccountSheet .m-account-row:active { background: rgba(255, 245, 233, 0.08); }
+
+#mAccountSheet .m-account-ic {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--amber-rgb), 0.12);
+    color: var(--amber);
+}
+
+#mAccountSheet .m-account-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+#mAccountSheet .m-account-text b { font-size: 0.98rem; font-weight: 600; }
+
+#mAccountSheet .m-account-logout {
+    width: 100%;
+    height: 48px;
+    margin-top: 12px;
+    border-radius: 24px;
+    border: 1px solid var(--line);
+    background: none;
+    color: color-mix(in srgb, var(--cream) 65%, transparent);
+    font: 500 0.95rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    cursor: pointer;
+}
+
+@media (max-width: 600px) {
+    html[data-m-tab] {
+        --m-tabs-h: 56px;
+        --m-bar: color-mix(in srgb, var(--ink) 82%, #000);
+    }
+
+    /* Phone sheets clear the home indicator (a later unscoped panel rule
+       had dropped the safe area) */
+    .add-song-modal-panel {
+        padding-bottom: calc(24px + var(--m-safe-b));
+    }
+
+    /* ---- The tab bar: under every sheet and toast, over the page and the
+       dock's shadow. Hidden for Now Playing (it would cover the sheet,
+       which lives inside the page's stacking context) and while typing. */
+    html[data-m-tab] #mTabs {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9001;
+        height: calc(var(--m-tabs-h) + var(--m-safe-b));
+        padding: 0 8px var(--m-safe-b);
+        background: var(--m-bar);
+        border-top: 1px solid var(--line);
+        transition: transform 260ms cubic-bezier(0.32, 0.72, 0.28, 1), visibility 0s;
+    }
+
+    html[data-m-tab] body.m-np-open #mTabs,
+    html[data-m-tab] body.m-kb #mTabs {
+        transform: translateY(110%);
+        visibility: hidden;
+        transition: transform 260ms cubic-bezier(0.32, 0.72, 0.28, 1), visibility 0s 260ms;
+    }
+
+    #mTabs .m-tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        min-width: 0;
+        min-height: 44px;
+        margin: 0;
+        padding: 6px 0 4px;
+        border: 0;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+        color: var(--cream);
+        opacity: 0.58;
+        font: 500 11px/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        letter-spacing: 0.01em;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    #mTabs .m-tab[aria-current="page"] {
+        color: var(--amber);
+        opacity: 1;
+        font-weight: 600;
+    }
+
+    #mTabs .m-tab-ic {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 26px;
+        transition: transform 120ms ease;
+    }
+
+    #mTabs .m-tab:active .m-tab-ic { transform: scale(0.9); }
+
+    /* Library icon: the sleeve masks the record behind it, and fills in
+       when active; Home fills in; Search gets a heavier stroke. */
+    #mTabs .m-tab-sleeve { fill: var(--m-bar); }
+    #mTabs .m-tab[aria-current="page"] .m-tab-sleeve,
+    #mTabs .m-tab[aria-current="page"] .m-tab-fill { fill: currentColor; }
+    #mTabs .m-tab[data-tab="search"][aria-current="page"] svg { stroke-width: 2.4; }
+
+    /* ---- Home and Library: two views of the crate's one scroller. The
+       old crate furniture (title, toolbar tools, counts) makes way for the
+       tab headers; the tools now live in the tabs and the avatar. */
+    html[data-m-tab] #roomCenter > .greeting-text,
+    html[data-m-tab] #roomCenter > .collection-stats { display: none; }
+
+    html[data-m-tab] #roomCenter > .m-tab-head {
+        align-self: stretch;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: calc(48px + env(safe-area-inset-top, 0px));
+        flex-shrink: 0;
+        margin: 0;
+        padding: env(safe-area-inset-top, 0px) 4px 0;
+        order: -3;
+    }
+
+    html[data-m-tab="home"] #roomCenter > #mHomeHead,
+    html[data-m-tab="library"] #roomCenter > #mLibraryHead { display: flex; }
+
+    .m-tab-title {
+        margin: 0;
+        font: 600 1.75rem/1.05 var(--display);
+        letter-spacing: -0.02em;
+        color: var(--cream);
+    }
+
+    .m-avatar-btn,
+    .m-icon-btn {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 -4px 0 0;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: none;
+        color: var(--cream);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .m-icon-btn:active { background: rgba(255, 245, 233, 0.1); }
+    .m-avatar-btn:active .m-avatar { transform: scale(0.94); }
+
+    /* Home: recent playlists, the empty-library card, Jump back in */
+    html[data-m-tab="home"] #roomCenter .collection-toolbar,
+    html[data-m-tab="home"] #roomCenter > .crate-shelf { display: none; }
+
+    html[data-m-tab="home"] #mRecentPlaylists:not(.is-empty) {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        align-self: stretch;
+        padding: 0 4px;
+        order: -1;
+    }
+
+    .m-rp-tile {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        height: 56px;
+        margin: 0;
+        padding: 0 10px 0 0;
+        border: 0;
+        border-radius: 8px;
+        overflow: hidden;
+        background: color-mix(in srgb, var(--pl-color, #d4a574) 12%, rgba(255, 245, 233, 0.07));
+        color: var(--cream);
+        font: 600 0.84rem/1.2 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        text-align: left;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .m-rp-tile:active { background: rgba(255, 245, 233, 0.14); }
+
+    .m-rp-art {
+        flex: 0 0 56px;
+        width: 56px;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: color-mix(in srgb, var(--pl-color, #d4a574) 45%, var(--ink));
+    }
+
+    .m-rp-art img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* YouTube thumbnails are 4:3 with the video letterboxed: zoom past the bars */
+    .m-rp-art img[src*="hqdefault"],
+    .m-rp-art img[src*="sddefault"] { transform: scale(1.34); }
+
+    .m-rp-art-empty {
+        display: flex;
+        color: rgba(255, 245, 233, 0.75);
+    }
+
+    .m-rp-name {
+        min-width: 0;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        overflow-wrap: anywhere;
+    }
+
+    .m-rp-tile.is-active .m-rp-name { color: var(--amber); }
+
+    html[data-m-tab] #recentSongsShelf .recent-songs-label {
+        padding-left: 4px;
+        font: 600 1.2rem/1.2 var(--display);
+        letter-spacing: -0.01em;
+        text-transform: none;
+        color: var(--cream);
+    }
+
+    /* The first-run card (all playlists empty) is Home's empty state */
+    html[data-m-tab="home"] #roomCenter > #crateEmptyHint {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        align-self: stretch;
+        order: -2;
+        margin: 0 4px;
+        padding: 20px 18px;
+        border-radius: 18px;
+        background: radial-gradient(120% 90% at 100% 0%, rgba(var(--amber-rgb), 0.16), transparent 60%), var(--sleeve);
+    }
+
+    #crateEmptyHint .crate-empty-disc { display: none; }
+    #crateEmptyHint .crate-empty-title { margin: 0 0 6px; font: 600 1.25rem/1.2 var(--display); color: var(--cream); }
+    #crateEmptyHint .crate-empty-text { margin: 0; font-size: 0.92rem; line-height: 1.45; color: var(--cream-60); }
+
+    #crateEmptyHint .crate-empty-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    #crateEmptyHint .crate-empty-actions button {
+        flex: 1 1 0;
+        min-height: 48px;
+        padding: 0 12px;
+        border-radius: 24px;
+        border: 1px solid var(--line);
+        background: none;
+        color: var(--cream);
+        font: 600 0.92rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    #crateEmptyHint .crate-empty-actions button.is-primary {
+        border-color: var(--amber);
+        background: var(--amber);
+        color: var(--on-amber);
+    }
+
+    /* Library: its header, the Local/Spotify chips and the grid */
+    html[data-m-tab="library"] #roomCenter > #recentSongsShelf,
+    html[data-m-tab="library"] #roomCenter > #crateEmptyHint,
+    html[data-m-tab="library"] #roomCenter .crate-shelf > .recent-songs-label,
+    html[data-m-tab="library"] #roomCenter .collection-toolbar .new-playlist-btn { display: none; }
+
+    html[data-m-tab="library"] #roomCenter .collection-toolbar { display: flex; }
+    html[data-m-tab="library"] #roomCenter .collection-toolbar .source-filter { flex: 1 1 auto; }
+
+    /* ---- Search: a page over the crate, under Now Playing. Hidden (not
+       display:none, so it keeps its scroll) while a playlist opened from
+       it is showing. */
+    html[data-m-tab="search"] #mSearchPage {
+        display: block;
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        padding: 0 16px calc(var(--m-dock-h) + var(--m-tabs-h) + 24px + var(--m-safe-b));
+        background: linear-gradient(180deg, var(--sleeve) 0, var(--ink) 260px);
+    }
+
+    html[data-m-tab="search"].m-pv #mSearchPage {
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    html[data-m-tab="search"] #vinylCrateView { visibility: hidden; }
+
+    #mSearchPage .m-search-head {
+        box-sizing: content-box;
+        display: flex;
+        align-items: center;
+        height: 48px;
+        min-height: 0;
+        padding: calc(22px + env(safe-area-inset-top, 0px)) 0 10px;
+    }
+
+    /* A solid band under the status bar (notched phones draw the page
+       there): results scroll behind it, not behind the clock */
+    #mSearchPage::before {
+        content: '';
+        display: block;
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        height: env(safe-area-inset-top, 0px);
+        margin-bottom: calc(-1 * env(safe-area-inset-top, 0px));
+        background: var(--sleeve);
+    }
+
+    #mSearchPage .m-search-field {
+        position: sticky;
+        top: calc(8px + env(safe-area-inset-top, 0px));
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 48px;
+        padding: 0 4px 0 14px;
+        border-radius: 12px;
+        background: var(--cream);
+        color: var(--ink);
+        box-shadow: 0 0 0 8px var(--sleeve), 0 10px 18px -6px rgba(0, 0, 0, 0.35);
+    }
+
+    #mSearchPage .m-search-field:focus-within {
+        box-shadow: 0 0 0 2px var(--amber), 0 0 0 8px var(--sleeve), 0 10px 18px -6px rgba(0, 0, 0, 0.35);
+    }
+
+    #mSearchPage .m-search-field svg { flex: 0 0 auto; }
+
+    #mSearchInput {
+        flex: 1 1 auto;
+        min-width: 0;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        outline: none;
+        background: transparent;
+        color: var(--ink);
+        font: 500 16px/1.2 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+
+    #mSearchInput::placeholder { color: color-mix(in srgb, var(--ink) 68%, transparent); }
+    #mSearchInput::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+
+    #mSearchPage .m-search-clear {
+        width: 40px;
+        height: 40px;
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: none;
+        color: var(--ink);
+        cursor: pointer;
+    }
+
+    #mSearchPage .m-search-clear[hidden] { display: none; }
+
+    #mSearchResults {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding-top: 14px;
+    }
+
+    #mSearchResults .search-result {
+        min-height: 60px;
+        margin: 0 -8px;
+        width: calc(100% + 16px);
+        padding: 6px 8px;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    #mSearchResults .search-result:active { background: rgba(255, 245, 233, 0.07); }
+    #mSearchResults .search-result-cover { width: 48px; height: 48px; border-radius: 6px; }
+    #mSearchResults .search-result-title { font-size: 0.95rem; color: var(--cream); }
+    #mSearchResults .search-result-artist { font-size: 0.8rem; color: var(--cream-60); }
+
+    html[data-m-tab] #mSearchPage,
+    html[data-m-tab] .room-center,
+    html[data-m-tab] .song-list {
+        scroll-padding-bottom: calc(var(--m-dock-h) + var(--m-tabs-h, 0px) + 12px + var(--m-safe-b));
+    }
+
+    .m-search-hint {
+        padding: 36px 12px;
+        text-align: center;
+        font-size: 0.95rem;
+        line-height: 1.45;
+        color: var(--cream-60);
     }
 }

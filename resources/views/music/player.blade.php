@@ -54,6 +54,22 @@
                 }
             } catch (e) { /* private mode etc. — default theme */ }
         })();
+        /* Phone shell, before first paint: the React Native app (?app=1) gets
+           none of the tab bar (the phone CSS can't tell it apart otherwise),
+           and a reload reopens the tab its history entry was on. */
+        (function () {
+            var root = document.documentElement;
+            if (window.ReactNativeWebView || new URLSearchParams(location.search).has('app')) {
+                root.classList.add('app-shell');
+                return;
+            }
+            var tab = 'home';
+            try {
+                var st = history.state;
+                if (st && st.mDepth > 0 && (st.mTab === 'search' || st.mTab === 'library')) tab = st.mTab;
+            } catch (e) {}
+            root.setAttribute('data-m-tab', tab);
+        })();
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js" defer></script>
 </head>
@@ -292,6 +308,34 @@
 
                 <!-- Center - Records -->
                 <div class="room-center" id="roomCenter">
+                    @php
+                        // Avatar initial: the display name unless it's a signup
+                        // placeholder, else the email, else a note.
+                        $acctName = trim((string) auth()->user()->name);
+                        if (in_array($acctName, ['New member', 'Spotify listener'], true)) $acctName = '';
+                        $acctInitial = mb_strtoupper(mb_substr($acctName !== '' ? $acctName : (string) auth()->user()->email, 0, 1));
+                        if ($acctInitial === '') $acctInitial = '♪';
+                        // Under the name in the account sheet: the email, the member
+                        // number, or how a Spotify-only account signs in.
+                        $acctSub = (string) auth()->user()->email;
+                        if ($acctSub === '' && auth()->user()->member_number !== null) $acctSub = 'Member ' . auth()->user()->formattedMemberNumber();
+                        if ($acctSub === '' && auth()->user()->spotify_user_id) $acctSub = 'Signed in with Spotify';
+                    @endphp
+                    {{-- Phone tabs: Home and Library headers over the same crate
+                         (shown per tab by the phone CSS; .m-only keeps them off
+                         desktop, landscape and the app) --}}
+                    <header class="m-tab-head m-only" id="mHomeHead">
+                        <h1 class="m-tab-title" id="mGreeting">Hello</h1>
+                        <button type="button" class="m-avatar-btn" id="mAvatarBtn" aria-label="Your stats and settings">
+                            <span class="m-avatar" id="mAvatar">{{ $acctInitial }}</span>
+                        </button>
+                    </header>
+                    <header class="m-tab-head m-only" id="mLibraryHead">
+                        <h1 class="m-tab-title">Library</h1>
+                        <button type="button" class="m-icon-btn" id="mLibraryNew" aria-label="New playlist">
+                            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                    </header>
                     <div class="greeting-text">
                         <h1>My Collection</h1>
                         <p>pick something to play</p>
@@ -453,6 +497,8 @@
                         <div class="recent-songs-label">Jump back in</div>
                         <div class="recent-songs-track" id="recentSongsTrack"></div>
                     </div>
+                    {{-- Phone Home: recently opened playlists, filled by the phone shell --}}
+                    <div class="m-recent-playlists m-only" id="mRecentPlaylists"></div>
                     <section class="crate-shelf">
                     <div class="recent-songs-label">Your playlists</div>
                     <div class="records-conveyor" id="recordsConveyor">
@@ -533,6 +579,24 @@
                 </div>
             </div>
         </div>
+
+        {{-- Phone Search tab: a page inside #music-section (under the Now
+             Playing sheet, over the crate). Its own field and results, so the
+             landscape/desktop search modal can't clear them. --}}
+        <section class="m-search-page m-only" id="mSearchPage" aria-label="Search">
+            <header class="m-tab-head m-search-head">
+                <h1 class="m-tab-title">Search</h1>
+            </header>
+            <div class="m-search-field">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m20 20-4.4-4.4"/></svg>
+                <input type="search" id="mSearchInput" placeholder="Songs or artists in your library" autocomplete="off" enterkeyhint="search" aria-label="Search your library">
+                <button type="button" class="m-search-clear" id="mSearchClear" aria-label="Clear search" hidden>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+            </div>
+            <div class="m-search-results" id="mSearchResults"></div>
+            <div class="m-sr-only" id="mSearchStatus" role="status" aria-live="polite"></div>
+        </section>
 
         <!-- Music Player View (hidden initially) -->
         <div class="music-player-view" id="musicPlayerView">
@@ -836,6 +900,23 @@
         </button>
     </div>
 
+    <!-- Phone tab bar (portrait phones; wired in script.js's phone shell,
+         hidden in the app and during Now Playing / typing) -->
+    <nav id="mTabs" class="m-only" aria-label="Main">
+        <button type="button" class="m-tab" data-tab="home">
+            <span class="m-tab-ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path class="m-tab-fill" d="M4 10.2 12 4l8 6.2V19a1 1 0 0 1-1 1h-4.6v-5.6H9.6V20H5a1 1 0 0 1-1-1z"/></svg></span>
+            <span class="m-tab-label">Home</span>
+        </button>
+        <button type="button" class="m-tab" data-tab="search">
+            <span class="m-tab-ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m20 20-4.4-4.4"/></svg></span>
+            <span class="m-tab-label">Search</span>
+        </button>
+        <button type="button" class="m-tab" data-tab="library">
+            <span class="m-tab-ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><circle cx="14.6" cy="12" r="7.4"/><circle cx="14.6" cy="12" r="2.5"/><rect class="m-tab-sleeve" x="2.6" y="4.6" width="9.4" height="14.8" rx="1.8"/></svg></span>
+            <span class="m-tab-label">Library</span>
+        </button>
+    </nav>
+
     <!-- Add Song Modal -->
     <div class="add-song-modal" id="addSongModal">
         <div class="add-song-modal-backdrop" onclick="hideAddSongModal()"></div>
@@ -1087,6 +1168,33 @@
                     <button type="button" class="add-song-btn-save" id="scanAddBtn" onclick="scanAddSelected()">Add Selected</button>
                 </div>
             </div>
+        </div>
+    </div>
+    {{-- Phone: the Home avatar's sheet (stats, settings, log out). Opened by
+         the phone shell in script.js, which also registers it for back. --}}
+    <div class="add-song-modal m-account-sheet" id="mAccountSheet" role="dialog" aria-modal="true" aria-labelledby="mAccountName">
+        <div class="add-song-modal-backdrop" data-m-account-close></div>
+        <div class="add-song-modal-panel">
+            <button type="button" class="add-song-modal-close" data-m-account-close aria-label="Close">&times;</button>
+            <div class="m-account-who">
+                <span class="m-avatar m-avatar-lg" aria-hidden="true">{{ $acctInitial }}</span>
+                <span class="m-account-id">
+                    <b id="mAccountName">{{ $acctName !== '' ? $acctName : 'Your account' }}</b>
+                    @if ($acctSub !== '')<small>{{ $acctSub }}</small>@endif
+                </span>
+            </div>
+            <button type="button" class="m-account-row" data-m-account="stats">
+                <span class="m-account-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg></span>
+                <span class="m-account-text"><b>Your listening</b><small>Top songs and artists</small></span>
+            </button>
+            <button type="button" class="m-account-row" data-m-account="settings">
+                <span class="m-account-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg></span>
+                <span class="m-account-text"><b>Settings</b><small>Playback, look, account, Spotify</small></span>
+            </button>
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <button type="submit" class="m-account-logout">Log out</button>
+            </form>
         </div>
     </div>
     <!-- Settings Modal (playback source + Spotify) -->

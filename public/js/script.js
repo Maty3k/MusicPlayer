@@ -3626,6 +3626,7 @@ async function finishMemberWelcome() {
             });
             const settingsName = document.getElementById('settingsNameInput');
             if (settingsName) settingsName.value = name;
+            if (window.mOnAccountName) window.mOnAccountName(name);
         } catch (e) {}
     }
     if (modal) modal.classList.remove('active');
@@ -4108,10 +4109,11 @@ function openPlayerView() {
 // streaming id (a title|artist key can collide with a different track);
 // otherwise play it directly as a one-off. If it's already the current track,
 // (re)start it rather than no-op'ing on switchSong's same-index guard.
-async function playRecentSong(i) {
+// opts.stay: play without opening the player (the phone Home tab).
+async function playRecentSong(i, opts = {}) {
     const song = Array.isArray(recentSongs) ? recentSongs[i] : null;
     if (!song) return;
-    openPlayerView();
+    if (!opts.stay) openPlayerView();
     const key = songPlayKey(song);
     const hasId = !!(song.youtube_id || song.spotify_id || song.mp3_url);
     const idx = hasId && Array.isArray(songsData)
@@ -4211,19 +4213,25 @@ function runLibrarySearch() {
     }
     librarySearchTimer = setTimeout(async () => {
         try {
-            const res = await fetch('/save-music', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'searchLibrary', q })
-            });
-            const data = await res.json();
+            const list = await fetchLibrarySearch(q);
             // Ignore a stale response if the query moved on.
             if (input.value.trim() !== q) return;
-            renderSearchResults(data && data.results ? data.results : [], q);
+            renderSearchResults(list, q);
         } catch (e) {
             results.innerHTML = '<div class="search-hint">Search failed. Try again.</div>';
         }
     }, 220);
+}
+
+// Songs matching q across every playlist (throws on a network error).
+async function fetchLibrarySearch(q) {
+    const res = await fetch('/save-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'searchLibrary', q })
+    });
+    const data = await res.json();
+    return data && Array.isArray(data.results) ? data.results : [];
 }
 
 function renderSearchResults(list, q) {
@@ -4258,11 +4266,26 @@ async function playSearchResult(i) {
     const r = librarySearchResults[i];
     if (!r) return;
     hideSearchModal();
+    await playSearchHit(r);
+}
+
+// Open a search hit's playlist and play the hit.
+async function playSearchHit(r) {
     await selectPlaylistFromCrate(String(r.playlistSlug));
     // The playlist didn't load (offline, or deleted meanwhile): don't play a
     // song from whichever playlist is still showing.
     if (String(activePlaylistId) !== String(r.playlistSlug)) return;
-    const position = parseInt(r.position, 10);
+    // The hit's position can be stale (the phone Search tab keeps results
+    // while songs are removed or moved): check it's still the same song.
+    let position = parseInt(r.position, 10);
+    const key = songPlayKey(r);
+    if (songPlayKey(songsData[position]) !== key) {
+        position = songsData.findIndex(s => songPlayKey(s) === key);
+        if (position < 0) {
+            showToast('That song is no longer in this playlist.');
+            return;
+        }
+    }
     // selectPlaylistFromCrate only cues the song at the playlist's saved index;
     // if that's the hit, start it explicitly (switchSong would early-return on
     // its same-index guard and nothing would play).
@@ -4521,6 +4544,7 @@ async function saveAccountName() {
         const data = await resp.json();
         if (resp.ok && data.success) {
             setSettingsStatus('settingsNameStatus', 'Name saved.', true);
+            if (window.mOnAccountName) window.mOnAccountName(name);
         } else {
             setSettingsStatus('settingsNameStatus', firstValidationError(data, 'Could not save the name.'), false);
         }
@@ -7930,6 +7954,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     };
 
+    // One frame without transitions when the 600px breakpoint flips (see
+    // .m-mq-flip in styles.css): the playlist fade and the Now Playing slide
+    // would otherwise play across a rotation. Registered before the app-shell
+    // gate: the phone CSS applies inside the app's WebView too.
+    window.matchMedia('(max-width: 600px)').addEventListener('change', () => {
+        const root = document.documentElement;
+        root.classList.add('m-mq-flip');
+        requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('m-mq-flip')));
+    });
+
     if (isAppShell) return;
 
     const mq = window.matchMedia('(max-width: 600px)');
@@ -7977,8 +8011,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ---- Dock visibility: hidden when the playlist is empty or while the
-    // software keyboard is up (an input has focus).
+    // software keyboard is up (a text field has focus). The tab bar follows
+    // the keyboard through body.m-kb.
     let keyboardOpen = false;
+    const TYPING_FIELD = 'input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]), select, textarea';
+    // A mouse-driven narrow window has no on-screen keyboard to make room for.
+    const softKeyboard = window.matchMedia('(pointer: coarse)');
+    const typingInField = (el) => softKeyboard.matches && !!(el && el.matches && el.matches(TYPING_FIELD));
     function updateDockVisibility() {
         // An empty playlist hides the dock — unless audio is still playing
         // (switching into an empty playlist doesn't stop the old track, and
@@ -7986,20 +8025,37 @@ document.addEventListener('DOMContentLoaded', () => {
         const empty = (typeof songsData === 'undefined' || songsData.length === 0)
             && !document.body.classList.contains('m-playing');
         dock.classList.toggle('m-dock-hidden', empty || keyboardOpen);
+        document.body.classList.toggle('m-kb', keyboardOpen);
     }
     document.addEventListener('focusin', (e) => {
-        if (e.target.matches && e.target.matches('input, select, textarea')) {
+        if (typingInField(e.target)) {
             keyboardOpen = true;
             updateDockVisibility();
         }
     });
     document.addEventListener('focusout', () => {
         setTimeout(() => {
-            const el = document.activeElement;
-            keyboardOpen = !!(el && el.matches && el.matches('input, select, textarea'));
+            keyboardOpen = typingInField(document.activeElement);
             updateDockVisibility();
         }, 150);
     });
+    // Android's back button can put the keyboard away and leave the field
+    // focused — the dock and tab bar would stay hidden. When the visual
+    // viewport grows back (not a pinch zoom), let the field go.
+    if (window.visualViewport) {
+        let keyboardSeen = false;
+        window.visualViewport.addEventListener('resize', () => {
+            const vv = window.visualViewport;
+            if (Math.abs(vv.scale - 1) > 0.01) return;
+            if (vv.height < window.innerHeight - 120) {
+                keyboardSeen = true;
+            } else if (keyboardSeen) {
+                keyboardSeen = false;
+                const el = document.activeElement;
+                if (keyboardOpen && typingInField(el)) el.blur();
+            }
+        });
+    }
     // Playlist switches / song add+delete rebuild the list — piggyback on it.
     const origRebuildSongList = window.rebuildSongList;
     if (typeof origRebuildSongList === 'function') {
@@ -8129,11 +8185,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (filterInput) filterInput.addEventListener('input', applyRowFilter);
 
     // ============================================================
-    // Layer manager: every mobile surface (playlist screen, NP sheet,
+    // Layer manager: every mobile surface (tab, playlist screen, NP sheet,
     // modals, song sheet) is a history entry, so hardware back / edge
     // swipe closes the topmost surface instead of leaving the app.
-    // Programmatic closes route through history.back() — popstate is
+    // Programmatic closes route through history.back()/go() — popstate is
     // the single close path; closeFns are idempotent as insurance.
+    // Each entry records {mLayer, mDepth, mTab, mStack}: the depth lets
+    // popstate reconcile instead of blind-popping, the rest lets a reload
+    // rebuild the stack (adoptHistory below).
     // ============================================================
     const layerStack = [];
     // One programmatic traversal at a time: double-taps on any close
@@ -8144,105 +8203,325 @@ document.addEventListener('DOMContentLoaded', () => {
     // popstate: pushing first would let the queued back pop the new entry
     // ("close this sheet, open that one" would close both).
     const afterBack = [];
+    let backWatchdog = 0;
+    // Bumped on every pushed layer / every tab change the USER makes (a tap,
+    // or a back off a tab — not a rotation fold): a playlist that finishes
+    // loading after either has moved on must not open on top of it.
+    let openGen = 0;
+    let tabGen = 0;
 
-    function openLayer(name, closeFn) {
-        layerStack.push({ name, closeFn });
-        // The entry records its own depth so popstate can reconcile
-        // instead of blind-popping (forward traversals fire it too).
-        try { history.pushState({ mLayer: name, mDepth: layerStack.length }, ''); } catch (e) {}
+    const TABS = ['home', 'search', 'library'];
+    const htmlEl = document.documentElement;
+    let currentTab = TABS.includes(htmlEl.dataset.mTab) ? htmlEl.dataset.mTab : 'home';
+
+    function stateFor() {
+        const top = layerStack[layerStack.length - 1];
+        return {
+            mLayer: top ? top.name : null,
+            mDepth: layerStack.length,
+            mTab: currentTab,
+            mStack: layerStack.map((l) => Object.assign({ n: l.name }, l.meta || {})),
+        };
+    }
+
+    // Rewrite the CURRENT entry (never another one) — after landing on an
+    // entry whose contents may be stale, or after relabelling the tab.
+    function stamp() {
+        try { history.replaceState(stateFor(), ''); } catch (e) {}
+    }
+
+    function openLayer(name, closeFn, meta) {
+        if (pendingBack) {
+            afterBack.push(() => openLayer(name, closeFn, meta));
+            return;
+        }
+        layerStack.push({ name, closeFn, meta });
+        try {
+            history.pushState(stateFor(), '');
+            openGen++;
+        } catch (e) { layerStack.pop(); }
+    }
+
+    // Every programmatic traversal goes through here, so the latch is always
+    // set. The watchdog only matters if no popstate ever arrives (history
+    // and stack out of step): closes and opens must not stay dead.
+    function traverse(delta) {
+        pendingBack = true;
+        clearTimeout(backWatchdog);
+        backWatchdog = setTimeout(() => {
+            if (!pendingBack) return;
+            pendingBack = false;
+            flushAfterBack();
+        }, 2500);
+        history.go(delta);
+    }
+
+    function flushAfterBack() {
+        // Stop as soon as a callback starts another traversal: the rest
+        // wait for that one to land.
+        while (afterBack.length && !pendingBack) {
+            const fn = afterBack.shift();
+            try { fn(); } catch (e) {}
+        }
     }
 
     window.addEventListener('popstate', (event) => {
         pendingBack = false;
+        clearTimeout(backWatchdog);
         const depth = (event.state && typeof event.state.mDepth === 'number')
             ? event.state.mDepth : 0;
         if (depth > layerStack.length) {
             // Forward traversal into an entry we no longer track (e.g. the
             // user swiped forward after closing a sheet) — snap back.
-            history.go(layerStack.length - depth);
+            traverse(layerStack.length - depth);
             return;
         }
-        while (layerStack.length > depth) {
-            const layer = layerStack.pop();
-            try { layer.closeFn(); } catch (e) {}
-        }
-        afterBack.splice(0).forEach((open) => { try { open(); } catch (e) {} });
+        // Pop first, close after: a closeFn may open a layer (the welcome
+        // card re-guards itself), and that must land above the new depth.
+        const closed = layerStack.splice(depth);
+        if (closed.some((l) => l.name === 'tab')) tabGen++;
+        closed.reverse().forEach((layer) => { try { layer.closeFn(); } catch (e) {} });
+        if (layerStack.length === depth) stamp();
+        // Landscape has no tab bar: a bare tab layer left on top would make
+        // the next back press a dead one — fold it (Home there is the full
+        // crate anyway).
+        if (!onPhone() && topLayerIs('tab')) backOneLayer();
+        flushAfterBack();
     });
 
     function topLayerIs(name) {
         return layerStack.length > 0 && layerStack[layerStack.length - 1].name === name;
     }
 
+    const hasLayer = (name) => layerStack.some((l) => l.name === name);
+
     // The single programmatic close path: every UI close control routes
     // here so popstate stays the one place layers actually close.
     function backOneLayer() {
         if (pendingBack || layerStack.length === 0) return;
-        pendingBack = true;
-        history.back();
+        traverse(-1);
     }
 
-    // Width-change teardown: close phone-only surfaces (NP, lyrics, song
-    // sheet, modals) but keep the playlist screen — a rotation must not
-    // kick the user back to the crate. The closed layers' history entries
-    // are consumed with one history.go() so back presses don't go dead;
-    // the depth-reconciling popstate handler makes that a no-op pop.
+    function popToDepth(d) {
+        const n = layerStack.length - d;
+        if (n <= 0 || pendingBack) return;
+        traverse(-n);
+    }
+
+    // Width-change teardown (rotation to landscape, or a desktop-width
+    // window): close the portrait-only surfaces (NP, lyrics, song sheet,
+    // modals) but keep the playlist screen — a rotation must not kick the
+    // user back to the crate — and the welcome guard. A bare tab layer
+    // folds (no tab bar there). The closed entries are consumed with one
+    // history.go(); the depth-reconciling popstate makes that a no-op pop.
     function teardownPhoneLayers() {
-        let n = 0;
-        while (layerStack.length && layerStack[layerStack.length - 1].name !== 'playlist') {
-            const layer = layerStack.pop();
-            try { layer.closeFn(); } catch (e) {}
-            n++;
+        if (pendingBack) {
+            afterBack.push(teardownPhoneLayers);
+            return;
         }
-        if (n > 0) {
-            try { history.go(-n); } catch (e) {}
+        const keep = (name) => name === 'playlist' || name === 'tab' || name === 'memberWelcome';
+        let d = layerStack.length;
+        while (d > 0 && !keep(layerStack[d - 1].name)) d--;
+        if (d > 0 && layerStack[d - 1].name === 'tab') d--;
+        const closed = layerStack.splice(d);
+        if (!closed.length) return;
+        closed.reverse().forEach((layer) => { try { layer.closeFn(); } catch (e) {} });
+        traverse(-closed.length);
+    }
+
+    // ============================================================
+    // Tabs (portrait phones): Home / Search / Library.
+    // Home is the base entry. Another tab adds ONE 'tab' layer above it,
+    // relabelled in place (replaceState) when switching between the other
+    // two, so back from any tab goes Home and back on Home leaves the app
+    // (like Spotify). Playlists, Now Playing, sheets and modals stack on
+    // top; switching tabs closes them. The tab lives in html[data-m-tab]
+    // (the head script sets it before first paint); the phone CSS does the
+    // showing and hiding, and ignores it in landscape and the app.
+    // ============================================================
+    const tabBar = document.getElementById('mTabs');
+    const roomCenter = document.getElementById('roomCenter');
+    const searchPage = document.getElementById('mSearchPage');
+    const playerView = document.getElementById('musicPlayerView');
+    const backText = document.querySelector('#backToCrate .back-text');
+    const TAB_NAMES = { home: 'Home', search: 'Search', library: 'Library' };
+    const tabScroll = {};
+
+    const tabScroller = (t) => (t === 'search' ? searchPage : roomCenter);
+
+    function setBackLabel() {
+        if (backText) backText.textContent = onPhone() ? TAB_NAMES[currentTab] : 'Crate';
+    }
+
+    function setTab(t) {
+        if (!TABS.includes(t)) t = 'home';
+        const prev = currentTab;
+        if (prev !== t) {
+            // Home and Library share the crate's scroller: keep each tab's place.
+            const from = tabScroller(prev);
+            if (from) tabScroll[prev] = from.scrollTop;
+        }
+        currentTab = t;
+        htmlEl.dataset.mTab = t;
+        if (tabBar) {
+            tabBar.querySelectorAll('.m-tab').forEach((b) => {
+                if (b.dataset.tab === t) b.setAttribute('aria-current', 'page');
+                else b.removeAttribute('aria-current');
+            });
+        }
+        setBackLabel();
+        if (prev !== t) {
+            const to = tabScroller(t);
+            if (to) to.scrollTop = tabScroll[t] || 0;
         }
     }
 
-    // Playlist screen is a layer over the crate
-    const crateVisible = () => {
-        const crate = document.getElementById('vinylCrateView');
-        return !!crate && !crate.classList.contains('hidden');
-    };
-    const playerViewActive = () =>
-        document.getElementById('musicPlayerView').classList.contains('active');
+    function closeTabLayer() {
+        setTab('home');
+    }
 
-    // Every way into the playlist screen (crate card, Jump back in, a search
+    const tabLayerIndex = () => layerStack.findIndex((l) => l.name === 'tab');
+
+    // Depth of the current tab's root screen (above the welcome guard).
+    function tabRootDepth() {
+        const ti = tabLayerIndex();
+        if (ti >= 0) return ti + 1;
+        let d = 0;
+        while (d < layerStack.length && layerStack[d].name === 'memberWelcome') d++;
+        return d;
+    }
+
+    function scrollTabToTop(t) {
+        const el = tabScroller(t);
+        if (el) {
+            try { el.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { el.scrollTop = 0; }
+        }
+        if (t === 'search' && searchInput) searchInput.focus();
+    }
+
+    // Converges rather than chaining: while a traversal is in flight it
+    // re-runs once that lands, so rapid taps end on the last tab tapped.
+    function switchTab(t) {
+        if (!TABS.includes(t) || !onPhone()) return;
+        if (pendingBack) {
+            afterBack.push(() => switchTab(t));
+            return;
+        }
+        if (hasLayer('memberWelcome')) return; // the PIN card goes first
+        if (t !== currentTab) tabGen++;
+        const root = tabRootDepth();
+        if (t === currentTab) {
+            // Re-tap: back to this tab's root, or to the top of it.
+            if (layerStack.length > root) popToDepth(root);
+            else scrollTabToTop(t);
+            return;
+        }
+        if (layerStack.length > root) {
+            // A playlist (or sheet) is open on this tab: close it first.
+            afterBack.push(() => switchTab(t));
+            popToDepth(root);
+            return;
+        }
+        const ti = tabLayerIndex();
+        if (t === 'home') {
+            if (ti >= 0) popToDepth(ti); // its closeFn shows Home
+            else setTab('home');
+            return;
+        }
+        if (ti >= 0) {
+            layerStack[ti].meta = { t };
+            setTab(t);
+            stamp();
+            return;
+        }
+        setTab(t);
+        openLayer('tab', closeTabLayer, { t });
+    }
+
+    if (tabBar) {
+        tabBar.addEventListener('click', (e) => {
+            const btn = e.target.closest('.m-tab');
+            if (btn) switchTab(btn.dataset.tab);
+        });
+    }
+
+    // The Search page hides while a playlist screen is open over it; the
+    // player view's .active is toggled from several places, so mirror it.
+    if (playerView) {
+        const sidebar = document.getElementById('musicSidebar');
+        const syncPlayerView = () => {
+            const on = playerView.classList.contains('active');
+            htmlEl.classList.toggle('m-pv', on);
+            // Closing the playlist screen fades the sidebar out but can leave
+            // its find field focused (hardware back): drop that focus, or the
+            // "keyboard" flag keeps the tab bar and dock hidden.
+            const a = document.activeElement;
+            if (!on && a && sidebar && sidebar.contains(a)) a.blur();
+        };
+        new MutationObserver(syncPlayerView)
+            .observe(playerView, { attributes: true, attributeFilter: ['class'] });
+        syncPlayerView();
+    }
+
+    // ---- Playlist screen: a layer over whichever tab opened it
+    const playerViewActive = () => !!playerView && playerView.classList.contains('active');
+
+    function closePlaylistLayer() {
+        if (playerViewActive()) origShowPicker();
+    }
+
+    // Every way into the playlist screen (crate card, Home tile, a search
     // hit) records one 'playlist' layer. While a back is still in flight
     // (a search hit closes the search sheet first) the push waits for it.
-    function pushPlaylistLayer() {
+    // stillWanted is checked when the push actually runs: if the user moved
+    // on meanwhile (another tab, or Now Playing / a sheet opened while it
+    // loaded) the playlist screen closes instead of landing on top of that.
+    function pushPlaylistLayer(stillWanted) {
         const push = () => {
-            if (!playerViewActive() || layerStack.some((l) => l.name === 'playlist')) return;
-            openLayer('playlist', () => {
-                if (playerViewActive()) origShowPicker();
-            });
+            if (!playerViewActive() || hasLayer('playlist')) return;
+            if (stillWanted && !stillWanted()) {
+                origShowPicker();
+                return;
+            }
+            openLayer('playlist', closePlaylistLayer, { p: String(activePlaylistId) });
         };
         if (pendingBack) afterBack.push(push); else push();
     }
 
     const origSelectPlaylist = window.selectPlaylistFromCrate;
     window.selectPlaylistFromCrate = async function () {
-        const wasCrate = crateVisible();
+        const wasRoot = !playerViewActive();
+        const genAt = openGen;
+        const tabGenAt = tabGen;
         const out = await origSelectPlaylist.apply(this, arguments);
-        if (inShell() && wasCrate) pushPlaylistLayer();
+        if (inShell() && wasRoot) pushPlaylistLayer(() => openGen === genAt && tabGen === tabGenAt);
         return out;
     };
 
-    // Jump back in opens the player directly (playRecentSong)
     const origOpenPlayerView = window.openPlayerView;
     window.openPlayerView = function () {
-        const wasCrate = crateVisible();
+        const wasRoot = !playerViewActive();
         const out = origOpenPlayerView.apply(this, arguments);
-        if (inShell() && wasCrate) pushPlaylistLayer();
+        if (inShell() && wasRoot) pushPlaylistLayer();
         return out;
     };
 
     const origShowPicker = window.showPlaylistPicker;
     window.showPlaylistPicker = function () {
-        if (inShell() && topLayerIs('playlist')) {
-            backOneLayer();
+        const pi = layerStack.findIndex((l) => l.name === 'playlist');
+        if (inShell() && pi >= 0) {
+            popToDepth(pi);
             return;
         }
         return origShowPicker.apply(this, arguments);
+    };
+
+    // Jump back in plays in place on phones: the mini player shows it, and
+    // Home stays put (the desktop crate still opens the player).
+    const origPlayRecentSong = window.playRecentSong;
+    window.playRecentSong = function (i, opts) {
+        if (onPhone()) return origPlayRecentSong.call(this, i, Object.assign({ stay: true }, opts));
+        return origPlayRecentSong.apply(this, arguments);
     };
 
     // Modals: wrap every show/hide global pair. Create and edit share the
@@ -8285,6 +8564,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // The Home avatar's sheet (stats, settings, log out)
+    const accountSheet = document.getElementById('mAccountSheet');
+    window.mShowAccountSheet = function () {
+        if (!accountSheet) return;
+        accountSheet.classList.add('active');
+        const first = accountSheet.querySelector('.m-account-row');
+        if (first) first.focus({ preventScroll: true });
+    };
+    window.mHideAccountSheet = function () {
+        if (!accountSheet) return;
+        const hadFocus = accountSheet.contains(document.activeElement);
+        accountSheet.classList.remove('active');
+        // Closed without picking a row (nothing else opened): back to the avatar.
+        if (hadFocus && !document.querySelector('.add-song-modal.active')) {
+            const avatar = document.getElementById('mAvatarBtn');
+            if (avatar) avatar.focus({ preventScroll: true });
+        }
+    };
+
     wrapModalPair('showSettingsModal', 'hideSettingsModal', 'settings');
     wrapModalPair('showAddSongModal', 'hideAddSongModal', 'addSong');
     wrapModalPair('showScanModal', 'hideScanModal', 'scan');
@@ -8295,19 +8593,279 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapModalPair('showStatsModal', 'hideStatsModal', 'stats');
     wrapModalPair('openQueueModal', 'hideQueueModal', 'queue');
     wrapModalPair('openVinylGifModal', 'closeVinylGifModal', 'vinylGif');
+    wrapModalPair('mShowAccountSheet', 'mHideAccountSheet', 'account');
+
+    // Portrait phones search on the Search tab; the modal is for landscape
+    // and desktop (the crate's Search button is hidden on the Home tab).
+    const modalShowSearch = window.showSearchModal;
+    window.showSearchModal = function () {
+        if (onPhone()) {
+            switchTab('search');
+            return;
+        }
+        return modalShowSearch.apply(this, arguments);
+    };
+
+    if (accountSheet) {
+        accountSheet.addEventListener('click', (e) => {
+            if (e.target.closest('[data-m-account-close]')) {
+                window.mHideAccountSheet();
+                return;
+            }
+            const row = e.target.closest('[data-m-account]');
+            if (!row) return;
+            window.mHideAccountSheet();
+            if (row.dataset.mAccount === 'stats') window.showStatsModal();
+            else if (row.dataset.mAccount === 'settings') window.showSettingsModal();
+        });
+    }
+    const avatarBtn = document.getElementById('mAvatarBtn');
+    if (avatarBtn) avatarBtn.addEventListener('click', () => window.mShowAccountSheet());
+    const libraryNew = document.getElementById('mLibraryNew');
+    if (libraryNew) libraryNew.addEventListener('click', () => window.showPlaylistCreateModal());
+
+    // A saved display name reaches the avatar and the account sheet.
+    window.mOnAccountName = function (name) {
+        const clean = String(name || '').trim();
+        if (!clean || clean === 'New member' || clean === 'Spotify listener') return;
+        const initial = Array.from(clean)[0].toUpperCase();
+        document.querySelectorAll('.m-avatar').forEach((el) => { el.textContent = initial; });
+        const label = document.getElementById('mAccountName');
+        if (label) label.textContent = clean;
+    };
+
+    // ---- Home: greeting + recently opened playlists
+    const greetingEl = document.getElementById('mGreeting');
+    function greet() {
+        if (!greetingEl) return;
+        const h = new Date().getHours();
+        greetingEl.textContent = h >= 5 && h < 12 ? 'Good morning'
+            : (h >= 12 && h < 18 ? 'Good afternoon' : 'Good evening');
+    }
+    greet();
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) greet();
+    });
+
+    const recentPlaylistsEl = document.getElementById('mRecentPlaylists');
+    const NOTE_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>';
+
+    // The Library card's cover is the server's pick (it avoids repeating a
+    // cover across playlists); the meta covers are the fallback.
+    function playlistCover(id) {
+        let img = null;
+        try { img = document.querySelector('.record-card[data-playlist="' + CSS.escape(id) + '"] img.cover-main'); } catch (e) {}
+        if (img && img.getAttribute('src')) return img.getAttribute('src');
+        const meta = playlistsMeta[id] || {};
+        const covers = Array.isArray(meta.covers) ? meta.covers : [];
+        const pick = covers.find((c) => c.index === meta.coverSongIndex) || covers[0];
+        return pick ? pick.url : '';
+    }
+
+    function renderRecentPlaylists() {
+        if (!recentPlaylistsEl || typeof playlistsMeta !== 'object' || !playlistsMeta) return;
+        const ids = [];
+        const add = (id) => {
+            id = String(id);
+            if (Object.prototype.hasOwnProperty.call(playlistsMeta, id) && !ids.includes(id)) ids.push(id);
+        };
+        // Recently opened first (the server's list can fall back to every
+        // playlist in order, hence the cap), then the rest of the library.
+        (Array.isArray(recentlyPlayed) ? recentlyPlayed : []).forEach(add);
+        Object.keys(playlistsMeta).forEach(add);
+        const list = ids.slice(0, 6);
+        recentPlaylistsEl.classList.toggle('is-empty', list.length === 0);
+        recentPlaylistsEl.innerHTML = list.map((id) => {
+            const meta = playlistsMeta[id];
+            const cover = safeUrl(playlistCover(id));
+            const color = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#d4a574';
+            const art = cover
+                ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy">`
+                : `<span class="m-rp-art-empty">${NOTE_ICON}</span>`;
+            const active = id === String(activePlaylistId) ? ' is-active' : '';
+            return `<button type="button" class="m-rp-tile${active}" data-playlist="${escapeHtml(id)}" style="--pl-color:${color}">
+                <span class="m-rp-art">${art}</span>
+                <span class="m-rp-name">${escapeHtml(meta.name || id)}</span>
+            </button>`;
+        }).join('');
+    }
+
+    if (recentPlaylistsEl) {
+        recentPlaylistsEl.addEventListener('click', (e) => {
+            const tile = e.target.closest('.m-rp-tile');
+            if (tile) window.selectPlaylistFromCrate(tile.dataset.playlist);
+        });
+    }
+    // Playlist switches and edits (name, colour, cover) already refresh the
+    // crate's recent records — follow them.
+    const origUpdateCrateRecords = window.updateCrateRecords;
+    if (typeof origUpdateCrateRecords === 'function') {
+        window.updateCrateRecords = function () {
+            const out = origUpdateCrateRecords.apply(this, arguments);
+            renderRecentPlaylists();
+            return out;
+        };
+    }
+    renderRecentPlaylists();
+
+    // ---- Search tab: its own field and results, same library search
+    const searchInput = document.getElementById('mSearchInput');
+    const searchResultsEl = document.getElementById('mSearchResults');
+    const searchClear = document.getElementById('mSearchClear');
+    const searchStatus = document.getElementById('mSearchStatus');
+    const announce = (text) => { if (searchStatus) searchStatus.textContent = text; };
+    let pageResults = [];
+    let pageSearchTimer = 0;
+    let pageSearchSeq = 0;
+
+    function searchHint(text) {
+        if (searchResultsEl) searchResultsEl.innerHTML = '<div class="m-search-hint">' + escapeHtml(text) + '</div>';
+    }
+
+    function renderPageResults(list, q) {
+        pageResults = list;
+        if (!list.length) {
+            searchHint('No songs in your library match “' + q + '”.');
+            announce('No songs found');
+            return;
+        }
+        announce(list.length === 1 ? '1 song found' : list.length + ' songs found');
+        searchResultsEl.innerHTML = list.map((r, i) => {
+            const cover = safeUrl(r.cover);
+            const coverHtml = cover
+                ? `<img class="search-result-cover" src="${escapeHtml(cover)}" alt="" loading="lazy">`
+                : `<div class="search-result-cover search-result-cover-empty">${NOTE_ICON}</div>`;
+            const artist = r.artist ? `<span class="search-result-artist">${escapeHtml(r.artist)}</span>` : '';
+            const color = /^#[0-9a-fA-F]{6}$/.test(r.playlistColor || '') ? r.playlistColor : '#d4a574';
+            return `<button type="button" class="search-result" data-i="${i}">
+                ${coverHtml}
+                <span class="search-result-info">
+                    <span class="search-result-title">${escapeHtml(r.title)}</span>
+                    ${artist}
+                </span>
+                <span class="search-result-pl" style="--pl-color:${color}">${escapeHtml(r.playlistName)}</span>
+            </button>`;
+        }).join('');
+    }
+
+    function runPageSearch() {
+        if (!searchInput) return;
+        const q = searchInput.value.trim();
+        if (searchClear) searchClear.hidden = !searchInput.value;
+        try { sessionStorage.setItem('mSearchQuery', searchInput.value); } catch (e) {}
+        clearTimeout(pageSearchTimer);
+        const seq = ++pageSearchSeq;
+        if (q.length < 2) {
+            pageResults = [];
+            searchHint(q ? 'Keep typing…' : 'Find any song across all your playlists.');
+            return;
+        }
+        pageSearchTimer = setTimeout(async () => {
+            try {
+                const list = await fetchLibrarySearch(q);
+                if (seq === pageSearchSeq) renderPageResults(list, q);
+            } catch (e) {
+                if (seq === pageSearchSeq) {
+                    searchHint('Search failed. Check your connection and try again.');
+                    announce('Search failed');
+                }
+            }
+        }, 220);
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', runPageSearch);
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') searchInput.blur(); // done typing: drop the keyboard
+        });
+        let savedQuery = '';
+        try { savedQuery = sessionStorage.getItem('mSearchQuery') || ''; } catch (e) {}
+        searchInput.value = savedQuery;
+        runPageSearch();
+    }
+    if (searchClear) {
+        searchClear.addEventListener('click', () => {
+            searchInput.value = '';
+            runPageSearch();
+            searchInput.focus();
+        });
+    }
+    if (searchResultsEl) {
+        searchResultsEl.addEventListener('click', (e) => {
+            const row = e.target.closest('.search-result');
+            const hit = row ? pageResults[parseInt(row.dataset.i, 10)] : null;
+            if (!hit) return;
+            if (searchInput) searchInput.blur();
+            playSearchHit(hit);
+        });
+    }
+
+    // ---- Reload: history.state survives it (back stays in this document),
+    // so rebuild what the page can still show — the tab, and the playlist
+    // screen if it's still the active playlist (it's already rendered) —
+    // WITHOUT pushing: entries pushed before the first tap are skipped by
+    // Chromium's hardware back. Entries for surfaces that didn't survive
+    // (Now Playing, sheets, modals, an old welcome guard) are consumed with
+    // one history.go(), so no back press goes dead.
+    (function adoptHistory() {
+        const st = history.state;
+        const depth = st && typeof st.mDepth === 'number' ? st.mDepth : 0;
+        const saved = st && Array.isArray(st.mStack) ? st.mStack : [];
+        let i = 0;
+        const playlistAt = (k) => inShell() && !!saved[k] && saved[k].n === 'playlist'
+            && saved[k].p === String(activePlaylistId);
+        if (saved[i] && saved[i].n === 'tab' && (saved[i].t === 'search' || saved[i].t === 'library')
+            && (onPhone() || playlistAt(i + 1))) {
+            // Landscape keeps [tab, playlist] too (a rotation does); a bare
+            // tab there folds on the next back.
+            layerStack.push({ name: 'tab', closeFn: closeTabLayer, meta: { t: saved[i].t } });
+            i++;
+        }
+        if (playlistAt(i)) {
+            origOpenPlayerView();
+            layerStack.push({ name: 'playlist', closeFn: closePlaylistLayer, meta: { p: saved[i].p } });
+            i++;
+        }
+        setTab(tabLayerIndex() >= 0 ? layerStack[tabLayerIndex()].meta.t : 'home');
+        const extra = depth - layerStack.length;
+        if (extra > 0) traverse(-extra); // the landing popstate stamps it
+        else stamp();
+    })();
 
     // The member welcome card shows the PIN exactly once and must not be
     // dismissible — a hardware back would otherwise leave the page and
     // lose the PIN forever. While the card is up, back is a no-op: the
-    // popped guard layer immediately re-pushes itself.
+    // popped guard layer re-pushes itself (after the pop, see popstate).
+    const welcomeCardUp = () => {
+        const card = document.getElementById('memberWelcomeModal');
+        return !!card && getComputedStyle(card).display !== 'none';
+    };
     if (document.getElementById('memberWelcomeModal')) {
         const reGuardWelcome = () => {
-            const card = document.getElementById('memberWelcomeModal');
-            if (card && getComputedStyle(card).display !== 'none') {
-                openLayer('memberWelcome', reGuardWelcome);
-            }
+            if (welcomeCardUp()) openLayer('memberWelcome', reGuardWelcome);
         };
         openLayer('memberWelcome', reGuardWelcome);
+
+        // Once the card is dismissed its guard goes too — else the next back
+        // press would be a dead one (and tabs stay locked behind it).
+        const dropWelcomeGuard = () => {
+            if (topLayerIs('memberWelcome') && !welcomeCardUp()) backOneLayer();
+        };
+        const origWizard = window.showFirstRunWizard;
+        if (typeof origWizard === 'function') {
+            window.showFirstRunWizard = function () {
+                dropWelcomeGuard(); // the wizard's modal layer then waits for it
+                return origWizard.apply(this, arguments);
+            };
+        }
+        const origFinishWelcome = window.finishMemberWelcome;
+        if (typeof origFinishWelcome === 'function') {
+            window.finishMemberWelcome = async function () {
+                const out = await origFinishWelcome.apply(this, arguments);
+                dropWelcomeGuard();
+                return out;
+            };
+        }
     }
 
     // ============================================================
@@ -8456,13 +9014,9 @@ document.addEventListener('DOMContentLoaded', () => {
         mVolumeRange.addEventListener('input', () => setVolume(parseInt(mVolumeRange.value, 10)));
     }
 
-    // ---- Dock tap opens the NP sheet (entering the playlist screen
-    // first when coming from the crate, so back unwinds naturally) ----
-    window.mOpenNowPlaying = async function () {
-        const crate = document.getElementById('vinylCrateView');
-        if (crate && !crate.classList.contains('hidden')) {
-            await window.selectPlaylistFromCrate(activePlaylistId);
-        }
+    // ---- Dock tap opens the NP sheet over whatever is showing (any tab or
+    // the playlist screen); closing it reveals that same screen.
+    window.mOpenNowPlaying = function () {
         openNp();
     };
 
@@ -8565,6 +9119,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---- Info area: tap opens the player; horizontal swipe = prev/next.
     if (dockInfo) {
         let startX = 0, startY = 0, startT = 0, dx = 0, dy = 0, tracking = false, horizontal = false;
+        // Whether the last pointer gesture on the info area was a tap.
+        let lastWasTap = false;
 
         dockInfo.addEventListener('pointerdown', (e) => {
             if (!onPhone()) return;
@@ -8601,20 +9157,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (Math.abs(dx) >= 48 || velocity > 0.4) {
                     if (dx < 0) nextSong(); else prevSong();
                 }
-            } else if (e.type !== 'pointercancel'
-                && Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) {
-                // Tap: open the Now Playing sheet (via the playlist screen
-                // when coming from the crate, so back unwinds naturally).
-                // Cancelled pointers and vertical flicks (touch-action:pan-y
-                // hands them to the scroller) must never count as taps.
-                if (window.mOpenNowPlaying) window.mOpenNowPlaying();
             }
+            // Cancelled pointers and vertical flicks (touch-action:pan-y
+            // hands them to the scroller) must never count as taps.
+            lastWasTap = !horizontal && e.type !== 'pointercancel'
+                && Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 500;
             dx = 0;
             dy = 0;
             horizontal = false;
         };
         dockInfo.addEventListener('pointerup', settle);
         dockInfo.addEventListener('pointercancel', settle);
+
+        // Tap: open the Now Playing sheet over the current screen — on the
+        // click, not on pointerup. The dock hides as the sheet opens, and a
+        // tap's click comes after pointerup: it would land on whatever was
+        // under the dock (a song row, a search hit) and play that instead.
+        // A keyboard click (detail 0) has no pointer gesture to check.
+        dockInfo.addEventListener('click', (e) => {
+            if (!onPhone()) return;
+            if (e.detail !== 0 && !lastWasTap) return;
+            lastWasTap = false;
+            if (window.mOpenNowPlaying) window.mOpenNowPlaying();
+        });
     }
 
     // ---- Leaving phone widths: strip mobile-only state so desktop is clean.
@@ -8627,7 +9192,13 @@ document.addEventListener('DOMContentLoaded', () => {
             window.__mScrubbing = false;
             // Keep the find-in-songs query across the breakpoint — the filter
             // works on desktop too now, so don't wipe it when leaving phone.
+        } else if (modalOpen.search) {
+            // Back to portrait with the landscape search open: carry on in
+            // the Search tab (the switch waits for the modal's back).
+            window.hideSearchModal();
+            switchTab('search');
         }
+        setBackLabel();
         updateDockVisibility();
     });
 })();

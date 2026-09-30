@@ -54,6 +54,29 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
   a Jump back in song (back returns to the crate), in portrait and landscape.
 - [ ] iOS RIGHT-edge swipe (forward): should snap back, not corrupt the UI.
 
+## Tabs (Home / Search / Library)
+
+- [ ] Installed app, fresh launch: opens on Home. Back on Home closes the
+  app; back on Search or Library goes to Home first.
+- [ ] Library → open a playlist → back → Library → back → Home.
+- [ ] Search: type, tap a hit (its playlist opens and plays), back →
+  the same results are still there.
+- [ ] Tap the mini player on each tab: Now Playing opens over that tab and
+  closing it (back, chevron, drag down) shows the same tab again. The tab
+  bar hides while Now Playing is up.
+- [ ] Tapping the mini player never also plays the song row under it.
+- [ ] While a playlist is open, tapping another tab closes it; tapping its
+  own tab again goes back to the tab's top.
+- [ ] Reload (pull to refresh) on a playlist opened from Library: the same
+  playlist and tab come back, and each back press does something.
+- [ ] Jump back in plays the song without leaving Home.
+- [ ] Avatar → Your listening / Settings open, and back closes them.
+- [ ] Typing in Search: the tab bar and mini player hide for the keyboard
+  and come back after.
+- [ ] Gesture bar / home indicator: the tab bar's labels sit above it.
+- [ ] New member signup: back while the number + PIN card is up does
+  nothing (and doesn't freeze); after Continue, tabs work.
+
 ## Keyboard & safe areas
 
 - [ ] Tap the find-in-playlist filter: keyboard opens, dock hides, filter
@@ -77,12 +100,19 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Rotate mid-song in the browser (not the PWA — it's portrait-locked):
   landscape shows track list + compact now-playing + dock; rotating back
   restores the portrait shell; nothing gets stuck.
+- [ ] Landscape (wider than 600px — most phones) has no tab bar: the full
+  crate (Search, Stats, Settings buttons) shows. Very small phones
+  (568x320) keep the phone layout, tabs included. Rotating from the Search or Library tab lands on Home
+  when you come back; an open playlist survives the rotation.
 
 ## Known-acceptable
 
 - iPhone: YouTube tracks stopping on screen lock and headset skip not
   working for them (WebKit limitation; the RN shell or PREFER_LOCAL_ON_PHONE
   are the levers).
-- Playlist create/delete still reloads the page (resets the back-button
-  layer stack once).
+- Playlist create/delete still reloads the page; the tab and an open
+  playlist come back, Now Playing and sheets don't.
+- Switching tabs closes a playlist that was open on the old tab (reopening
+  a playlist can switch the active one and stop the music, so tabs don't
+  keep their own stack like Spotify's).
 - Vinyl GIF maker is desktop-oriented on phones.
