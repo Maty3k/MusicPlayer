@@ -838,6 +838,24 @@
                     <span class="m-loop-one">1</span>
                 </button>
             </div>
+            {{-- Phone Now Playing: like, sleep timer, the queue, and the volume
+                 slider on demand (portrait web shell; wired in script.js) --}}
+            <div id="mNpTools" class="m-only" role="group" aria-label="More for this song">
+                <button type="button" id="mNpLike" aria-pressed="false" aria-label="Add to Favorites">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.8-8.85a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                </button>
+                <button type="button" id="mNpSleep" aria-haspopup="dialog" aria-label="Sleep timer">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/></svg>
+                    <span class="m-np-tool-label" id="mNpSleepLabel"></span>
+                </button>
+                <button type="button" id="mNpQueue" aria-label="Up next">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/></svg>
+                    <span class="m-np-tool-badge" id="mNpQueueCount" hidden>0</span>
+                </button>
+                <button type="button" id="mNpVolume" aria-expanded="false" aria-controls="mVolume" aria-label="Volume">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+                </button>
+            </div>
             <div id="mVolume" class="m-only">
                 <input type="range" id="mVolumeRange" min="0" max="100" value="100" aria-label="Volume">
             </div>
@@ -1280,6 +1298,22 @@
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 13h9l1-13"/></svg></span>
                 <span class="m-sheet-text"><b>Delete playlist</b></span>
             </button>
+        </div>
+    </div>
+    {{-- Phone: Now Playing's sleep timer (the same timer as desktop's coaster
+         and Settings). Opened and registered for back by script.js. --}}
+    <div class="add-song-modal m-menu-sheet" id="mSleepSheet" role="dialog" aria-modal="true" aria-labelledby="mSleepSheetTitle">
+        <div class="add-song-modal-backdrop" data-m-sleep-close></div>
+        <div class="add-song-modal-panel">
+            <button type="button" class="add-song-modal-close" data-m-sleep-close aria-label="Close">&times;</button>
+            <h2 class="m-sheet-title" id="mSleepSheetTitle">Sleep timer</h2>
+            <p class="m-sleep-status" id="mSleepStatus">Fades the music out and pauses.</p>
+            <button type="button" class="m-sheet-row m-sheet-compact m-sleep-opt" data-m-sleep="15"><span class="m-sheet-text"><b>15 minutes</b></span></button>
+            <button type="button" class="m-sheet-row m-sheet-compact m-sleep-opt" data-m-sleep="30"><span class="m-sheet-text"><b>30 minutes</b></span></button>
+            <button type="button" class="m-sheet-row m-sheet-compact m-sleep-opt" data-m-sleep="45"><span class="m-sheet-text"><b>45 minutes</b></span></button>
+            <button type="button" class="m-sheet-row m-sheet-compact m-sleep-opt" data-m-sleep="60"><span class="m-sheet-text"><b>1 hour</b></span></button>
+            <button type="button" class="m-sheet-row m-sheet-compact m-sleep-opt" data-m-sleep="end"><span class="m-sheet-text"><b>End of this song</b></span></button>
+            <button type="button" class="m-sheet-row m-sheet-compact m-sleep-opt" data-m-sleep="0" id="mSleepOff"><span class="m-sheet-text"><b>Turn off</b></span></button>
         </div>
     </div>
     {{-- Phone: the Library "+" (a new playlist, or bring one over). Opened

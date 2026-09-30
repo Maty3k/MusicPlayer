@@ -103,6 +103,20 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] An empty playlist shows Add songs and Import; Import pre-selects
   "Add to <this playlist>".
 
+## Now Playing tools row
+
+- [ ] Under the transport: ♥, sleep (moon), Up next (with a count when songs
+  are queued) and 🔊. The volume slider only appears after tapping 🔊, above
+  the row, and tucks away a few seconds after you let go.
+- [ ] ♥ follows the song on screen after next/previous and autoplay; liking
+  a song outside Favorites shows "Added to Favorites".
+- [ ] Sleep → 30 minutes: the button reads "30m" and counts down; the music
+  fades and pauses on time. "End of this song" stops after the song.
+- [ ] Toasts over Now Playing appear just below its header and never block
+  the close chevron.
+- [ ] Small phones (e.g. 360x640): the lyrics card's expand button is still
+  visible.
+
 ## Keyboard & safe areas
 
 - [ ] Tap the find-in-playlist filter: keyboard opens, dock hides, filter

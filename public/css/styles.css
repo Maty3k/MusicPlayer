@@ -15580,3 +15580,140 @@ button.send-menu-cancel {
     .send-menu-sheet { max-height: 90dvh; }
     .send-menu-sheet:has(.send-menu-picker:not([hidden])) .send-menu-song { display: none; }
 }
+
+/* ============================================================
+   NOW PLAYING TOOLS (portrait web shell): like · sleep · up next ·
+   volume, with the volume slider shown on demand.
+   ============================================================ */
+.m-sleep-status {
+    margin: -4px 4px 10px;
+    font-size: 0.88rem;
+    color: color-mix(in srgb, var(--cream) 65%, transparent);
+}
+
+.m-menu-sheet .m-sleep-opt.is-current { color: var(--amber); }
+.m-menu-sheet .m-sleep-opt.is-current b::after { content: ' ✓'; }
+.m-menu-sheet #mSleepOff b { color: color-mix(in srgb, var(--cream) 75%, transparent); }
+
+@media (max-width: 600px) {
+    html[data-m-tab] #mNpTools {
+        order: 5;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: min(80vw, 300px);
+        margin-top: 2px;
+        padding: 0 0 calc(8px + var(--m-safe-b));
+        flex: none;
+    }
+
+    /* The slider takes its own row only while it's open — above the tools,
+       so 🔊 stays where the finger is (a second tap closes it, instead of
+       landing on the slider's far end) */
+    html[data-m-tab] #mVolume {
+        order: 4;
+        padding-bottom: 0;
+    }
+    html[data-m-tab] body:not(.m-vol-open) #mVolume { display: none; }
+
+    html[data-m-tab] body.m-vol-open #mVolume {
+        animation: mVolIn 180ms ease-out;
+    }
+
+    #mNpTools button {
+        position: relative;
+        width: 48px;
+        height: 48px;
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: none;
+        color: color-mix(in srgb, var(--m-cream) 70%, transparent);
+        font-family: inherit;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    #mNpTools button[hidden] { display: none; }
+    #mNpTools button:active { background: rgba(255, 245, 233, 0.08); }
+    #mNpTools button:disabled { opacity: 0.4; }
+
+    #mNpTools button.is-on,
+    #mNpTools #mNpVolume[aria-expanded="true"] { color: var(--m-gold); }
+
+    #mNpTools #mNpLike.is-on svg { fill: currentColor; }
+
+    /* The sleep button grows a "23m" / "End" label while the timer runs */
+    #mNpTools #mNpSleep.is-on {
+        width: auto;
+        min-width: 48px;
+        padding: 0 10px;
+        border-radius: 24px;
+    }
+
+    .m-np-tool-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .m-np-tool-label:empty { display: none; }
+
+    .m-np-tool-badge {
+        position: absolute;
+        top: 6px;
+        right: 4px;
+        min-width: 17px;
+        height: 17px;
+        padding: 0 4px;
+        border-radius: 9px;
+        background: var(--m-gold);
+        color: var(--m-ink);
+        font: 700 0.68rem/17px Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        text-align: center;
+    }
+
+    .m-np-tool-badge[hidden] { display: none; }
+}
+
+@keyframes mVolIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html[data-m-tab] body.m-vol-open #mVolume { animation: none; }
+}
+
+/* Now Playing covers the tab bar and mini player the bottom toasts sit
+   above: while it's open they drop down from the top instead of landing
+   on the transport. */
+@media (max-width: 600px) {
+    /* Below Now Playing's header (its chevron and ⋯ stay tappable) and the
+       top toasts; taps pass through */
+    body.m-np-open .m-toast {
+        top: calc(76px + env(safe-area-inset-top, 0px));
+        bottom: auto;
+        pointer-events: none;
+    }
+}
+
+/* Short phones: the tools row costs height, so the record shrinks rather
+   than the lyrics preview losing its expand button */
+@media (max-width: 600px) and (max-height: 700px) {
+    html[data-m-tab] .record-player {
+        width: min(66vw, 252px, calc(100dvh - 444px));
+        height: min(66vw, 252px, calc(100dvh - 444px));
+    }
+
+    html[data-m-tab] .record-player-platter {
+        width: min(240px, calc(100dvh - 444px));
+        height: min(240px, calc(100dvh - 444px));
+    }
+}

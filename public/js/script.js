@@ -1394,6 +1394,19 @@ function updateSleepLabel() {
     // Desktop coaster label.
     const label = document.getElementById('sleepLabel');
     if (label) label.textContent = sleepEndOfTrack ? 'end of track' : (countdown || 'sleep');
+    // Now Playing's sleep button on phones: minutes left, or "End".
+    const npSleep = document.getElementById('mNpSleep');
+    if (npSleep) {
+        const on = !!(sleepEndOfTrack || sleepDeadline);
+        const mins = sleepDeadline ? Math.max(1, Math.ceil((sleepDeadline - Date.now()) / 60000)) : 0;
+        npSleep.classList.toggle('is-on', on);
+        npSleep.setAttribute('aria-label', sleepEndOfTrack ? 'Sleep timer: end of this song'
+            : (mins ? `Sleep timer: ${mins} min left` : 'Sleep timer'));
+        const npLabel = document.getElementById('mNpSleepLabel');
+        if (npLabel) npLabel.textContent = sleepEndOfTrack ? 'End' : (mins ? mins + 'm' : '');
+    }
+    // The phone's sleep sheet, while it's open.
+    if (typeof window.mSyncSleepSheet === 'function') window.mSyncSleepSheet();
     // Settings-modal status line (the mobile entry point's feedback).
     const hint = document.getElementById('sleepStatusHint');
     if (hint) {
@@ -1586,6 +1599,13 @@ function restoreQueue() {
 }
 
 function updateQueueBadge() {
+    const npCount = document.getElementById('mNpQueueCount');
+    if (npCount) {
+        npCount.textContent = playQueue.length;
+        npCount.hidden = playQueue.length === 0;
+        const btn = document.getElementById('mNpQueue');
+        if (btn) btn.setAttribute('aria-label', playQueue.length ? `Up next: ${playQueue.length} queued` : 'Up next');
+    }
     const badge = document.getElementById('queueCountBadge');
     if (!badge) return;
     badge.textContent = playQueue.length;
@@ -4405,7 +4425,10 @@ function updateFavoriteHearts() {
 // Toggle a song in/out of the Favorites playlist. Optimistic — the heart flips
 // immediately and reverts if the server rejects.
 async function toggleFavorite(index) {
-    const song = songsData[index];
+    return toggleFavoriteSong(songsData[index]);
+}
+
+async function toggleFavoriteSong(song) {
     if (!song) return;
     const key = songPlayKey(song);
     const wasFav = favoriteKeys.has(key);
@@ -8195,6 +8218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.m-toast').forEach((t) => t.remove());
         const toast = document.createElement('div');
         toast.className = 'm-toast';
+        toast.setAttribute('role', 'status');
         toast.textContent = text;
         document.body.appendChild(toast);
         // Long enough to read: 2s, plus a little per character, up to 6s.
@@ -9588,6 +9612,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================================
     function openNp() {
         if (!onPhone() || document.body.classList.contains('m-np-open')) return;
+        setVolumeOpen(false);
         // A song sheet still up (keyboard users can reach the mini player
         // behind it): close it first, then open.
         if (songSheetOpen) {
@@ -9599,7 +9624,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const title = document.getElementById('playlistTitle');
         if (fromName && title) fromName.textContent = title.textContent;
         document.body.classList.add('m-np-open');
-        openLayer('np', () => document.body.classList.remove('m-np-open'));
+        openLayer('np', () => {
+            document.body.classList.remove('m-np-open');
+            setVolumeOpen(false);
+        });
     }
 
     function closeNp() {
@@ -9734,6 +9762,207 @@ document.addEventListener('DOMContentLoaded', () => {
         mVolume.style.display = 'none';
     } else if (mVolumeRange) {
         mVolumeRange.addEventListener('input', () => setVolume(parseInt(mVolumeRange.value, 10)));
+    }
+
+    // ============================================================
+    // Now Playing tools row: like · sleep timer · up next · volume (the
+    // slider shows on demand, so it doesn't take a row of its own).
+    // ============================================================
+    const npLike = document.getElementById('mNpLike');
+    const npSleep = document.getElementById('mNpSleep');
+    const npQueue = document.getElementById('mNpQueue');
+    const npVolume = document.getElementById('mNpVolume');
+
+    // The song on screen. A track change shows the new song before the
+    // playlist position catches up (switchSong saves first), so follow what
+    // is displayed rather than songsData[currentSongIndex].
+    let npShown = null;
+    const npSong = () => npShown || (typeof currentRadioSong !== 'undefined' && currentRadioSong)
+        || (Array.isArray(songsData) ? songsData[currentSongIndex] : null) || null;
+    const inLoadedList = (song) => !!song && Array.isArray(songsData)
+        && songsData.some((x) => x === song || songPlayKey(x) === songPlayKey(song));
+
+    // In Favorites a song of the list can't be unliked from here (the list
+    // and the server's positions would drift apart); the song menu's Remove
+    // does it properly.
+    const lockedInFavorites = (song) => activePlaylistId === 'favorites' && inLoadedList(song);
+
+    let npLikeBusy = false;
+    function syncNpLike() {
+        if (!npLike) return;
+        const song = npSong();
+        const locked = lockedInFavorites(song);
+        const liked = !!song && (locked || favoriteKeys.has(songPlayKey(song)));
+        npLike.classList.toggle('is-on', liked);
+        npLike.setAttribute('aria-pressed', liked ? 'true' : 'false');
+        npLike.setAttribute('aria-label', 'Favorite');
+        if (locked) npLike.setAttribute('aria-disabled', 'true'); else npLike.removeAttribute('aria-disabled');
+        npLike.disabled = !song;
+    }
+
+    if (npLike) {
+        npLike.addEventListener('click', async () => {
+            const song = npSong();
+            if (!song || npLikeBusy) return;
+            if (lockedInFavorites(song)) {
+                window.mToast('In your Favorites — remove it from the song menu (⋯)');
+                return;
+            }
+            const key = songPlayKey(song);
+            const wasFav = favoriteKeys.has(key);
+            npLikeBusy = true;
+            npLike.classList.toggle('is-on', !wasFav); // answer the tap at once
+            try {
+                await toggleFavoriteSong(song);
+            } finally {
+                npLikeBusy = false;
+            }
+            const nowFav = favoriteKeys.has(key);
+            // Liked while Favorites is the list on screen (a radio pick): the
+            // server appended it, so the list shows it too.
+            if (nowFav && !wasFav && activePlaylistId === 'favorites' && !inLoadedList(song)) {
+                songsData.push(Object.assign({}, song));
+                rebuildSongList();
+                updateTrackCount();
+            }
+            syncNpLike();
+            window.mToast(nowFav === wasFav ? 'Couldn\'t update Favorites. Try again.'
+                : (nowFav ? 'Added to Favorites' : 'Removed from Favorites'));
+        });
+    }
+
+    // Track changes rewrite the now-playing text (the song object comes
+    // through animateRecordChange / updateSongDisplay just before); favorites
+    // changes redraw the hearts. Both keep the ♥ right.
+    const npPrevRecordChange = window.animateRecordChange;
+    if (typeof npPrevRecordChange === 'function') {
+        window.animateRecordChange = function (newSong) {
+            npShown = newSong || null;
+            return npPrevRecordChange.apply(this, arguments);
+        };
+    }
+    const npPrevSongDisplay = window.updateSongDisplay;
+    if (typeof npPrevSongDisplay === 'function') {
+        window.updateSongDisplay = function (song) {
+            // Only real songs (the empty-playlist placeholder isn't one).
+            const real = song && (inLoadedList(song) || song === currentRadioSong);
+            npShown = real ? song : null;
+            return npPrevSongDisplay.apply(this, arguments);
+        };
+    }
+    const npPrevNowPlayingText = window.setNowPlayingText;
+    if (typeof npPrevNowPlayingText === 'function') {
+        window.setNowPlayingText = function (title, artist) {
+            const out = npPrevNowPlayingText.apply(this, arguments);
+            const same = (x) => x && (x.title || '') === (title || '') && (x.artist || '') === (artist || '');
+            const radio = typeof currentRadioSong !== 'undefined' ? currentRadioSong : null;
+            const listed = Array.isArray(songsData) ? songsData[currentSongIndex] : null;
+            npShown = [npShown, radio, listed].find(same) || null;
+            syncNpLike();
+            return out;
+        };
+    }
+    const npPrevHearts = window.updateFavoriteHearts;
+    if (typeof npPrevHearts === 'function') {
+        window.updateFavoriteHearts = function () {
+            const out = npPrevHearts.apply(this, arguments);
+            syncNpLike();
+            return out;
+        };
+    }
+    syncNpLike();
+    if (typeof updateQueueBadge === 'function') updateQueueBadge();
+    if (typeof updateSleepLabel === 'function') updateSleepLabel();
+
+    if (npQueue) npQueue.addEventListener('click', () => window.openQueueModal());
+
+    // Volume on demand: the slider slides in under the row, and tucks away a
+    // few seconds after the last touch (or when Now Playing closes).
+    let volumeTimer = 0;
+    let volumeHeld = false;
+    function armVolumeHide() {
+        clearTimeout(volumeTimer);
+        volumeTimer = setTimeout(function hide() {
+            // Not from under a finger, and not while it has keyboard focus.
+            const a = document.activeElement;
+            if (volumeHeld || (mVolume && mVolume.contains(a))) {
+                volumeTimer = setTimeout(hide, 5000);
+                return;
+            }
+            setVolumeOpen(false);
+        }, 5000);
+    }
+    function setVolumeOpen(open) {
+        document.body.classList.toggle('m-vol-open', open);
+        if (npVolume) npVolume.setAttribute('aria-expanded', open ? 'true' : 'false');
+        clearTimeout(volumeTimer);
+        if (open) {
+            if (mVolumeRange && typeof currentVolume !== 'undefined') mVolumeRange.value = currentVolume;
+            armVolumeHide();
+        }
+    }
+    if (npVolume) {
+        if (isIOS) npVolume.hidden = true; // hardware-locked there
+        npVolume.addEventListener('click', () => setVolumeOpen(!document.body.classList.contains('m-vol-open')));
+    }
+    if (mVolumeRange) {
+        const keepOpen = () => { if (document.body.classList.contains('m-vol-open')) armVolumeHide(); };
+        mVolumeRange.addEventListener('input', keepOpen);
+        mVolumeRange.addEventListener('focus', keepOpen);
+        mVolumeRange.addEventListener('pointerdown', () => { volumeHeld = true; keepOpen(); });
+        ['pointerup', 'pointercancel'].forEach((t) => mVolumeRange.addEventListener(t, () => { volumeHeld = false; keepOpen(); }));
+    }
+
+    // Sleep timer sheet
+    const sleepSheet = document.getElementById('mSleepSheet');
+    function syncSleepSheet() {
+        if (!sleepSheet) return;
+        const endOfTrack = typeof sleepEndOfTrack !== 'undefined' && sleepEndOfTrack;
+        const deadline = typeof sleepDeadline !== 'undefined' ? sleepDeadline : 0;
+        const status = document.getElementById('mSleepStatus');
+        if (status) {
+            const mins = deadline ? Math.max(1, Math.ceil((deadline - Date.now()) / 60000)) : 0;
+            status.textContent = endOfTrack ? 'Pausing when this song ends.'
+                : (mins ? `Pausing in ${mins} min.` : 'Fades the music out and pauses.');
+        }
+        const off = document.getElementById('mSleepOff');
+        if (off) off.hidden = !(endOfTrack || deadline);
+        sleepSheet.querySelectorAll('[data-m-sleep]').forEach((b) => {
+            b.classList.toggle('is-current', b.dataset.mSleep === 'end' && endOfTrack);
+        });
+    }
+    window.mSyncSleepSheet = function () {
+        if (sleepSheet && sleepSheet.classList.contains('active')) syncSleepSheet();
+    };
+    window.mShowSleepSheet = function () {
+        if (!sleepSheet) return;
+        syncSleepSheet();
+        sleepSheet.classList.add('active');
+        const first = sleepSheet.querySelector('.m-sleep-opt');
+        if (first) first.focus({ preventScroll: true });
+    };
+    window.mHideSleepSheet = function () {
+        if (!sleepSheet) return;
+        const hadFocus = sleepSheet.contains(document.activeElement);
+        sleepSheet.classList.remove('active');
+        if (hadFocus && npSleep && !document.querySelector('.add-song-modal.active')) npSleep.focus({ preventScroll: true });
+    };
+    wrapModalPair('mShowSleepSheet', 'mHideSleepSheet', 'sleep');
+    if (npSleep) npSleep.addEventListener('click', () => window.mShowSleepSheet());
+    if (sleepSheet) {
+        sleepSheet.addEventListener('click', (e) => {
+            if (e.target.closest('[data-m-sleep-close]')) {
+                window.mHideSleepSheet();
+                return;
+            }
+            const opt = e.target.closest('[data-m-sleep]');
+            if (!opt) return;
+            const v = opt.dataset.mSleep;
+            setSleepTimer(v === 'end' ? 'end' : parseInt(v, 10));
+            window.mHideSleepSheet();
+            window.mToast(v === '0' ? 'Sleep timer off'
+                : (v === 'end' ? 'Pausing when this song ends' : `Pausing in ${v === '60' ? '1 hour' : v + ' minutes'}`));
+        });
     }
 
     // ---- Dock tap opens the NP sheet over whatever is showing (any tab or
