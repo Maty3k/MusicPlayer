@@ -14301,6 +14301,12 @@ html.app-shell { --m-dock-h: 0px; }
     border: 0;
 }
 
+/* Playing bars on the now-playing Library card */
+@keyframes mEqBar {
+    from { transform: scaleY(0.25); }
+    to { transform: scaleY(1); }
+}
+
 /* Avatar coin: the Home header and the account sheet */
 .m-avatar {
     width: 36px;
@@ -14323,7 +14329,8 @@ html.app-shell { --m-dock-h: 0px; }
     font-size: 1.4rem;
 }
 
-/* The avatar's sheet (stats, settings, log out) */
+/* Small menu sheets: the avatar's (stats, settings, log out) and the
+   Library + (new playlist, import) */
 #mAccountSheet .m-account-who {
     display: flex;
     align-items: center;
@@ -14347,7 +14354,7 @@ html.app-shell { --m-dock-h: 0px; }
 }
 
 #mAccountSheet .m-account-id small,
-#mAccountSheet .m-account-text small {
+.m-menu-sheet .m-sheet-text small {
     font-size: 0.8rem;
     color: color-mix(in srgb, var(--cream) 65%, transparent);
     overflow: hidden;
@@ -14355,7 +14362,7 @@ html.app-shell { --m-dock-h: 0px; }
     white-space: nowrap;
 }
 
-#mAccountSheet .m-account-row {
+.m-menu-sheet .m-sheet-row {
     display: flex;
     align-items: center;
     gap: 14px;
@@ -14372,9 +14379,9 @@ html.app-shell { --m-dock-h: 0px; }
     -webkit-tap-highlight-color: transparent;
 }
 
-#mAccountSheet .m-account-row:active { background: rgba(255, 245, 233, 0.08); }
+.m-menu-sheet .m-sheet-row:active { background: rgba(255, 245, 233, 0.08); }
 
-#mAccountSheet .m-account-ic {
+.m-menu-sheet .m-sheet-ic {
     width: 40px;
     height: 40px;
     flex: 0 0 auto;
@@ -14386,14 +14393,20 @@ html.app-shell { --m-dock-h: 0px; }
     color: var(--amber);
 }
 
-#mAccountSheet .m-account-text {
+.m-menu-sheet .m-sheet-text {
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
 }
 
-#mAccountSheet .m-account-text b { font-size: 0.98rem; font-weight: 600; }
+.m-menu-sheet .m-sheet-text b { font-size: 0.98rem; font-weight: 600; }
+
+.m-menu-sheet .m-sheet-title {
+    margin: 0 44px 10px 4px;
+    font: 600 1.2rem/1.2 var(--display);
+    color: var(--cream);
+}
 
 #mAccountSheet .m-account-logout {
     width: 100%;
@@ -14668,6 +14681,138 @@ html.app-shell { --m-dock-h: 0px; }
     html[data-m-tab="library"] #roomCenter .collection-toolbar { display: flex; }
     html[data-m-tab="library"] #roomCenter .collection-toolbar .source-filter { flex: 1 1 auto; }
 
+    /* The chips only once there's a Spotify playlist to tell apart */
+    html[data-m-tab="library"]:not(.m-has-spotify) #roomCenter .collection-toolbar { display: none; }
+
+    /* Library cards: the art on its own, name and count underneath. The
+       pencil, count badge and colour dot over the art are gone — the
+       caption's ⋯ (or a long press) edits. Now playing: an amber ring on
+       the art and playing bars by the count. */
+    html[data-m-tab] #roomCenter .conveyor-rows {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px 14px;
+    }
+
+    html[data-m-tab] #roomCenter .record-card {
+        min-width: 0; /* a long name ellipsizes instead of widening its column */
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    html[data-m-tab] #roomCenter .record-card .playlist-edit-btn,
+    html[data-m-tab] #roomCenter .record-card .cover-badge,
+    html[data-m-tab] #roomCenter .record-card .cover-info,
+    html[data-m-tab] #roomCenter .record-card .cover-overlay,
+    html[data-m-tab] #roomCenter .record-card .play-hint,
+    html[data-m-tab] #roomCenter .record-card .card-reflection,
+    html[data-m-tab] #roomCenter .record-card .record-card-vinyl { display: none; }
+
+    html[data-m-tab] #roomCenter .record-card-cover {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    /* Bare art shows YouTube's letterbox bars (a 16:9 video in a 4:3
+       thumbnail): zoom past them, as the Home tiles do */
+    html[data-m-tab] #roomCenter .record-card .cover-main[src*="hqdefault"],
+    html[data-m-tab] #roomCenter .record-card .cover-main[src*="sddefault"],
+    html[data-m-tab] #recentSongsShelf .recent-song-cover[src*="hqdefault"],
+    html[data-m-tab] #recentSongsShelf .recent-song-cover[src*="sddefault"] { transform: scale(1.34); }
+
+    html[data-m-tab] #roomCenter .record-card.now-playing {
+        outline: none;
+        box-shadow: none;
+    }
+
+    html[data-m-tab] #roomCenter .record-card.now-playing::after { display: none; }
+
+    html[data-m-tab] #roomCenter .record-card.now-playing:not(.is-empty) .record-card-cover {
+        box-shadow: 0 0 0 2px var(--amber), 0 8px 22px rgba(var(--amber-rgb), 0.18);
+    }
+
+    html[data-m-tab] #roomCenter .record-card .card-caption {
+        display: flex;
+        align-items: flex-start;
+        gap: 2px;
+        padding: 8px 0 0 2px;
+    }
+
+    .card-caption-text {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .card-caption-title {
+        font: 600 0.92rem/1.25 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        color: var(--cream);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .card-caption-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.78rem;
+        color: color-mix(in srgb, var(--cream) 62%, transparent);
+    }
+
+    .card-eq { display: none; }
+
+    /* An empty playlist can't be playing: no ring, title or bars (as on
+       the desktop crate) */
+    .record-card.now-playing:not(.is-empty) .card-caption-title { color: var(--amber); }
+
+    .record-card.now-playing:not(.is-empty) .card-eq {
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 2px;
+        width: 11px;
+        height: 10px;
+    }
+
+    .card-eq i {
+        display: block;
+        width: 2.5px;
+        height: 100%;
+        border-radius: 1px;
+        background: var(--amber);
+        transform-origin: bottom;
+        transform: scaleY(0.4);
+    }
+
+    .card-eq i:nth-child(2) { transform: scaleY(0.75); }
+    .card-eq i:nth-child(3) { transform: scaleY(0.55); }
+
+    body.m-playing .record-card.now-playing .card-eq i { animation: mEqBar 900ms ease-in-out infinite alternate; }
+    body.m-playing .record-card.now-playing .card-eq i:nth-child(2) { animation-delay: -300ms; }
+    body.m-playing .record-card.now-playing .card-eq i:nth-child(3) { animation-delay: -600ms; }
+
+    .card-more {
+        flex: 0 0 auto;
+        width: 40px;
+        height: 40px;
+        margin: -9px -10px 0 0;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 50%;
+        background: none;
+        color: color-mix(in srgb, var(--cream) 70%, transparent);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .card-more:active { background: rgba(255, 245, 233, 0.1); }
+
     /* ---- Search: a page over the crate, under Now Playing. Hidden (not
        display:none, so it keeps its scroll) while a playlist opened from
        it is showing. */
@@ -14793,6 +14938,10 @@ html.app-shell { --m-dock-h: 0px; }
     html[data-m-tab] .room-center,
     html[data-m-tab] .song-list {
         scroll-padding-bottom: calc(var(--m-dock-h) + var(--m-tabs-h, 0px) + 12px + var(--m-safe-b));
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        body.m-playing .record-card.now-playing .card-eq i { animation: none; }
     }
 
     .m-search-hint {

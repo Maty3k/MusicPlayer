@@ -332,7 +332,7 @@
                     </header>
                     <header class="m-tab-head m-only" id="mLibraryHead">
                         <h1 class="m-tab-title">Library</h1>
-                        <button type="button" class="m-icon-btn" id="mLibraryNew" aria-label="New playlist">
+                        <button type="button" class="m-icon-btn" id="mLibraryNew" aria-label="Add to your library" aria-haspopup="dialog">
                             <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                         </button>
                     </header>
@@ -421,6 +421,7 @@
                         $ord        = (int) ($c['ord'] ?? 0);
                         $nowPlaying = ($playlistId === $activePlaylistId ? ' now-playing' : '') . ($songCount === 0 ? ' is-empty' : '');
                         $plName     = htmlspecialchars($playlist['name']);
+                        $countText  = $songCount . ($songCount === 1 ? ' song' : ' songs');
                         $vinylImg   = $coverUrl ? '<img src="' . htmlspecialchars($coverUrl) . '" alt="">' : '';
                         $coverMain  = $coverUrl ? '<img src="' . htmlspecialchars($coverUrl) . '" alt="" class="cover-main">' : '';
                         $preview    = '';
@@ -461,6 +462,15 @@
                                 </svg>
                             </button>
                             <div class="card-reflection"></div>
+                            <div class="card-caption m-only">
+                                <span class="card-caption-text">
+                                    <span class="card-caption-title">{$plName}</span>
+                                    <span class="card-caption-meta"><span class="card-eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="card-caption-count">{$countText}</span></span>
+                                </span>
+                                <button type="button" class="card-more" onclick="event.stopPropagation(); showPlaylistEditModal('{$pid}')" aria-label="Edit {$plName}">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+                                </button>
+                            </div>
                         </div>
                         HTML;
                     };
@@ -1172,7 +1182,7 @@
     </div>
     {{-- Phone: the Home avatar's sheet (stats, settings, log out). Opened by
          the phone shell in script.js, which also registers it for back. --}}
-    <div class="add-song-modal m-account-sheet" id="mAccountSheet" role="dialog" aria-modal="true" aria-labelledby="mAccountName">
+    <div class="add-song-modal m-menu-sheet" id="mAccountSheet" role="dialog" aria-modal="true" aria-labelledby="mAccountName">
         <div class="add-song-modal-backdrop" data-m-account-close></div>
         <div class="add-song-modal-panel">
             <button type="button" class="add-song-modal-close" data-m-account-close aria-label="Close">&times;</button>
@@ -1183,18 +1193,35 @@
                     @if ($acctSub !== '')<small>{{ $acctSub }}</small>@endif
                 </span>
             </div>
-            <button type="button" class="m-account-row" data-m-account="stats">
-                <span class="m-account-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg></span>
-                <span class="m-account-text"><b>Your listening</b><small>Top songs and artists</small></span>
+            <button type="button" class="m-sheet-row" data-m-account="stats">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg></span>
+                <span class="m-sheet-text"><b>Your listening</b><small>Top songs and artists</small></span>
             </button>
-            <button type="button" class="m-account-row" data-m-account="settings">
-                <span class="m-account-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg></span>
-                <span class="m-account-text"><b>Settings</b><small>Playback, look, account, Spotify</small></span>
+            <button type="button" class="m-sheet-row" data-m-account="settings">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg></span>
+                <span class="m-sheet-text"><b>Settings</b><small>Playback, look, account, Spotify</small></span>
             </button>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" class="m-account-logout">Log out</button>
             </form>
+        </div>
+    </div>
+    {{-- Phone: the Library "+" (a new playlist, or bring one over). Opened
+         and registered for back by the phone shell in script.js. --}}
+    <div class="add-song-modal m-menu-sheet" id="mAddSheet" role="dialog" aria-modal="true" aria-labelledby="mAddSheetTitle">
+        <div class="add-song-modal-backdrop" data-m-add-close></div>
+        <div class="add-song-modal-panel">
+            <button type="button" class="add-song-modal-close" data-m-add-close aria-label="Close">&times;</button>
+            <h2 class="m-sheet-title" id="mAddSheetTitle">Add to your library</h2>
+            <button type="button" class="m-sheet-row" data-m-add="playlist">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M18 14v6M15 17h6"/></svg></span>
+                <span class="m-sheet-text"><b>New playlist</b><small>Start one and fill it up</small></span>
+            </button>
+            <button type="button" class="m-sheet-row" data-m-add="import">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg></span>
+                <span class="m-sheet-text"><b>Import a playlist</b><small>Spotify, YouTube or a pasted list</small></span>
+            </button>
         </div>
     </div>
     <!-- Settings Modal (playback source + Spotify) -->

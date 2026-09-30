@@ -3214,6 +3214,8 @@ function setCrateCardCount(playlistId, count) {
     if (!card) return;
     const badge = card.querySelector('.cover-badge');
     if (badge) badge.textContent = count;
+    const caption = card.querySelector('.card-caption-count');
+    if (caption) caption.textContent = count + (count === 1 ? ' song' : ' songs');
     card.classList.toggle('is-empty', count === 0);
 }
 
@@ -3734,6 +3736,10 @@ async function savePlaylistEdit() {
         if (nameChanged) {
             const titleEl = card.querySelector('.cover-title');
             if (titleEl) titleEl.textContent = name;
+            const captionEl = card.querySelector('.card-caption-title');
+            if (captionEl) captionEl.textContent = name;
+            const moreBtn = card.querySelector('.card-more');
+            if (moreBtn) moreBtn.setAttribute('aria-label', 'Edit ' + name);
         }
         if (colorChanged) {
             card.style.setProperty('--card-color', selectedEditColor);
@@ -8564,12 +8570,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // The Library "+" (new playlist / import)
+    const addSheet = document.getElementById('mAddSheet');
+    window.mShowAddSheet = function () {
+        if (!addSheet) return;
+        addSheet.classList.add('active');
+        const first = addSheet.querySelector('.m-sheet-row');
+        if (first) first.focus({ preventScroll: true });
+    };
+    window.mHideAddSheet = function () {
+        if (!addSheet) return;
+        const hadFocus = addSheet.contains(document.activeElement);
+        addSheet.classList.remove('active');
+        if (hadFocus && !document.querySelector('.add-song-modal.active')) {
+            const plus = document.getElementById('mLibraryNew');
+            if (plus) plus.focus({ preventScroll: true });
+        }
+    };
+
     // The Home avatar's sheet (stats, settings, log out)
     const accountSheet = document.getElementById('mAccountSheet');
     window.mShowAccountSheet = function () {
         if (!accountSheet) return;
         accountSheet.classList.add('active');
-        const first = accountSheet.querySelector('.m-account-row');
+        const first = accountSheet.querySelector('.m-sheet-row');
         if (first) first.focus({ preventScroll: true });
     };
     window.mHideAccountSheet = function () {
@@ -8594,6 +8618,7 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapModalPair('openQueueModal', 'hideQueueModal', 'queue');
     wrapModalPair('openVinylGifModal', 'closeVinylGifModal', 'vinylGif');
     wrapModalPair('mShowAccountSheet', 'mHideAccountSheet', 'account');
+    wrapModalPair('mShowAddSheet', 'mHideAddSheet', 'libraryAdd');
 
     // Portrait phones search on the Search tab; the modal is for landscape
     // and desktop (the crate's Search button is hidden on the Home tab).
@@ -8622,7 +8647,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const avatarBtn = document.getElementById('mAvatarBtn');
     if (avatarBtn) avatarBtn.addEventListener('click', () => window.mShowAccountSheet());
     const libraryNew = document.getElementById('mLibraryNew');
-    if (libraryNew) libraryNew.addEventListener('click', () => window.showPlaylistCreateModal());
+    if (libraryNew) libraryNew.addEventListener('click', () => window.mShowAddSheet());
+    if (addSheet) {
+        addSheet.addEventListener('click', (e) => {
+            if (e.target.closest('[data-m-add-close]')) {
+                window.mHideAddSheet();
+                return;
+            }
+            const row = e.target.closest('[data-m-add]');
+            if (!row) return;
+            window.mHideAddSheet();
+            if (row.dataset.mAdd === 'playlist') window.showPlaylistCreateModal();
+            else if (row.dataset.mAdd === 'import') window.showSpotifyImportModal();
+        });
+    }
 
     // A saved display name reaches the avatar and the account sheet.
     window.mOnAccountName = function (name) {
@@ -8707,6 +8745,82 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     renderRecentPlaylists();
+
+    // ---- Library: long-press a playlist to edit it (the ⋯ in its caption
+    // does the same; the pencil over the art is gone on phones).
+    const conveyor = document.getElementById('recordsConveyor');
+    if (conveyor) {
+        let pressTimer = 0;
+        let pressCard = null;
+        let pressX = 0;
+        let pressY = 0;
+        let swallowClick = false;
+        const cancelPress = () => {
+            clearTimeout(pressTimer);
+            pressCard = null;
+        };
+        const firePress = () => {
+            clearTimeout(pressTimer);
+            const id = pressCard && pressCard.dataset.playlist;
+            pressCard = null;
+            if (!id) return;
+            // The finger is still down: its release must not also open the
+            // playlist (or tap the sheet that just opened under it).
+            swallowClick = true;
+            try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) {}
+            window.showPlaylistEditModal(id);
+        };
+        // Only the press that fired may lose its click: a release often
+        // produces none (Android's own long-press eats it), and the flag must
+        // not then swallow the next tap somewhere else.
+        document.addEventListener('pointerdown', () => { swallowClick = false; }, true);
+        conveyor.addEventListener('pointerdown', (e) => {
+            if (!onPhone() || e.pointerType === 'mouse') return;
+            const card = e.target.closest('.record-card');
+            if (!card || e.target.closest('.card-more, .playlist-edit-btn')) return;
+            pressCard = card;
+            pressX = e.clientX;
+            pressY = e.clientY;
+            clearTimeout(pressTimer);
+            pressTimer = setTimeout(firePress, 500);
+        });
+        conveyor.addEventListener('pointermove', (e) => {
+            if (pressCard && Math.hypot(e.clientX - pressX, e.clientY - pressY) > 10) cancelPress();
+        });
+        conveyor.addEventListener('pointerup', cancelPress);
+        conveyor.addEventListener('pointercancel', cancelPress);
+        document.addEventListener('click', (e) => {
+            if (!swallowClick) return;
+            swallowClick = false;
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+        // No image "Download / Share" menu on a long press — and when the
+        // platform recognises the long press first, act on it right away.
+        conveyor.addEventListener('contextmenu', (e) => {
+            if (!onPhone() || !e.target.closest('.record-card')) return;
+            e.preventDefault();
+            if (pressCard) firePress();
+        });
+    }
+
+    // Local / Spotify chips only mean something once a Spotify playlist
+    // exists; without one, don't leave the grid filtered to nothing.
+    const hasSpotifyPlaylists = !!document.querySelector('.record-card[data-source="spotify"]');
+    htmlEl.classList.toggle('m-has-spotify', hasSpotifyPlaylists);
+    const dropDeadFilter = () => {
+        if (!hasSpotifyPlaylists && onPhone() && roomCenter
+            && roomCenter.dataset.activeSource === 'spotify' && typeof setSourceFilter === 'function') {
+            setSourceFilter('all');
+        }
+    };
+    // The saved filter is restored on DOMContentLoaded (by a listener added
+    // earlier, so it runs first).
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', dropDeadFilter);
+    else dropDeadFilter();
+    // A filter picked in landscape (where the chips always show) mustn't
+    // leave the portrait Library empty with no chips to undo it.
+    mq.addEventListener('change', () => { if (mq.matches) dropDeadFilter(); });
 
     // ---- Search tab: its own field and results, same library search
     const searchInput = document.getElementById('mSearchInput');
