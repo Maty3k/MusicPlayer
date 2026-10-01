@@ -144,6 +144,30 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Pull to refresh on the page: it comes back. Rotate: it closes.
 - [ ] Log out at the bottom isn't covered by the mini player.
 
+## Full screen and installing (browser tab)
+
+- [ ] In a Brave tab, You → This phone shows Full screen and Install the
+  app. Opened from an installed app icon, neither shows.
+- [ ] Full screen: the address bar, Brave's bottom toolbar, the clock bar
+  and the gesture bar all go; you land on Home. Note Brave's "drag from top
+  to exit" notice. Nothing sits under the camera hole.
+- [ ] In full screen, open Now Playing, then back: the first back only
+  leaves full screen (Android does this for every site); the second closes
+  Now Playing. Open and close a playlist and the song menu a few times:
+  back never leaves the app early.
+- [ ] With gesture navigation: does one side swipe go back, or does the
+  first swipe only reveal the bars?
+- [ ] Lock the phone in full screen, unlock: full screen has ended, music
+  plays on, lock-screen and AirPods controls still work. You → Full screen
+  goes back in.
+- [ ] In full screen, type in Search: the keyboard opens and the field stays
+  visible.
+- [ ] Install the app: Brave's install dialog, or the steps sheet. After
+  installing, the new icon opens without the address bar (remove the old
+  icon).
+- [ ] Pull down at the top of Home in a Brave tab: does the page reload
+  (and stop the music)?
+
 ## Now Playing tools row
 
 - [ ] Under the transport: ♥, sleep (moon), Up next (with a count when songs

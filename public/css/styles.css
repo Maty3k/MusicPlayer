@@ -16163,7 +16163,9 @@ button.send-menu-cancel {
         -webkit-tap-highlight-color: transparent;
     }
 
-    .m-you-row + .m-you-row { box-shadow: inset 0 1px 0 var(--line); }
+    .m-you-row:not([hidden]) + .m-you-row { box-shadow: inset 0 1px 0 var(--line); }
+    .m-you-row[hidden],
+    .m-you-device[hidden] { display: none; }
     .m-you-row:active { background: rgba(255, 245, 233, 0.07); }
 
     .m-you-ic {
@@ -16202,6 +16204,18 @@ button.send-menu-cancel {
     }
 
     .m-you-logout-form { margin: 28px 0 0; }
+
+    /* How to install, when the browser offers no prompt */
+    .m-install-steps {
+        margin: 4px 0 6px;
+        padding: 0 0 0 22px;
+        color: var(--cream);
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    .m-install-steps li + li { margin-top: 8px; }
+    .m-install-steps[hidden] { display: none; }
 
     .m-you-logout {
         width: 100%;

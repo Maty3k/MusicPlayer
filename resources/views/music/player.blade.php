@@ -71,6 +71,13 @@
                 else if (st && st.mDepth > 0 && st.mStack && st.mStack[0] && st.mStack[0].n === 'you') root.classList.add('m-you');
             } catch (e) {}
             root.setAttribute('data-m-tab', tab);
+            // The browser's install prompt can fire before script.js runs:
+            // keep it for the phone You page's Install row. Only phone-width
+            // pages swap the browser's own install UI for that row.
+            window.addEventListener('beforeinstallprompt', function (e) {
+                if (window.matchMedia('(max-width: 600px)').matches) e.preventDefault();
+                window.__installPrompt = e;
+            });
         })();
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js" defer></script>
@@ -656,6 +663,21 @@
                     <span class="m-you-text"><b>Account</b><small>{{ $acctHasLogin ? 'Name and password' : 'Your name' }}{{ $spotifyOn ? ', Spotify' : '' }}</small></span>
                     <svg class="m-you-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>
                 </button>
+            </div>
+            {{-- Only in a browser tab (script.js shows them): the whole screen,
+                 now or by installing the app --}}
+            <div class="m-you-device" id="mYouDevice" hidden>
+                <h2 class="m-you-group">This phone</h2>
+                <div class="m-you-list">
+                    <button type="button" class="m-you-row" id="mYouFullscreen" hidden>
+                        <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/></svg></span>
+                        <span class="m-you-text"><b>Full screen</b><small>Hide the browser bars · back exits</small></span>
+                    </button>
+                    <button type="button" class="m-you-row" id="mYouInstall" hidden>
+                        <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M12 7.5v6.5M9.2 11.4 12 14.2l2.8-2.8"/></svg></span>
+                        <span class="m-you-text"><b>Install the app</b><small>Opens without the address bar</small></span>
+                    </button>
+                </div>
             </div>
             <form method="POST" action="{{ route('logout') }}" class="m-you-logout-form">
                 @csrf
@@ -1341,6 +1363,26 @@
     </div>
     {{-- Phone: Now Playing's sleep timer (the same timer as desktop's coaster
          and Settings). Opened and registered for back by script.js. --}}
+    {{-- Phone: how to install the app when the browser offers no prompt.
+         Opened and registered for back by the phone shell in script.js. --}}
+    <div class="add-song-modal m-menu-sheet" id="mInstallSheet" role="dialog" aria-modal="true" aria-labelledby="mInstallSheetTitle">
+        <div class="add-song-modal-backdrop" data-m-install-close></div>
+        <div class="add-song-modal-panel">
+            <button type="button" class="add-song-modal-close" data-m-install-close aria-label="Close">&times;</button>
+            <h2 class="m-sheet-title" id="mInstallSheetTitle">Install the app</h2>
+            <p class="m-sleep-status">Installed, it opens from its own icon without the browser's address bar and toolbar.</p>
+            <ol class="m-install-steps" id="mInstallSteps">
+                <li>Open the browser menu <b>⋮</b>.</li>
+                <li>Tap <b>Install app</b>, or <b>Add to Home screen</b> and then <b>Install</b>.</li>
+                <li>Open Music from the new icon. You can remove the old one.</li>
+            </ol>
+            <ol class="m-install-steps" id="mInstallStepsIos" hidden>
+                <li>In <b>Safari</b>, tap <b>⋯</b> (or <b>Share</b>) next to the address bar, then <b>Share</b>.</li>
+                <li>Scroll to <b>Add to Home Screen</b>, keep <b>Open as Web App</b> on, and tap <b>Add</b>.</li>
+                <li>Open Music from the new icon.</li>
+            </ol>
+        </div>
+    </div>
     <div class="add-song-modal m-menu-sheet" id="mSleepSheet" role="dialog" aria-modal="true" aria-labelledby="mSleepSheetTitle">
         <div class="add-song-modal-backdrop" data-m-sleep-close></div>
         <div class="add-song-modal-panel">

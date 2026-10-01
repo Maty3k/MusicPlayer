@@ -9114,6 +9114,103 @@ document.addEventListener('DOMContentLoaded', () => {
         }).observe(modal, { attributes: true, attributeFilter: ['class'] });
     });
 
+    // ---- "This phone" on the You page, in a browser tab only: Full screen
+    // (the Fullscreen API: Android's first back press leaves it, like a
+    // video player, and a lock, app switch or dialog ends it) and Install
+    // the app (the browser's own prompt when it offered one, else how-to).
+    // An installed app is already free of the address bar: neither shows.
+    const youDevice = document.getElementById('mYouDevice');
+    const fsRow = document.getElementById('mYouFullscreen');
+    const installRow = document.getElementById('mYouInstall');
+    const installSheet = document.getElementById('mInstallSheet');
+    const canFullscreen = document.fullscreenEnabled === true && typeof htmlEl.requestFullscreen === 'function';
+    const inBrowserTab = window.matchMedia('(display-mode: browser)');
+    // iPadOS reports a Mac; a touch screen gives it away
+    const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    let appInstalled = false;
+
+    function syncDeviceRows() {
+        const fsOn = !!document.fullscreenElement;
+        htmlEl.classList.toggle('m-fs', fsOn);
+        if (fsRow) {
+            // Not on iOS: no back gesture there to leave it, and iPhone can't
+            fsRow.hidden = !canFullscreen || isIos || !(inBrowserTab.matches || fsOn);
+            fsRow.querySelector('b').textContent = fsOn ? 'Exit full screen' : 'Full screen';
+            fsRow.querySelector('small').textContent = fsOn ? 'Bring back the browser bars' : 'Hide the browser bars · back exits';
+        }
+        if (installRow) installRow.hidden = !inBrowserTab.matches || appInstalled;
+        if (youDevice) youDevice.hidden = (!fsRow || fsRow.hidden) && (!installRow || installRow.hidden);
+    }
+    syncDeviceRows();
+    document.addEventListener('fullscreenchange', syncDeviceRows);
+    if (inBrowserTab.addEventListener) inBrowserTab.addEventListener('change', syncDeviceRows);
+
+    async function toggleFullscreen() {
+        if (document.fullscreenElement) {
+            try { await document.exitFullscreen(); } catch (e) { /* already out */ }
+            return;
+        }
+        try {
+            // The whole document: the tab bar, mini player and sheets live
+            // outside #music-section.
+            await htmlEl.requestFullscreen({ navigationUI: 'hide' });
+        } catch (e) {
+            window.mToast('Full screen isn’t available in this browser.');
+            return;
+        }
+        // Land on Home: a back press there would only leave full screen.
+        if (topLayerIs('you')) backOneLayer();
+    }
+
+    window.mShowInstallSheet = function () {
+        if (!installSheet) return;
+        const android = document.getElementById('mInstallSteps');
+        const ios = document.getElementById('mInstallStepsIos');
+        if (android) android.hidden = isIos;
+        if (ios) ios.hidden = !isIos;
+        installSheet.classList.add('active');
+        const close = installSheet.querySelector('.add-song-modal-close');
+        if (close) close.focus({ preventScroll: true });
+    };
+    window.mHideInstallSheet = function () {
+        if (!installSheet) return;
+        const hadFocus = installSheet.contains(document.activeElement);
+        installSheet.classList.remove('active');
+        if (hadFocus && installRow && !installRow.hidden && !document.querySelector('.add-song-modal.active')) installRow.focus({ preventScroll: true });
+    };
+    wrapModalPair('mShowInstallSheet', 'mHideInstallSheet', 'installHelp');
+    if (installSheet) {
+        installSheet.addEventListener('click', (e) => {
+            if (e.target.closest('[data-m-install-close]')) window.mHideInstallSheet();
+        });
+    }
+
+    async function installApp() {
+        const prompt = window.__installPrompt;
+        if (!prompt) {
+            window.mShowInstallSheet();
+            return;
+        }
+        window.__installPrompt = null; // a prompt can be shown once
+        try {
+            await prompt.prompt();
+            const choice = await prompt.userChoice;
+            if (choice && choice.outcome === 'accepted') window.mToast('Installing: open Music from its new icon.');
+        } catch (e) {
+            window.mShowInstallSheet();
+        }
+    }
+    window.addEventListener('appinstalled', () => {
+        window.__installPrompt = null;
+        appInstalled = true;
+        syncDeviceRows();
+        window.mToast('Installed: open Music from its new icon.');
+    });
+
+    if (fsRow) fsRow.addEventListener('click', toggleFullscreen);
+    if (installRow) installRow.addEventListener('click', installApp);
+
     // An email attached in Settings reaches the page (and the initial, while
     // the name is still a placeholder: the server takes it from the email).
     window.mOnAccountEmail = function (email) {

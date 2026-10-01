@@ -104,6 +104,17 @@ class PhoneYouPageTest extends TestCase
             ->assertDontSee('services.spotify');
     }
 
+    public function test_full_screen_and_install_rows_start_hidden_for_the_script_to_offer(): void
+    {
+        // Shown only in a browser tab (script.js), never in the installed app.
+        $this->actingAs($this->member())->get('/')
+            ->assertOk()
+            ->assertSee('<div class="m-you-device" id="mYouDevice" hidden>', false)
+            ->assertSee('id="mYouFullscreen" hidden', false)
+            ->assertSee('id="mYouInstall" hidden', false)
+            ->assertSee('id="mInstallSheet"', false);
+    }
+
     public function test_add_song_source_sits_under_advanced(): void
     {
         $this->actingAs($this->member())->get('/')
