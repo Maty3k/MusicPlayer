@@ -16243,3 +16243,111 @@ button.send-menu-cancel {
     #settingsModal .add-song-modal-buttons,
     #settingsModal .settings-sleeve-group { display: none; }
 }
+
+/* ============================================================
+   ADD SONGS (portrait web shell): the "To" line, results that add on a tap,
+   the import / files / cover rows, the playlist picker's current mark, and
+   the Song Scanner without its desktop-only folder and drop options.
+   ============================================================ */
+.search-result-plus { display: none; }
+
+/* A pasted playlist link's "Import this playlist" row (every shell) */
+.search-result-import-ic {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--amber-rgb), 0.14);
+    color: var(--amber);
+}
+
+@media (max-width: 600px) {
+    html[data-m-tab] #addSongModal .m-add-to {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: -2px 0 12px;
+        min-width: 0;
+    }
+
+    .m-add-to-label {
+        flex: 0 0 auto;
+        font-size: 0.85rem;
+        color: color-mix(in srgb, var(--cream) 65%, transparent);
+    }
+
+    .m-add-to-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        max-width: 100%;
+        min-height: 44px;
+        padding: 0 12px 0 16px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: rgba(255, 245, 233, 0.05);
+        color: var(--cream);
+        font: 600 0.92rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .m-add-to-btn:active { background: rgba(255, 245, 233, 0.1); }
+    .m-add-to-btn svg { flex: 0 0 auto; color: var(--amber); }
+
+    .m-add-to-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    html[data-m-tab] #addSongModal .m-add-rows { display: block; margin: 2px 0 8px; }
+    html[data-m-tab] #addSongModal.m-add-searching .m-add-rows { display: none; }
+
+    /* The rows replace these on the web phone (the app shell keeps them) */
+    html[data-m-tab] #addSongModal .bulk-import-btn,
+    html[data-m-tab] #mUploadBtn { display: none; }
+
+    /* A result adds on a tap: + rather than ▶, then ✓ */
+    html[data-m-tab] #addSongModal .search-result-play { display: none; }
+
+    html[data-m-tab] #addSongModal .search-result-plus {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        flex: 0 0 auto;
+        margin-left: auto;
+        border: 1px solid color-mix(in srgb, var(--cream) 25%, transparent);
+        border-radius: 50%;
+        color: var(--cream);
+    }
+
+    html[data-m-tab] #addSongModal .search-result-row.adding .search-result-plus { opacity: 0.5; }
+
+    html[data-m-tab] #addSongModal .search-result-row.is-added .search-result-plus {
+        border-color: transparent;
+        background: rgba(var(--amber-rgb), 0.16);
+        color: var(--amber);
+    }
+
+    html[data-m-tab] #addSongModal .search-result-row.is-added .search-result-plus svg { display: none; }
+    html[data-m-tab] #addSongModal .search-result-row.is-added .search-result-plus::after { content: '✓'; font-weight: 700; }
+    html[data-m-tab] #addSongModal .search-result-row.is-added { opacity: 1; }
+
+
+    /* The picker's playlist that's already chosen */
+    #mAddToSheet .m-addto-row.is-current b::after { content: ' ✓'; color: var(--amber); }
+    #mAddToSheet .m-addto-song[hidden] { display: none; }
+
+    /* Song Scanner: phones can't pick folders or drop files */
+    #scanModal .scan-folder-btn,
+    #scanModal #scanFolderInput + .scan-or-divider { display: none; }
+
+    #scanModal .add-song-modal-panel {
+        width: 100%;
+        max-height: calc(100dvh - 24px);
+    }
+}

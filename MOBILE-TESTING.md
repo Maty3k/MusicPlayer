@@ -144,6 +144,27 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Pull to refresh on the page: it comes back. Rotate: it closes.
 - [ ] Log out at the bottom isn't covered by the mini player.
 
+## Adding music
+
+- [ ] Library → + → Add songs, or a playlist's Add songs: the sheet says
+  "To <the open playlist>". Tap it, pick another playlist: the sheet stays,
+  now "To" that one.
+- [ ] Search a song, tap a result: it gets a ✓ and "Added to …"; the sheet
+  stays for the next one. The playlist you picked has it; the music that was
+  playing didn't stop. Adding it again says "Already in …".
+- [ ] From files on this phone: the file picker opens; pick one or several
+  MP3s. Progress shows at the bottom and they land in the "To" playlist (an
+  MP3 of a song that's already there becomes its offline copy).
+- [ ] Paste a YouTube playlist link into the search: "Import this YouTube
+  playlist" opens the import already loading it.
+- [ ] Import a playlist (the row) opens Import; when "To" is the open
+  playlist it adds into it.
+- [ ] Snap a record cover (only if cover recognition is set up on the
+  server): the camera opens; a phone photo finds the album's songs, or says
+  why it couldn't.
+- [ ] Without Spotify set up on the server, Import has no Spotify tab and
+  nothing mentions Connect Spotify.
+
 ## Full screen and installing (browser tab)
 
 - [ ] In a Brave tab, You → This phone shows Full screen and Install the

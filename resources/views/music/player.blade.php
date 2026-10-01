@@ -334,6 +334,8 @@
                         $acctHasLogin = auth()->user()->email || auth()->user()->member_number !== null;
                         // Spotify is offered only when this server is set up for it.
                         $spotifyOn = (bool) config('services.spotify.client_id');
+                        // Record-cover recognition (the Song Scanner) needs a Gemini key.
+                        $geminiOn = (bool) config('services.gemini.key');
                     @endphp
                     {{-- Phone tabs: Home and Library headers over the same crate
                          (shown per tab by the phone CSS; .m-only keeps them off
@@ -1052,13 +1054,22 @@
     </nav>
 
     <!-- Add Song Modal -->
-    <div class="add-song-modal" id="addSongModal">
+    <div class="add-song-modal m-menu-sheet" id="addSongModal">
         <div class="add-song-modal-backdrop" onclick="hideAddSongModal()"></div>
         <div class="add-song-modal-panel">
-            <button class="add-song-modal-close" onclick="hideAddSongModal()">&times;</button>
+            <button type="button" class="add-song-modal-close" onclick="hideAddSongModal()" aria-label="Close">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon">&#9834;</div>
-                <h2 class="add-song-modal-title" id="addSongModalTitle">Add music</h2>
+                <h2 class="add-song-modal-title" id="addSongModalTitle">Add songs</h2>
+            </div>
+            {{-- Phone: where the songs go. Starts on the open playlist; the
+                 picker (script.js) can send them anywhere without opening it. --}}
+            <div class="m-add-to m-only" id="mAddTo">
+                <span class="m-add-to-label" id="mAddToLabel">To</span>
+                <button type="button" class="m-add-to-btn" id="mAddToBtn" aria-haspopup="dialog" aria-describedby="mAddToLabel">
+                    <span class="m-add-to-name" id="mAddToName">Favorites</span>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg>
+                </button>
             </div>
             <div class="wizard-step-chip" id="addSongWizardStep" style="display:none">Step 3 of 3 &middot; Your first song</div>
             <p class="playlist-wizard-hint" id="addSongWizardHint" style="display:none">
@@ -1066,7 +1077,7 @@
             </p>
             <div class="add-song-form-group">
                 <label for="addSongSearch">Search</label>
-                <input type="text" id="addSongSearch" placeholder="Search a song or artist, or paste a link" autocomplete="off" oninput="onAddSearchInput()" onkeydown="onAddSearchKeydown(event)">
+                <input type="text" id="addSongSearch" placeholder="Search songs or paste a link" autocomplete="off" oninput="onAddSearchInput()" onkeydown="onAddSearchKeydown(event)">
             </div>
             <div class="add-song-search-results" id="addSongSearchResults"></div>
             {{-- Bulk import: paste a whole list or a Spotify playlist link
@@ -1077,8 +1088,26 @@
                 </svg>
                 <span>Import many at once &mdash; paste a list or Spotify link</span>
             </button>
-            {{-- Phones can't drag-and-drop: a direct path to the hidden
-                 multi-file input, skipping the source-mode burial. --}}
+            {{-- Phone (web): the other ways in, shown while the search field
+                 is empty (wired in script.js). --}}
+            <div class="m-add-rows m-only" id="mAddRows">
+                <button type="button" class="m-sheet-row" data-m-addsong="import">
+                    <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg></span>
+                    <span class="m-sheet-text"><b>Import a playlist</b><small>{{ $spotifyOn ? 'YouTube, Spotify or a pasted list' : 'A YouTube link or a pasted list' }}</small></span>
+                </button>
+                <button type="button" class="m-sheet-row" data-m-addsong="files">
+                    <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></span>
+                    <span class="m-sheet-text"><b>From files on this phone</b><small>MP3s and other audio files</small></span>
+                </button>
+                @if ($geminiOn)
+                <button type="button" class="m-sheet-row" data-m-addsong="snap">
+                    <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+                    <span class="m-sheet-text"><b>Snap a record cover</b><small>Finds the songs on the album</small></span>
+                </button>
+                @endif
+            </div>
+            {{-- The app shell's phone: a direct path to the hidden multi-file
+                 input (the web phone uses "From files on this phone"). --}}
             <button type="button" id="mUploadBtn" class="m-only upload-audio-btn" onclick="document.getElementById('addSongFile').click()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -1088,7 +1117,7 @@
                 <span>Upload audio files from this phone</span>
             </button>
             <details class="add-song-manual" id="addSongManualDetails">
-                <summary>More options — link, upload, details</summary>
+                <summary>Enter details manually</summary>
             <form id="addSongForm" onsubmit="addSongToPlaylist(event)">
                 <div class="add-song-form-group">
                     <label for="addSongYoutube" id="addSongSourceLabel">YouTube URL or ID</label>
@@ -1318,7 +1347,7 @@
             </button>
             <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="import">
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg></span>
-                <span class="m-sheet-text"><b>Import into this playlist</b><small id="mPlSheetImportSub">From a Spotify or YouTube link, or a list</small></span>
+                <span class="m-sheet-text"><b>Import into this playlist</b><small id="mPlSheetImportSub">{{ $spotifyOn ? 'From a Spotify or YouTube link, or a list' : 'From a YouTube link, or a list' }}</small></span>
             </button>
             <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="reorder">
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16"/><path d="m4 7 3-3 3 3"/><path d="M17 20V4"/><path d="m14 17 3 3 3-3"/></svg></span>
@@ -1339,10 +1368,6 @@
             <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="offline">
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v8"/><path d="m8.5 12 3.5 3.5 3.5-3.5"/></svg></span>
                 <span class="m-sheet-text"><b>Save for offline</b><small id="mPlSheetOfflineSub">Keep the uploaded songs on this phone</small></span>
-            </button>
-            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="scan">
-                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3.2"/></svg></span>
-                <span class="m-sheet-text"><b>Scan covers or files</b><small id="mPlSheetScanSub">Photograph album covers or pick audio files</small></span>
             </button>
             <button type="button" class="m-sheet-row m-sheet-compact m-sheet-danger" data-m-pl="delete">
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 13h9l1-13"/></svg></span>
@@ -1408,9 +1433,13 @@
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M18 14v6M15 17h6"/></svg></span>
                 <span class="m-sheet-text"><b>New playlist</b><small>Start one and fill it up</small></span>
             </button>
+            <button type="button" class="m-sheet-row" data-m-add="songs">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg></span>
+                <span class="m-sheet-text"><b>Add songs</b><small>Search, a link, or files on this phone</small></span>
+            </button>
             <button type="button" class="m-sheet-row" data-m-add="import">
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg></span>
-                <span class="m-sheet-text"><b>Import a playlist</b><small>Spotify, YouTube or a pasted list</small></span>
+                <span class="m-sheet-text"><b>Import a playlist</b><small>{{ $spotifyOn ? 'Spotify, YouTube or a pasted list' : 'A YouTube link or a pasted list' }}</small></span>
             </button>
         </div>
     </div>
@@ -1659,7 +1688,7 @@
     <div class="add-song-modal" id="spotifyImportModal">
         <div class="add-song-modal-backdrop" onclick="hideSpotifyImportModal()"></div>
         <div class="add-song-modal-panel">
-            <button class="add-song-modal-close" onclick="hideSpotifyImportModal()">&times;</button>
+            <button type="button" class="add-song-modal-close" onclick="hideSpotifyImportModal()" aria-label="Close">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon">&#9834;</div>
                 <h2 class="add-song-modal-title">Import songs</h2>
@@ -1668,7 +1697,9 @@
             <div class="import-tabs" id="importTabs">
                 <button type="button" class="import-tab active" data-tab="paste" onclick="setImportTab('paste')">Paste a list</button>
                 <button type="button" class="import-tab" data-tab="youtube" onclick="setImportTab('youtube')">YouTube link</button>
+                @if ($spotifyOn)
                 <button type="button" class="import-tab" data-tab="spotify" onclick="setImportTab('spotify')">Spotify link</button>
+                @endif
             </div>
 
             <div class="import-pane" id="importPastePane">
@@ -1694,6 +1725,7 @@
             </div>
 
             <div class="import-pane" id="importSpotifyPane" style="display:none">
+                @if ($spotifyOn)
                 <div class="add-song-form-group">
                     <label for="spotifyImportUrl">Public playlist URL</label>
                     <div class="spotify-import-url-row">
@@ -1702,15 +1734,18 @@
                     </div>
                 </div>
                 <p class="settings-hint" id="spotifyImportHint">Paste any public Spotify playlist link. Songs stream from YouTube; each one resolves the first time you play it.</p>
-                <div class="add-song-form-group">
-                    <label for="spotifyProfileUrl">Public profile</label>
-                    <div class="spotify-import-url-row">
-                        <input type="text" id="spotifyProfileUrl" placeholder="https://open.spotify.com/user/...">
-                        <button type="button" class="add-song-btn-save" id="spotifyProfileImportBtn" onclick="importSpotifyProfile()">Import all</button>
+                <details class="settings-password-details import-profile-details" id="spotifyProfileDetails">
+                    <summary>Import everything from a profile</summary>
+                    <div class="add-song-form-group">
+                        <label for="spotifyProfileUrl">Public profile</label>
+                        <div class="spotify-import-url-row">
+                            <input type="text" id="spotifyProfileUrl" placeholder="https://open.spotify.com/user/...">
+                            <button type="button" class="add-song-btn-save" id="spotifyProfileImportBtn" onclick="importSpotifyProfile()">Import all</button>
+                        </div>
+                        <p class="settings-hint">Every playlist that profile has made public, each as its own playlist here. No Spotify sign-in needed. Liked Songs and private playlists need Connect Spotify (Settings → Account) or "Continue with Spotify".</p>
+                        <div class="settings-hint spotify-import-all-status" id="spotifyProfileImportStatus" style="display:none" aria-live="polite"></div>
                     </div>
-                    <p class="settings-hint">Every playlist that profile has made public, each as its own playlist here. No Spotify sign-in needed. Liked Songs and private playlists need Connect Spotify or "Continue with Spotify".</p>
-                    <div class="settings-hint spotify-import-all-status" id="spotifyProfileImportStatus" style="display:none" aria-live="polite"></div>
-                </div>
+                </details>
                 <div id="spotifyUserPlaylists" class="add-song-form-group" style="display:none">
                     <label>Your playlists</label>
                     <div class="spotify-import-all">
@@ -1720,6 +1755,7 @@
                     <div class="settings-hint spotify-import-all-status" id="spotifyImportAllStatus" style="display:none" aria-live="polite"></div>
                     <div class="spotify-playlists-list" id="spotifyPlaylistsList"></div>
                 </div>
+                @endif
             </div>
 
             <div id="spotifyImportLoading" class="spotify-import-loading" style="display:none">
@@ -1955,6 +1991,9 @@
         let songsData = @json($songs);
         let currentSongIndex = {{ (int) $currentIndex }};
         let playlistsMeta = @json((object) $meta);
+        // Spotify import needs this server's Spotify app (Settings, the import
+        // sheet and the Search tab's link rows follow it)
+        const spotifyOn = @json($spotifyOn);
         let recentlyPlayed = @json($recentlyPlayed);
         let recentSongs = @json($recentSongs);
         let favoriteKeys = new Set(@json($favoriteKeys));

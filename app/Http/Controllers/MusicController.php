@@ -94,18 +94,24 @@ class MusicController extends Controller
         ];
     }
 
-    /** Add a new song to the current playlist. */
+    /**
+     * Add a new song to the current playlist, or to the playlist `playlist`
+     * names (the phone's "Add songs to" picker). Only a plain add moves the
+     * playlist's resume point.
+     */
     private function addSong(Request $request, User $user): array
     {
         $song = $request->input('song');
         $activeSlug = $this->activeSlug($user);
-        $playlist = $this->findPlaylist($user, $activeSlug);
+        $targeted = $request->has('playlist');
+        $slug = $targeted ? $this->strInput($request, 'playlist') : $activeSlug;
+        $playlist = $this->findPlaylist($user, $slug);
 
-        if (! preg_match('/^[A-Za-z0-9_-]{1,64}$/', $activeSlug)
-            || ($playlist === null && $activeSlug !== 'favorites')) {
+        if (! preg_match('/^[A-Za-z0-9_-]{1,64}$/', $slug)
+            || ($playlist === null && $slug !== 'favorites')) {
             // Only ever auto-create the default 'favorites' playlist (the
             // bootstrap case); never auto-vivify an unknown, attacker-chosen key.
-            return ['success' => false, 'error' => 'Invalid active playlist'];
+            return ['success' => false, 'error' => $targeted ? 'Invalid playlist' : 'Invalid active playlist'];
         }
 
         if (! is_array($song) || $this->songText($song['title'] ?? '') === '') {
@@ -167,7 +173,11 @@ class MusicController extends Controller
             'mp3_url' => $mp3Url,
             'spotify_id' => $spotifyId,
         ]);
-        $playlist->update(['current_index' => $newIndex]);
+        // A plain add makes the new song current (the client plays it); a
+        // targeted one (the phone's "Add songs to") leaves what's playing be.
+        if (! $targeted) {
+            $playlist->update(['current_index' => $newIndex]);
+        }
 
         return ['success' => true, 'index' => $newIndex];
     }

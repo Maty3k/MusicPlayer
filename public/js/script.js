@@ -2663,7 +2663,7 @@ setPitch(0);
 function showAddSongModal(opts = {}) {
     updateAddSongFormForSource();
     const title = document.getElementById('addSongModalTitle');
-    if (title) title.textContent = opts.wizard ? 'Add your first song' : 'Add music';
+    if (title) title.textContent = opts.wizard ? 'Add your first song' : 'Add songs';
     const chip = document.getElementById('addSongWizardStep');
     if (chip) chip.style.display = opts.wizard && opts.chip ? '' : 'none';
     const hint = document.getElementById('addSongWizardHint');
@@ -2725,11 +2725,19 @@ async function runAddSongSearch() {
     const q = input ? input.value.trim() : '';
     if (q.length < 2) { renderAddSearchResults(null); return; }
 
+    // A playlist link: offer its import (a whole list doesn't fit the
+    // one-song form). A song in a playlist gets both.
+    const listKind = playlistLinkKind(q);
+    const songLink = /[?&]v=|youtu\.be\/|youtube\.com\/(shorts|live)\/|open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\//i.test(q);
+    if (listKind && !songLink) {
+        renderAddImportOffer(listKind, '');
+        return;
+    }
+
     // A pasted link (or bare video ID) isn't a search — hand it to the
-    // manual form, prefilled. NB extractYoutubeId can't gate this: it
-    // returns its raw input as a fallback, so it's truthy for any text.
+    // manual form, prefilled.
     const looksLikeLink = /^https?:\/\//i.test(q)
-        || /^(www\.)?(youtube\.com|youtu\.be)\//i.test(q)
+        || /^(www\.|m\.|music\.)?(youtube\.com|youtu\.be|open\.spotify\.com)\//i.test(q)
         || /^[a-zA-Z0-9_-]{11}$/.test(q);
     if (looksLikeLink) {
         const manual = document.getElementById('addSongManualDetails');
@@ -2739,7 +2747,8 @@ async function runAddSongSearch() {
             urlInput.value = q;
             urlInput.dispatchEvent(new Event('input'));  // triggers title autofill
         }
-        renderAddSearchResults([], 'Link detected — finish it below.');
+        if (listKind === 'youtube') renderAddImportOffer('youtube', 'Or add just this song below.');
+        else renderAddSearchResults([], 'Link detected — finish it below.');
         return;
     }
 
@@ -2773,16 +2782,63 @@ function renderAddSearchResults(results, status = '') {
     addSearchResults.forEach((r, i) => {
         const parsed = parseYoutubeResultTitle(r.title, r.channel);
         const thumb = safeUrl(r.thumbnail);
-        html += `<button type="button" class="search-result-row" onclick="pickAddSearchResult(${i})">
+        html += `<button type="button" class="search-result-row" data-add-i="${i}" onclick="pickAddSearchResult(${i})">
             ${thumb ? `<img class="search-result-thumb" src="${escapeHtml(thumb)}" alt="" loading="lazy">` : '<span class="search-result-thumb"></span>'}
             <span class="search-result-meta">
                 <span class="search-result-title">${escapeHtml(parsed.title)}</span>
                 <span class="search-result-artist">${escapeHtml(parsed.artist)}</span>
             </span>
             <span class="search-result-play">${PLAY_SVG}</span>
+            <span class="search-result-plus" aria-hidden="true">${ADD_PLUS_SVG}</span>
         </button>`;
     });
     box.innerHTML = html;
+}
+
+const ADD_PLUS_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+
+// Which playlist a pasted link is: 'youtube', 'spotify' ('spotify-off'
+// when this server can't import from Spotify), or null. A YouTube Mix
+// (list=RD…) is made up on the fly, so there's nothing to import; YouTube
+// Music's curated RDCLAK… lists are real playlists.
+function playlistLinkKind(q) {
+    if (/open\.spotify\.com\/(?:intl-[a-z-]+\/)?playlist\//i.test(q)) {
+        return typeof spotifyOn !== 'undefined' && !spotifyOn ? 'spotify-off' : 'spotify';
+    }
+    const list = String(q).match(/[?&]list=([\w-]+)/);
+    if (list && /(youtube\.com|youtu\.be)\//i.test(q) && !/^RD(?!CLAK)/.test(list[1])) return 'youtube';
+    return null;
+}
+
+function renderAddImportOffer(kind, note) {
+    const box = document.getElementById('addSongSearchResults');
+    if (!box) return;
+    addSearchResults = [];
+    if (kind === 'spotify-off') {
+        box.innerHTML = '<div class="search-result-status">Spotify playlists can’t be imported here. Copy the songs as a list and use Import a playlist → Paste a list.</div>';
+        return;
+    }
+    const name = kind === 'spotify' ? 'Spotify' : 'YouTube';
+    box.innerHTML = `<button type="button" class="search-result-row search-result-import" onclick="importFromAddSearch('${kind}')">
+            <span class="search-result-thumb search-result-import-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg></span>
+            <span class="search-result-meta">
+                <span class="search-result-title">Import this ${name} playlist</span>
+                <span class="search-result-artist">All its songs, into a new playlist</span>
+            </span>
+        </button>` + (note ? `<div class="search-result-status">${escapeHtml(note)}</div>` : '');
+}
+
+// The import sheet, already fetching the pasted playlist
+function importFromAddSearch(kind) {
+    const input = document.getElementById('addSongSearch');
+    const url = input ? input.value.trim() : ''; // read before the sheet resets it
+    hideAddSongModal();
+    showSpotifyImportModal();
+    setImportTab(kind);
+    const field = document.getElementById(kind === 'spotify' ? 'spotifyImportUrl' : 'youtubeImportUrl');
+    if (field) field.value = url;
+    if (kind === 'spotify') fetchSpotifyPlaylistUrl();
+    else fetchYoutubePlaylist();
 }
 
 async function pickAddSearchResult(index) {
@@ -5443,22 +5499,34 @@ function disconnectSpotify() {
 // opts.into === 'current': opened from a playlist ("Import into this
 // playlist"), so its preview pre-selects that playlist over a new one.
 let importIntoCurrent = false;
+let importIntoNew = false;
 
 function showSpotifyImportModal(opts) {
     importIntoCurrent = !!(opts && opts.into === 'current');
+    // 'new': the phone's Add songs aimed somewhere other than the open
+    // playlist, which an import can't target, so it starts on a new one
+    importIntoNew = !!(opts && opts.into === 'new');
     spotifyImportData = null;
     importSelection = [];
     const pasteEl = document.getElementById('pasteImportInput');
     if (pasteEl) pasteEl.value = '';
-    document.getElementById('spotifyImportUrl').value = '';
+    // Last time's links and status don't come back (Spotify's fields only
+    // exist when this server can import from Spotify)
+    ['spotifyImportUrl', 'youtubeImportUrl', 'spotifyProfileUrl'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const profileStatus = document.getElementById('spotifyProfileImportStatus');
+    if (profileStatus) profileStatus.style.display = 'none';
     document.getElementById('spotifyImportPreview').style.display = 'none';
     document.getElementById('spotifyImportLoading').style.display = 'none';
     setImportTab('paste'); // no-setup path first; Spotify link is a tab away
     document.getElementById('spotifyImportModal').classList.add('active');
 
     // Load user playlists if connected
-    if (spotifyConnected) {
-        const container = document.getElementById('spotifyUserPlaylists');
+    const userPlaylists = document.getElementById('spotifyUserPlaylists');
+    if (spotifyConnected && userPlaylists) {
+        const container = userPlaylists;
         const list = document.getElementById('spotifyPlaylistsList');
         container.style.display = '';
         list.innerHTML = '<p class="settings-hint" style="text-align:center">Loading playlists...</p>';
@@ -5493,8 +5561,8 @@ function showSpotifyImportModal(opts) {
             .catch(() => {
                 list.innerHTML = '<p class="settings-hint">Could not load playlists</p>';
             });
-    } else {
-        document.getElementById('spotifyUserPlaylists').style.display = 'none';
+    } else if (userPlaylists) {
+        userPlaylists.style.display = 'none';
     }
 }
 
@@ -5738,7 +5806,7 @@ function setImportTarget(sourceName, preferNew) {
         const option = currentRadio.closest('.import-target-option');
         if (option) option.style.display = meta ? '' : 'none';
     }
-    const wantNew = !meta || (preferNew && !importIntoCurrent);
+    const wantNew = !meta || importIntoNew || (preferNew && !importIntoCurrent);
     const radio = document.querySelector(`input[name="importTarget"][value="${wantNew ? 'new' : 'current'}"]`);
     if (radio) radio.checked = true;
     updateImportTarget();
@@ -6539,6 +6607,27 @@ function showScanModal() {
 function hideScanModal() {
     document.getElementById('scanModal').classList.remove('active');
     scanResults = [];
+    window.mScanTarget = undefined; // the phone's Add songs → Snap sets it
+}
+
+// A phone camera photo is several MB, over the server's limit as base64:
+// send large or unusual images as a JPEG of at most 1600px.
+async function scanImagePayload(file) {
+    const plain = /^image\/(jpeg|png|webp)$/.test(file.type) && file.size <= 1500000;
+    if (!plain) {
+        try {
+            const bitmap = await createImageBitmap(file);
+            const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+            canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+            canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            if (bitmap.close) bitmap.close();
+            const url = canvas.toDataURL('image/jpeg', 0.85);
+            return { image: url.split(',')[1], mimeType: 'image/jpeg' };
+        } catch (e) { /* the browser can't decode it: send it as it is */ }
+    }
+    return { image: await fileToBase64(file), mimeType: file.type };
 }
 
 function resetScanModal() {
@@ -6575,6 +6664,7 @@ async function handleScanFiles(fileList) {
     let processed = 0;
 
     // Process images via Gemini
+    let coverError = '';
     for (const img of images) {
         setScanProgress(
             'Identifying album covers...',
@@ -6583,8 +6673,9 @@ async function handleScanFiles(fileList) {
         );
 
         try {
-            const base64 = await fileToBase64(img);
-            const data = await postJsonRetrying('/scan-cover', { image: base64, mimeType: img.type }, { retries: 3 });
+            const payload = await scanImagePayload(img);
+            const data = await postJsonRetrying('/scan-cover', payload, { retries: 3 });
+            if (!data.success && data.error && !coverError) coverError = data.error;
 
             if (data.success && data.artist) {
                 const songs = data.songs && data.songs.length > 0 ? data.songs : [data.album || 'Unknown'];
@@ -6610,6 +6701,8 @@ async function handleScanFiles(fileList) {
             await new Promise(r => setTimeout(r, 500));
         }
     }
+
+    if (coverError && !scanResults.length) showBulkToast(`Couldn’t identify the cover: ${coverError}`);
 
     // Process audio files
     for (const audio of audioFiles) {
@@ -6813,6 +6906,16 @@ async function scanAddSelected() {
     btn.disabled = true;
     btn.textContent = 'Adding...';
 
+    // The phone's Add songs → Snap names a playlist (its "To" line)
+    const target = typeof window.mScanTarget === 'string' ? window.mScanTarget : null;
+    const isOpen = () => target === null || target === String(activePlaylistId);
+    let added = 0;
+    const countElsewhere = () => { // as each lands (see importAudioFiles)
+        const m = playlistsMeta[target];
+        if (!m) return;
+        m.songCount = (m.songCount || 0) + 1;
+        setCrateCardCount(target, m.songCount);
+    };
     for (const i of indices) {
         const r = scanResults[i];
         if (!r.youtube) continue;
@@ -6829,12 +6932,16 @@ async function scanAddSelected() {
             const resp = await fetch('/save-music', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'add', song })
+                body: JSON.stringify(Object.assign({ action: 'add', song }, target !== null ? { playlist: target } : {}))
             });
             const result = await resp.json();
 
             if (result.success) {
-                songsData.push(song);
+                added++;
+                if (target === null) songsData.push(song);
+                else if (isOpen() && typeof window.mJoinOnScreenList === 'function') window.mJoinOnScreenList(song);
+                else countElsewhere();
+                if (target === 'favorites') favoriteKeys.add(songPlayKey(song));
             }
         } catch (e) {
             console.warn('Error adding song:', e);
@@ -6842,9 +6949,15 @@ async function scanAddSelected() {
     }
 
     // Update UI
-    if (shuffleMode !== 'off') buildShuffleQueue();
-    rebuildSongList();
-    updateTrackCount();
+    if (target === null) {
+        if (shuffleMode !== 'off') buildShuffleQueue();
+        rebuildSongList();
+        updateTrackCount();
+    } else {
+        const meta = playlistsMeta[target];
+        if (target === 'favorites') updateFavoriteHearts();
+        if (added && window.mToast) window.mToast(`Added ${added} to ${meta ? meta.name : 'your playlist'}`);
+    }
     hideScanModal();
 }
 
@@ -7924,6 +8037,18 @@ async function uploadAudioFile(file, tags, onProgress) {
     multi-select goes straight to the batch importer. */
 async function handleAudioUpload(files) {
     if (!files || files.length === 0) return;
+    // The phone's Add songs: always the batch path (progress in a toast,
+    // offline copies linked), to the playlist its "To" line names.
+    const phoneTarget = typeof window.mCurrentAddTarget === 'function' ? window.mCurrentAddTarget() : undefined;
+    const phoneSheet = typeof window.mAddSheetOnPhone === 'function' && window.mAddSheetOnPhone();
+    if (phoneTarget !== undefined || phoneSheet) {
+        const list = [...files];
+        document.getElementById('addSongFile').value = '';
+        hideAddSongModal();
+        // (the setup wizard: no target, so the first song is cued as before)
+        importAudioFiles(list, phoneTarget !== undefined ? { playlist: phoneTarget } : {});
+        return;
+    }
     if (files.length > 1) {
         const list = [...files];
         document.getElementById('addSongFile').value = '';
@@ -7972,7 +8097,22 @@ async function handleAudioUpload(files) {
 
 let importInProgress = false;
 
-async function importAudioFiles(files) {
+// opts.playlist: send the files there (the phone's "To" line) instead of the
+// open playlist, without cueing over whatever is playing.
+async function importAudioFiles(files, opts = {}) {
+    const target = opts.playlist !== undefined && opts.playlist !== null ? String(opts.playlist) : null;
+    // Asked per song: the user may open another playlist while it runs
+    const isOpen = () => target === null || target === String(activePlaylistId);
+    const addedSongs = [];
+    let linkedOpen = 0;
+    // A song not joined to the list on screen (which counts itself) counts
+    // here, as it lands: opening that playlist mid-run recounts it from then
+    const countElsewhere = () => {
+        const meta = playlistsMeta[target];
+        if (!meta) return;
+        meta.songCount = (meta.songCount || 0) + 1;
+        setCrateCardCount(target, meta.songCount);
+    };
     const audio = [...files].filter(isAudioFile);
     if (audio.length === 0) {
         showImportToast('No audio files found — supported: mp3, m4a, aac, ogg, opus, wav, flac', true);
@@ -8011,20 +8151,28 @@ async function importAudioFiles(files) {
             const res = await fetch('/save-music', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'add', song, link: true })
+                body: JSON.stringify(Object.assign({ action: 'add', song, link: true }, target !== null ? { playlist: target } : {}))
             });
             const result = await res.json();
             if (result.success && result.linked) {
-                const existing = songsData[result.index];
+                const existing = isOpen() ? songsData[result.index] : null;
                 if (existing) {
                     existing.mp3_url = song.mp3_url;
                     if (!existing.album) existing.album = song.album;
                     if (!existing.cover) existing.cover = song.cover;
+                    linkedOpen++;
                 }
                 linked++;
             } else if (result.success) {
-                songsData.push(song);
-                currentSongIndex = result.index;
+                if (target === null) {
+                    songsData.push(song);
+                    currentSongIndex = result.index;
+                } else if (isOpen() && typeof window.mJoinOnScreenList === 'function') {
+                    window.mJoinOnScreenList(song);
+                } else {
+                    countElsewhere();
+                }
+                addedSongs.push(song);
                 added++;
             } else {
                 failed++;
@@ -8035,22 +8183,33 @@ async function importAudioFiles(files) {
     }
 
     importInProgress = false;
-    if (shuffleMode !== 'off') buildShuffleQueue();
-    rebuildSongList();
-    updateTrackCount();
-    if (typeof updateOfflineButton === 'function') updateOfflineButton();
-    if (added > 0) {
-        const current = songsData[currentSongIndex];
-        updateSongDisplay(current);
-        playSongSource(current, true); // cue, don't blast the speakers
-        loadLyricsForSong(current); // keep lyrics in sync with the shown song
+    if (target === null) {
+        if (shuffleMode !== 'off') buildShuffleQueue();
+        rebuildSongList();
+        updateTrackCount();
+        if (added > 0) {
+            const current = songsData[currentSongIndex];
+            updateSongDisplay(current);
+            playSongSource(current, true); // cue, don't blast the speakers
+            loadLyricsForSong(current); // keep lyrics in sync with the shown song
+        }
+    } else {
+        // The open list already took its songs (mJoinOnScreenList); the
+        // chosen playlist's count and Favorites' hearts follow.
+        if (target === 'favorites' && addedSongs.length) {
+            addedSongs.forEach((sg) => favoriteKeys.add(songPlayKey(sg)));
+            updateFavoriteHearts();
+        }
+        if (linkedOpen) rebuildSongList();
     }
+    if (typeof updateOfflineButton === 'function') updateOfflineButton();
     const parts = [];
     if (added) parts.push(`imported ${added}`);
     if (linked) parts.push(`linked ${linked} to existing song${linked === 1 ? '' : 's'} for offline`);
     if (failed) parts.push(`${failed} failed`);
+    const into = target !== null && playlistsMeta[target] ? ` into “${playlistsMeta[target].name}”` : '';
     showImportToast(
-        parts.length ? parts.join(', ').replace(/^./, c => c.toUpperCase()) : 'Nothing imported',
+        parts.length ? parts.join(', ').replace(/^./, c => c.toUpperCase()) + into : 'Nothing imported',
         failed > 0
     );
     setTimeout(hideImportToast, 5000);
@@ -9263,6 +9422,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!row) return;
             window.mHideAddSheet();
             if (row.dataset.mAdd === 'playlist') window.showPlaylistCreateModal();
+            else if (row.dataset.mAdd === 'songs') window.showAddSongModal();
             else if (row.dataset.mAdd === 'import') window.showSpotifyImportModal();
         });
     }
@@ -9574,7 +9734,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = '<div class="m-search-section"><h2 class="m-search-heading">That’s a link</h2></div>';
         if (kind === 'youtube-playlist' || kind === 'youtube-both') html += row('import-yt', 'Import this YouTube playlist', 'All its songs, into a new playlist', importIc);
         if (kind === 'youtube-video' || kind === 'youtube-both' || kind === 'spotify-track') html += row('add-song', 'Add this song', 'Check its title, then save it', addIc);
-        if (kind === 'spotify-playlist') html += row('import-sp', 'Import this Spotify playlist', 'All its songs, into a new playlist', importIc);
+        if (kind === 'spotify-playlist') {
+            html += spotifyOn ? row('import-sp', 'Import this Spotify playlist', 'All its songs, into a new playlist', importIc)
+                : '<div class="m-search-hint m-search-hint-sm">Spotify playlists can’t be imported here. Copy the songs as a list: Library → + → Import a playlist → Paste a list.</div>';
+        }
         const hint = (text) => `<div class="m-search-hint m-search-hint-sm">${text}</div>`;
         if (kind === 'youtube-mix') html += hint('YouTube Mixes can’t be imported: paste a regular playlist link, or search a song from it.');
         if (kind === 'spotify-album') html += hint('Spotify albums can’t be imported yet: paste a playlist link, or search the album’s songs.');
@@ -9778,6 +9941,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const field = document.getElementById('addSongSearch');
             if (field) {
                 field.value = q;
+                const sheet = document.getElementById('addSongModal');
+                if (sheet) sheet.classList.add('m-add-searching'); // the rows make way, as when typing
                 if (typeof runAddSongSearch === 'function') runAddSongSearch();
             }
         }
@@ -9852,33 +10017,53 @@ document.addEventListener('DOMContentLoaded', () => {
     const addToSheet = document.getElementById('mAddToSheet');
     let addToSong = null;
     let addToOpener = null;      // the + it came from (its data-add), for focus
-    window.mShowAddToSheet = function (song, opener) {
-        if (!addToSheet || !song) return;
-        addToSong = song;
-        addToOpener = opener === undefined ? null : String(opener);
+    let addToPick = null;        // picker mode (Add songs' "To"): called with the id
+    let addToReturn = null;      // where focus goes back to in picker mode
+    // opts.pick turns it into a playlist picker: no song, opts.current marked.
+    window.mShowAddToSheet = function (song, opener, opts) {
+        const pick = opts && typeof opts.pick === 'function' ? opts.pick : null;
+        if (!addToSheet || (!song && !pick)) return;
+        addToSong = pick ? null : song;
+        addToPick = pick;
+        addToReturn = pick && opts.returnFocus ? opts.returnFocus : null;
+        addToOpener = opener === undefined || opener === null ? null : String(opener);
+        const heading = document.getElementById('mAddToTitle');
+        if (heading) heading.textContent = pick ? (opts.title || 'Choose a playlist') : 'Add to playlist';
         const list = addToSheet.querySelector('.m-addto-list');
         const title = addToSheet.querySelector('.m-addto-song');
-        if (title) title.textContent = song.artist ? `${song.title} · ${song.artist}` : song.title;
+        if (title) {
+            title.hidden = !!pick;
+            if (!pick) title.textContent = song.artist ? `${song.title} · ${song.artist}` : song.title;
+        }
+        const current = pick && opts.current !== undefined ? String(opts.current) : null;
         if (list) {
             list.innerHTML = Object.keys(playlistsMeta).map((id) => {
                 const meta = playlistsMeta[id];
                 const thumb = safeUrl(playlistThumbUrl(id));
                 const color = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#d4a574';
                 const count = meta.songCount || 0;
-                return `<button type="button" class="m-sheet-row m-sheet-compact m-addto-row" data-addto="${escapeHtml(id)}">
+                const here = id === current ? ' aria-current="true"' : '';
+                return `<button type="button" class="m-sheet-row m-sheet-compact m-addto-row${here ? ' is-current' : ''}" data-addto="${escapeHtml(id)}"${here}>
                     <span class="send-menu-pick-art" aria-hidden="true" style="--pl-color:${color}">${thumb ? `<img src="${escapeHtml(thumb)}" alt="" loading="lazy">` : '&#9834;'}</span>
                     <span class="m-sheet-text"><b>${escapeHtml(meta.name)}</b><small>${count} ${count === 1 ? 'song' : 'songs'}</small></span>
                 </button>`;
             }).join('') || '<p class="m-sleep-status">Make a playlist first (Library → +).</p>';
         }
         addToSheet.classList.add('active');
-        const first = addToSheet.querySelector('.m-addto-row');
+        const first = addToSheet.querySelector('.m-addto-row.is-current') || addToSheet.querySelector('.m-addto-row');
         if (first) first.focus({ preventScroll: true });
     };
     window.mHideAddToSheet = function () {
         if (!addToSheet) return;
         const hadFocus = addToSheet.contains(document.activeElement);
         addToSheet.classList.remove('active');
+        if (addToReturn) {
+            // Picker mode: back to its button (its sheet is still open below)
+            if (hadFocus) addToReturn.focus({ preventScroll: true });
+            addToReturn = null;
+            addToPick = null;
+            return;
+        }
         if (hadFocus && searchResultsEl && !document.querySelector('.add-song-modal.active')) {
             const back = addToOpener !== null ? searchResultsEl.querySelector(`[data-add="${addToOpener}"]`) : null;
             (back || searchResultsEl).focus({ preventScroll: true });
@@ -9886,20 +10071,22 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     wrapModalPair('mShowAddToSheet', 'mHideAddToSheet', 'addTo');
 
-    async function addFoundSong(id, song) {
+    // Resolves to 'added', 'already' or false (failed; it said so).
+    // opts.quiet: no "Added to" toast (the Add songs sheet ticks the row).
+    async function addFoundSong(id, song, opts) {
         const meta = playlistsMeta[id];
-        if (!meta || !song) return;
+        if (!meta || !song) return false;
         let res = null;
         try {
             res = await saveMusicRequest({ action: 'addBatch', playlist: id, songs: [song] });
         } catch (e) { /* below */ }
         if (!res || !res.success) {
             window.mToast(res && res.error ? `Couldn't add it: ${res.error}` : 'Couldn\'t add it. Check your connection and try again.');
-            return;
+            return false;
         }
         if (!res.added) {
             window.mToast(`Already in ${meta.name}`);
-            return;
+            return 'already';
         }
         meta.songCount = (meta.songCount || 0) + res.added;
         setCrateCardCount(id, meta.songCount);
@@ -9908,7 +10095,8 @@ document.addEventListener('DOMContentLoaded', () => {
             updateFavoriteHearts();
         }
         if (String(id) === String(activePlaylistId)) joinOnScreenList(song);
-        window.mToast(`Added to ${meta.name}`);
+        if (!(opts && opts.quiet)) window.mToast(`Added to ${meta.name}`);
+        return 'added';
     }
 
     // The server appended a song to the active playlist: the list on screen
@@ -9945,11 +10133,179 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const row = e.target.closest('[data-addto]');
-            if (!row || !addToSong) return;
+            if (!row) return;
+            if (addToPick) {
+                const pick = addToPick;
+                addToPick = null;
+                window.mHideAddToSheet();
+                pick(row.dataset.addto);
+                return;
+            }
+            if (!addToSong) return;
             const song = addToSong;
             addToSong = null; // one add per open
             window.mHideAddToSheet();
             addFoundSong(row.dataset.addto, song);
+        });
+    }
+
+    // The batch file import and the Song Scanner (outside this shell) hand
+    // songs for the open playlist to the same rules.
+    window.mJoinOnScreenList = joinOnScreenList;
+
+    // ---- Add songs (portrait phones): a "To" line naming the playlist the
+    // songs go to (the open one to start with; a picker changes it without
+    // opening another), results that add on a tap and keep the sheet open
+    // for the next one, and rows for an import, files and a cover photo.
+    // The setup wizard keeps its search-tap-play first song.
+    const addSongModal = document.getElementById('addSongModal');
+    const addSongSearch = document.getElementById('addSongSearch');
+    const addToBtn = document.getElementById('mAddToBtn');
+    const addToNameEl = document.getElementById('mAddToName');
+    let addTarget = null;
+    let addWizard = false;
+
+    // The open playlist, else Favorites (made on the first add if missing)
+    function defaultAddTarget() {
+        const id = String(activePlaylistId);
+        if (playlistsMeta[id]) return id;
+        return playlistsMeta.favorites ? 'favorites' : (Object.keys(playlistsMeta)[0] || 'favorites');
+    }
+    const currentAddTarget = () => addTarget || defaultAddTarget();
+
+    function renderAddTarget() {
+        const meta = playlistsMeta[currentAddTarget()];
+        if (addToNameEl) addToNameEl.textContent = meta ? meta.name : 'Favorites';
+    }
+
+    const shownAddSong = window.showAddSongModal;
+    window.showAddSongModal = function (opts) {
+        addWizard = !!(opts && opts.wizard);
+        addTarget = defaultAddTarget();
+        renderAddTarget();
+        if (addSongModal) addSongModal.classList.remove('m-add-searching');
+        return shownAddSong.apply(this, arguments);
+    };
+
+    // The rows make way for results while there's a search
+    if (addSongSearch && addSongModal) {
+        addSongSearch.addEventListener('input', () => {
+            addSongModal.classList.toggle('m-add-searching', addSongSearch.value.trim() !== '');
+        });
+    }
+
+    // Where the phone's file pick goes (handleAudioUpload asks); the wizard's
+    // pick takes the same visible batch path, untargeted
+    window.mAddSheetOnPhone = () => onPhone() && !!addSongModal && addSongModal.classList.contains('active');
+    window.mCurrentAddTarget = () => (window.mAddSheetOnPhone() && !addWizard ? currentAddTarget() : undefined);
+
+    // Favorites before it exists (a new account): 'add' creates it
+    async function addSongTo(id, song) {
+        if (playlistsMeta[id]) return addFoundSong(id, song, { quiet: true });
+        let res = null;
+        try {
+            res = await saveMusicRequest({ action: 'add', song, playlist: id });
+        } catch (e) { /* below */ }
+        if (!res || !res.success) {
+            window.mToast(res && res.error ? `Couldn't add it: ${res.error}` : 'Couldn\'t add it. Check your connection and try again.');
+            return false;
+        }
+        if (id === 'favorites') {
+            favoriteKeys.add(songPlayKey(song));
+            updateFavoriteHearts();
+        }
+        if (String(id) === String(activePlaylistId)) joinOnScreenList(song);
+        return 'added';
+    }
+
+    const origPickAdd = window.pickAddSearchResult;
+    window.pickAddSearchResult = async function (index) {
+        if (!onPhone() || addWizard || !addSongModal || !addSongModal.classList.contains('active')) {
+            return origPickAdd.apply(this, arguments);
+        }
+        const r = addSearchResults[index];
+        const row = document.querySelector(`#addSongSearchResults [data-add-i="${index}"]`);
+        if (!r || !r.videoId || !row || row.disabled) return;
+        row.disabled = true;
+        row.classList.add('adding');
+        const parsed = parseYoutubeResultTitle(r.title, r.channel);
+        const song = { title: parsed.title || r.title, artist: parsed.artist, album: '', cover: safeUrl(r.thumbnail), youtube_id: r.videoId, mp3_url: '', spotify_id: '' };
+        const out = await addSongTo(currentAddTarget(), song);
+        row.classList.remove('adding');
+        if (out) {
+            row.classList.add('is-added'); // stays disabled: one add per result
+            row.setAttribute('aria-label', `${song.title}: ${out === 'already' ? 'already there' : 'added'}`);
+        } else {
+            row.disabled = false;
+        }
+    };
+
+    // The manual form (a pasted song link lands there too) adds to the To
+    // playlist as well, and the sheet stays for the next song
+    const origSaveAndPlay = window.saveAndPlaySong;
+    window.saveAndPlaySong = async function (song) {
+        if (!onPhone() || addWizard || !addSongModal || !addSongModal.classList.contains('active')) {
+            return origSaveAndPlay.apply(this, arguments);
+        }
+        const target = currentAddTarget();
+        const out = await addSongTo(target, Object.assign({ spotify_id: '' }, song));
+        if (!out) return false;
+        const meta = playlistsMeta[target];
+        // ("Already in …" was said on the way)
+        if (out === 'added') window.mToast(`Added to ${meta ? meta.name : 'Favorites'}`);
+        const form = document.getElementById('addSongForm');
+        if (form) form.reset();
+        lastFetchedYtId = ''; // the same link pasted again fills the form again
+        const manual = document.getElementById('addSongManualDetails');
+        if (manual) manual.open = false;
+        if (addSongSearch) {
+            addSongSearch.value = '';
+            addSongModal.classList.remove('m-add-searching');
+        }
+        renderAddSearchResults(null);
+        return true;
+    };
+
+    if (addToBtn) {
+        addToBtn.addEventListener('click', () => {
+            window.mShowAddToSheet(null, null, {
+                title: 'Add songs to',
+                current: currentAddTarget(),
+                returnFocus: addToBtn,
+                pick: (id) => {
+                    addTarget = id;
+                    renderAddTarget();
+                },
+            });
+        });
+    }
+
+    if (addSongModal) {
+        addSongModal.addEventListener('click', (e) => {
+            const row = e.target.closest('[data-m-addsong]');
+            if (!row) return;
+            const what = row.dataset.mAddsong;
+            if (what === 'import') {
+                const intoOpen = String(currentAddTarget()) === String(activePlaylistId) && playlistsMeta[String(activePlaylistId)];
+                window.hideAddSongModal();
+                window.showSpotifyImportModal({ into: intoOpen ? 'current' : 'new' });
+            } else if (what === 'files') {
+                // Inside the tap (a file picker needs it); the sheet stays
+                // until the files are picked
+                const input = document.getElementById('addSongFile');
+                if (input) {
+                    input.value = '';
+                    input.click();
+                }
+            } else if (what === 'snap') {
+                window.mScanTarget = currentAddTarget();
+                window.showScanModal(); // over this sheet: back returns here
+                const cam = document.getElementById('scanCameraInput');
+                if (cam) {
+                    cam.value = '';
+                    cam.click();
+                }
+            }
         });
     }
 
