@@ -599,12 +599,12 @@
             </header>
             <div class="m-search-field">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m20 20-4.4-4.4"/></svg>
-                <input type="search" id="mSearchInput" placeholder="Songs or artists in your library" autocomplete="off" enterkeyhint="search" aria-label="Search your library">
+                <input type="search" id="mSearchInput" placeholder="Songs, artists or a link" autocomplete="off" enterkeyhint="search" aria-label="Search your library and YouTube">
                 <button type="button" class="m-search-clear" id="mSearchClear" aria-label="Clear search" hidden>
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
                 </button>
             </div>
-            <div class="m-search-results" id="mSearchResults"></div>
+            <div class="m-search-results" id="mSearchResults" tabindex="-1"></div>
             <div class="m-sr-only" id="mSearchStatus" role="status" aria-live="polite"></div>
         </section>
 
@@ -1298,6 +1298,17 @@
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 13h9l1-13"/></svg></span>
                 <span class="m-sheet-text"><b>Delete playlist</b></span>
             </button>
+        </div>
+    </div>
+    {{-- Phone Search: add a song found on YouTube to one of your playlists.
+         Rows are filled by script.js when it opens. --}}
+    <div class="add-song-modal m-menu-sheet" id="mAddToSheet" role="dialog" aria-modal="true" aria-labelledby="mAddToTitle">
+        <div class="add-song-modal-backdrop" data-m-addto-close></div>
+        <div class="add-song-modal-panel">
+            <button type="button" class="add-song-modal-close" data-m-addto-close aria-label="Close">&times;</button>
+            <h2 class="m-sheet-title" id="mAddToTitle">Add to playlist</h2>
+            <p class="m-sleep-status m-addto-song"></p>
+            <div class="m-addto-list"></div>
         </div>
     </div>
     {{-- Phone: Now Playing's sleep timer (the same timer as desktop's coaster

@@ -59,7 +59,7 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Installed app, fresh launch: opens on Home. Back on Home closes the
   app; back on Search or Library goes to Home first.
 - [ ] Library → open a playlist → back → Library → back → Home.
-- [ ] Search: type, tap a hit (its playlist opens and plays), back →
+- [ ] Search: type, tap a hit's playlist chip (its playlist opens), back →
   the same results are still there.
 - [ ] Tap the mini player on each tab: Now Playing opens over that tab and
   closing it (back, chevron, drag down) shows the same tab again. The tab
@@ -102,6 +102,33 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
   playlist scrolls to the song, which lights up briefly.
 - [ ] An empty playlist shows Add songs and Import; Import pre-selects
   "Add to <this playlist>".
+
+## Search tab
+
+- [ ] Empty field: recent searches (× removes one, Clear removes all) and
+  your playlists as tiles; a tile opens that playlist.
+- [ ] Type a song you have: "In your library" first. Tapping the song plays
+  it right there (the mini player updates, you stay on Search); its colored
+  playlist chip opens the playlist instead.
+- [ ] "From YouTube" follows a moment later. Tapping one plays it as a
+  preview; + → pick a playlist: "Added to …", and it's in that playlist.
+  Adding it again says "Already in …". Back closes the picker first.
+- [ ] Paste a YouTube playlist link: "Import this YouTube playlist" opens the
+  import sheet already fetching it. A video, Shorts or live link, or a
+  Spotify song link, offers "Add this song"; a Spotify playlist link imports
+  through the Spotify tab. Spotify albums and YouTube Mixes say they can't
+  be imported.
+- [ ] Preview a YouTube song, then + it into the playlist that's playing:
+  the playlist shows it once, with a ✓ (no second +).
+- [ ] Play a song, open an empty playlist (the song keeps playing), and +
+  a song into it from Search: the music doesn't stop. Next, tapping the new
+  song, or the old song ending starts it, with its title on the screen and
+  lock screen. Pause still pauses the old song; Play after that starts the
+  new one.
+- [ ] The same with an empty playlist and nothing playing: the added song
+  shows in the mini player, ready to play.
+- [ ] Airplane mode, type: the library part still says what failed, YouTube
+  says it couldn't search; nothing hangs.
 
 ## Now Playing tools row
 

@@ -15717,3 +15717,209 @@ button.send-menu-cancel {
         height: min(240px, calc(100dvh - 444px));
     }
 }
+
+/* ============================================================
+   SEARCH TAB (portrait web shell): recent searches, your playlists,
+   library hits that play in place (the chip opens the playlist),
+   YouTube hits with +, and pasted links.
+   ============================================================ */
+@media (max-width: 600px) {
+    #mSearchResults .m-search-section {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 18px 0 6px;
+    }
+
+    #mSearchResults .m-search-section:first-child { margin-top: 4px; }
+    #mSearchResults .m-sr-lib:not(:empty) + .m-sr-yt > .m-search-section:first-child { margin-top: 18px; }
+
+    #mSearchResults .m-search-heading {
+        margin: 0;
+        font: 600 1.1rem/1.2 var(--display);
+        color: var(--cream);
+    }
+
+    #mSearchResults .m-search-clear-all {
+        min-height: 44px;
+        padding: 0 8px;
+        border: 0;
+        border-radius: 10px;
+        background: none;
+        color: var(--amber);
+        font: 600 0.9rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        cursor: pointer;
+    }
+
+    #mSearchResults .m-search-hint-sm {
+        padding: 8px 4px 4px;
+        text-align: left;
+        font-size: 0.88rem;
+    }
+
+    .m-recent-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .m-recent-row {
+        display: flex;
+        align-items: center;
+    }
+
+    .m-recent-q {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 4px;
+        border: 0;
+        border-radius: 10px;
+        background: none;
+        color: var(--cream);
+        font: 500 0.98rem/1.2 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .m-recent-q svg { flex: 0 0 auto; color: color-mix(in srgb, var(--cream) 60%, transparent); }
+    .m-recent-q span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .m-recent-x {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 auto;
+        border: 0;
+        border-radius: 50%;
+        background: none;
+        color: color-mix(in srgb, var(--cream) 60%, transparent);
+        font-size: 1.4rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .m-search-browse {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    /* A result row: the song (plays here) + its playlist chip or + */
+    .m-sr-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    #mSearchResults .m-sr-row .search-result {
+        flex: 1 1 auto;
+        min-width: 0;
+        width: auto;
+        margin: 0 0 0 -8px;
+    }
+
+    .m-sr-open {
+        flex: 0 1 auto;
+        max-width: 42%;
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        font-family: inherit;
+        cursor: pointer;
+    }
+
+    .m-sr-open .search-result-pl { max-width: 100%; }
+
+    .m-sr-add {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid color-mix(in srgb, var(--cream) 25%, transparent);
+        border-radius: 50%;
+        background: none;
+        color: var(--cream);
+        cursor: pointer;
+    }
+
+    .m-sr-add:active,
+    .m-sr-open:active { opacity: 0.7; }
+
+    .m-recent-q:active,
+    .m-recent-x:active,
+    #mSearchResults .m-search-clear-all:active { background: rgba(255, 245, 233, 0.07); }
+
+    /* YouTube thumbnails without their letterbox bars */
+    #mSearchResults img.search-result-cover[src*="hqdefault"],
+    #mSearchResults img.search-result-cover[src*="sddefault"] {
+        transform: scale(1.34);
+        clip-path: inset(12.5% round 5px);
+    }
+
+    .m-search-link {
+        width: 100%;
+        min-height: 60px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 0;
+        padding: 8px 4px;
+        border: 0;
+        border-radius: 12px;
+        background: none;
+        color: var(--cream);
+        font-family: inherit;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .m-search-link:active { background: rgba(255, 245, 233, 0.07); }
+
+    /* They have their own :active looks */
+    .m-sr-open,
+    .m-sr-add,
+    .m-recent-q,
+    .m-recent-x,
+    .m-search-link,
+    #mSearchResults .m-search-clear-all { -webkit-tap-highlight-color: transparent; }
+
+    /* Focus parks here when the row it was on goes away */
+    #mSearchResults:focus { outline: none; }
+
+    .m-search-link-ic {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: rgba(var(--amber-rgb), 0.14);
+        color: var(--amber);
+    }
+
+    .m-search-link-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .m-search-link-text b { font-size: 0.98rem; font-weight: 600; }
+    .m-search-link-text small { font-size: 0.82rem; color: color-mix(in srgb, var(--cream) 65%, transparent); }
+
+    #mAddToSheet .m-addto-row { gap: 12px; }
+    #mAddToSheet .m-addto-song { margin-top: -6px; overflow-wrap: anywhere; }
+}

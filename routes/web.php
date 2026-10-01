@@ -117,7 +117,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/settings/email', [AccountController::class, 'attachEmail'])->middleware('throttle:10,1');
 
     Route::post('/spotify-resolve', SpotifyResolveController::class)->middleware('throttle:20,1');
-    Route::post('/search-youtube', SearchYoutubeController::class)->middleware('throttle:70,1');
+    // Its own bucket: searching as you type mustn't use up the budget that
+    // a pasted playlist link then needs for its import.
+    Route::post('/search-youtube', SearchYoutubeController::class)->middleware('throttle:70,1,search-youtube');
     Route::post('/youtube-playlist', YoutubePlaylistController::class)->middleware('throttle:20,1');
     Route::post('/scan-cover', ScanCoverController::class)->middleware('throttle:10,1');
     Route::post('/recommendations', RecommendationsController::class)->middleware('throttle:5,1');

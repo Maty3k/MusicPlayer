@@ -32,6 +32,24 @@ class RateLimitResponseTest extends TestCase
         $this->assertGreaterThan(0, (int) $res->headers->get('Retry-After'));
     }
 
+    public function test_search_as_you_type_leaves_the_playlist_import_budget_alone(): void
+    {
+        Http::fake(['*' => Http::response('<html></html>')]);
+        $user = User::forceCreate([
+            'name' => 'Searcher',
+            'email' => uniqid().'@example.com',
+            'password' => bcrypt('secret-password'),
+            'email_verified_at' => now(),
+        ]);
+
+        for ($i = 0; $i < 25; $i++) {
+            $this->actingAs($user)->postJson('/search-youtube', ['query' => "song {$i}"])->assertOk();
+        }
+
+        $res = $this->actingAs($user)->postJson('/youtube-playlist', ['url' => 'https://www.youtube.com/playlist?list=PLabc123']);
+        $this->assertNotSame(429, $res->getStatusCode());
+    }
+
     public function test_page_requests_still_get_html_errors(): void
     {
         $this->get('/s/no-such-share-token')->assertNotFound()->assertHeader('Content-Type', 'text/html; charset=UTF-8');

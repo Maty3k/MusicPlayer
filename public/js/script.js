@@ -238,7 +238,7 @@ function nextSong() {
     songHistory.push(currentRadioSong ? {type: 'radio', song: currentRadioSong} : currentSongIndex);
     const nextIndex = shuffleMode !== 'off'
         ? getRandomSongIndex()
-        : (currentSongIndex + 1) % songsData.length;
+        : (currentRowStarted() ? (currentSongIndex + 1) % songsData.length : currentSongIndex);
 
     // In smart shuffle, next auto-play after a playlist song should be radio
     if (shuffleMode === 'smart') {
@@ -260,7 +260,9 @@ function prevSong() {
             switchSong(prevIndex);
         }
     } else {
-        const prevIndex = (currentSongIndex - 1 + songsData.length) % songsData.length;
+        const prevIndex = currentRowStarted()
+            ? (currentSongIndex - 1 + songsData.length) % songsData.length
+            : currentSongIndex;
         switchSong(prevIndex);
     }
 }
@@ -279,7 +281,8 @@ function setActiveSongRow(index) {
 // Switch song from sidebar
 async function switchSong(index) {
     pdbg('tap song #' + (index + 1), songsData[index] ? songsData[index].title : '');
-    if (index === currentSongIndex && !currentRadioSong) return;
+    if (index === currentSongIndex && !currentRadioSong && !currentRowUnloaded) return;
+    if (!songsData[index]) return;
     if (isChangingSong) return;
 
     isChangingSong = true;
@@ -669,10 +672,12 @@ function toggleShuffle() {
 }
 
 function buildShuffleQueue() {
-    // Create array of all indices except the current song
+    // Create array of all indices except the current song (unless it
+    // hasn't started: see currentRowStarted)
     shuffleQueue = [];
+    const skip = currentRowStarted() ? currentSongIndex : -1;
     for (let i = 0; i < songsData.length; i++) {
-        if (i !== currentSongIndex) shuffleQueue.push(i);
+        if (i !== skip) shuffleQueue.push(i);
     }
     // Fisher-Yates shuffle
     for (let i = shuffleQueue.length - 1; i > 0; i--) {
@@ -695,7 +700,8 @@ function getRandomSongIndex() {
 // (switchSong would treat it as a no-op tap and playback would just stop)
 // and indexes past the end of the playlist.
 function pruneShuffleQueue() {
-    shuffleQueue = shuffleQueue.filter(i => i !== currentSongIndex && i < songsData.length);
+    const skip = currentRowStarted() ? currentSongIndex : -1;
+    shuffleQueue = shuffleQueue.filter(i => i !== skip && i < songsData.length);
 }
 
 // ============================================================
@@ -843,7 +849,9 @@ async function playRadioSong(song) {
 
     try {
         currentRadioSong = song;
-        currentRadioSongSaved = false;
+        // Already in the list on screen: its row shows ✓, not a + that
+        // would save it twice.
+        currentRadioSongSaved = Array.isArray(songsData) && songsData.some((s) => songPlayKey(s) === songPlayKey(song));
 
         // Remove previous radio item, add new one
         removeRadioSidebarItem();
@@ -1296,14 +1304,15 @@ function playNextByLoop() {
         return;
     }
 
-    // Play next playlist song (shuffle-aware)
+    // Play next playlist song (shuffle-aware). A current row that hasn't
+    // started (a leftover track just ended) is next itself.
     const nextIndex = shuffleMode !== 'off'
         ? getRandomSongIndex()
-        : (currentSongIndex + 1) % songsData.length;
+        : (currentRowStarted() ? (currentSongIndex + 1) % songsData.length : currentSongIndex);
 
     // A one-song playlist comes back to the song that just ended, which
     // switchSong ignores as "already playing" — start it over instead.
-    if (nextIndex === currentSongIndex && !currentRadioSong) {
+    if (nextIndex === currentSongIndex && !currentRadioSong && !currentRowUnloaded) {
         // Smart shuffle still mixes radio in: the only playlist song just
         // played, so radio is up. switchSong's pool refill never runs on a
         // one-song playlist, so top the pool up from here.
@@ -1329,6 +1338,7 @@ function playNextByLoop() {
 // Loop 'off': has every playlist song had its turn? In order, that's the
 // last row having played; shuffled, the shuffle queue being used up.
 function playlistPlayedThrough() {
+    if (!currentRowStarted()) return false; // a leftover track ended: this playlist hasn't begun
     if (shuffleMode === 'off') return currentSongIndex >= songsData.length - 1;
     pruneShuffleQueue();
     return shuffleQueue.length === 0;
@@ -2423,8 +2433,10 @@ function toggleMusic() {
     const song = currentRadioSong || songsData[currentSongIndex];
     pdbg('play/pause pressed', { ready: isPlayerReady(), state: ytPlayer && ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : null });
 
-    // Activate the right player for this song
-    if (song) activatePlayerForSong(song);
+    // Activate the right player for this song. Not for a current row that
+    // hasn't started: the player stays on the engine of the track from
+    // before, so Pause pauses that one (switchSong activates the row's).
+    if (song && currentRowStarted()) activatePlayerForSong(song);
 
     // If player isn't ready yet, queue the play
     if (!ytPlayer || !isPlayerReady()) {
@@ -2439,6 +2451,10 @@ function toggleMusic() {
     const state = ytPlayer.getPlayerState();
     if (state === YT.PlayerState.PLAYING) {
         ytPlayer.pauseVideo();
+    } else if (!currentRowStarted() && songsData[currentSongIndex]) {
+        // The player holds a track from before (see currentRowUnloaded):
+        // start this playlist's song properly (screen, row, lock screen).
+        switchSong(currentSongIndex);
     } else if (state === YT.PlayerState.PAUSED) {
         // Resume from pause
         ytPlayer.playVideo();
@@ -2798,6 +2814,10 @@ function extractYoutubeId(input) {
     if (match) return match[1];
     // youtube.com/embed/ID, /shorts/ID, /v/ID
     match = input.match(/(?:embed|shorts|\/v)\/([a-zA-Z0-9_-]{11})/);
+    if (match) return match[1];
+    // youtube.com/live/ID (a stream or premiere); only on YouTube's host, as
+    // plenty of audio links have /live/ in their path
+    match = input.match(/youtube\.com\/live\/([a-zA-Z0-9_-]{11})/i);
     if (match) return match[1];
     // raw 11-char ID
     if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
@@ -3406,14 +3426,20 @@ async function deleteSong(index, opts) {
     }
 
     if (result.success) {
-        const wasPlaying = index === currentSongIndex;
+        // A current row that hasn't started isn't what's playing (see
+        // currentRowUnloaded): the track from before plays on.
+        const waiting = currentRowUnloaded;
+        const wasPlaying = index === currentSongIndex && !waiting;
         songsData.splice(index, 1);
         currentSongIndex = result.newIndex;
         if (shuffleMode !== 'off') buildShuffleQueue();
         rebuildSongList();
         updateTrackCount();
         if (songsData.length === 0) {
-            showEmptyPlaylistState();
+            if (waiting) currentRowUnloaded = false;
+            else showEmptyPlaylistState();
+        } else if (waiting) {
+            currentRowUnloaded = currentRowStillUnloaded();
         } else if (wasPlaying) {
             const song = songsData[currentSongIndex];
             updateSongDisplay(song);
@@ -4232,7 +4258,8 @@ async function moveSongTo(toPlaylist, songIndex) {
         // Into Favorites is a like; out of Favorites, an unlike.
         if (movedKey && toPlaylist === 'favorites') favoriteKeys.add(movedKey);
         if (movedKey && fromPlaylist === 'favorites') favoriteKeys.delete(movedKey);
-        const wasPlaying = songIndex === currentSongIndex;
+        const waiting = currentRowUnloaded; // see deleteSong
+        const wasPlaying = songIndex === currentSongIndex && !waiting;
         songsData.splice(songIndex, 1);
         currentSongIndex = result.newIndex;
         if (shuffleMode !== 'off') buildShuffleQueue();
@@ -4243,7 +4270,10 @@ async function moveSongTo(toPlaylist, songIndex) {
         // Update target badge
         setCrateCardCount(toPlaylist, result.toCount);
         if (songsData.length === 0) {
-            showEmptyPlaylistState(); // the last song left: nothing to show
+            if (waiting) currentRowUnloaded = false;
+            else showEmptyPlaylistState(); // the last song left: nothing to show
+        } else if (waiting) {
+            currentRowUnloaded = currentRowStillUnloaded();
         } else if (wasPlaying) {
             const song = songsData[currentSongIndex];
             updateSongDisplay(song);
@@ -4399,7 +4429,7 @@ async function playRecentSong(i, opts = {}) {
         : -1;
     if (idx === -1) {
         playRadioSong(song);
-    } else if (idx === currentSongIndex && !currentRadioSong) {
+    } else if (idx === currentSongIndex && !currentRadioSong && !currentRowUnloaded) {
         playSongSource(songsData[idx], false);
     } else {
         switchSong(idx);
@@ -4570,7 +4600,7 @@ async function playSearchHit(r) {
     // selectPlaylistFromCrate only cues the song at the playlist's saved index;
     // if that's the hit, start it explicitly (switchSong would early-return on
     // its same-index guard and nothing would play).
-    if (position === currentSongIndex && !currentRadioSong) {
+    if (position === currentSongIndex && !currentRadioSong && !currentRowUnloaded) {
         if (songsData[position]) playSongSource(songsData[position], false);
     } else {
         switchSong(position);
@@ -5069,10 +5099,31 @@ let unplayableStreak = 0;
 // Bumped on every load/cue request, so a slow lookup can tell it's stale.
 let songRequestSeq = 0;
 
+// Set only by joinOnScreenList: switching into an empty playlist leaves the
+// old track playing, and a song added to it then is the current row without
+// being loaded. Until something is loaded, that row hasn't started: tapping
+// it, Play, Next or the old track ending start it (see currentRowStarted).
+let currentRowUnloaded = false;
+
 function noteSongRequest(song, isPlay) {
-    lastRequestedSong = song || null;
+    currentRowUnloaded = false;
+    // An empty playlist's placeholder ({}) loads nothing: the player still
+    // holds (and may still be playing) the song from before.
+    const placeholder = !!song && !song.title && !song.youtube_id && !song.mp3_url && !song.spotify_id;
+    if (!placeholder) lastRequestedSong = song || null;
     playRequested = !!isPlay;
     songRequestSeq++;
+}
+
+function currentRowStarted() {
+    return !!currentRadioSong || !currentRowUnloaded;
+}
+
+// While a row waits: is the (new) current row still not the track the
+// player holds? The track itself counts as started.
+function currentRowStillUnloaded() {
+    const cur = songsData[currentSongIndex];
+    return !!cur && !(lastRequestedSong && songPlayKey(lastRequestedSong) === songPlayKey(cur));
 }
 
 // A song that can't play (YouTube refused or removed the video, the audio
@@ -6008,7 +6059,7 @@ function showBulkToast(msg) {
 function extractSpotifyId(input) {
     if (!input) return '';
     input = input.trim();
-    const match = input.match(/open\.spotify\.com\/track\/([a-zA-Z0-9]+)/);
+    const match = input.match(/open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\/([a-zA-Z0-9]+)/i);
     if (match) return match[1];
     if (/^[a-zA-Z0-9]{22}$/.test(input)) return input;
     return '';
@@ -9127,44 +9178,255 @@ document.addEventListener('DOMContentLoaded', () => {
     // leave the portrait Library empty with no chips to undo it.
     mq.addEventListener('change', () => { if (mq.matches) dropDeadFilter(); });
 
-    // ---- Search tab: its own field and results, same library search
+    // ---- Search tab: your library first, then YouTube. While the field is
+    // empty: recent searches and your playlists. A pasted link offers to
+    // import the playlist or add the song. Library hits play in place.
     const searchInput = document.getElementById('mSearchInput');
     const searchResultsEl = document.getElementById('mSearchResults');
     const searchClear = document.getElementById('mSearchClear');
     const searchStatus = document.getElementById('mSearchStatus');
     const announce = (text) => { if (searchStatus) searchStatus.textContent = text; };
-    let pageResults = [];
+    const RECENT_SEARCHES = 'mRecentSearches';
+    const CLOCK_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
+    let pageResults = [];        // library hits for the current query
+    let ytResults = [];          // YouTube hits for the current query
+    let ytState = 'idle';        // idle | loading | done | error | limited
+    let libDone = false;
     let pageSearchTimer = 0;
+    let ytTimer = 0;
     let pageSearchSeq = 0;
+    const ytCache = new Map();
+    // What the rows on screen hold: a tap acts on what it shows, even while
+    // a newer query is still on its way.
+    let shownLib = [];
+    let shownYt = [];
+    let shownQuery = null;       // the query whose YouTube part is on screen
 
-    function searchHint(text) {
-        if (searchResultsEl) searchResultsEl.innerHTML = '<div class="m-search-hint">' + escapeHtml(text) + '</div>';
+    // A re-render keeps keyboard / TalkBack focus on the same row where it
+    // can, and in the results otherwise (not on <body>).
+    const FOCUS_KEYS = ['lib', 'open', 'yt', 'add', 'link', 'playlist'];
+    function keepingFocus(render) {
+        const el = document.activeElement;
+        const had = !!searchResultsEl && !!el && searchResultsEl.contains(el);
+        const key = had && el.dataset ? FOCUS_KEYS.find((k) => el.dataset[k] !== undefined) : null;
+        const sel = key ? `[data-${key}="${el.dataset[key]}"]` : null;
+        render();
+        if (!had || searchResultsEl.contains(document.activeElement)) return;
+        const next = (sel && searchResultsEl.querySelector(sel)) || searchResultsEl;
+        next.focus({ preventScroll: true });
     }
 
-    function renderPageResults(list, q) {
-        pageResults = list;
-        if (!list.length) {
-            searchHint('No songs in your library match “' + q + '”.');
-            announce('No songs found');
+    function setResultsHtml(html) {
+        if (!searchResultsEl) return;
+        keepingFocus(() => { searchResultsEl.innerHTML = html; });
+        shownLib = [];
+        shownYt = [];
+        shownQuery = null;
+    }
+
+    function searchHint(text) {
+        setResultsHtml('<div class="m-search-hint">' + escapeHtml(text) + '</div>');
+    }
+
+    function loadRecentSearches() {
+        try {
+            const list = JSON.parse(localStorage.getItem(RECENT_SEARCHES) || '[]');
+            return Array.isArray(list) ? list.filter((q) => typeof q === 'string' && q.trim()).slice(0, 8) : [];
+        } catch (e) { return []; }
+    }
+    function saveRecentSearches(list) {
+        try { localStorage.setItem(RECENT_SEARCHES, JSON.stringify(list.slice(0, 8))); } catch (e) {}
+    }
+    // Remembered once it led somewhere (a play, an open, Enter).
+    function rememberSearch() {
+        const q = searchInput ? searchInput.value.trim() : '';
+        if (q.length < 2 || linkKind(q)) return;
+        const list = loadRecentSearches().filter((x) => x.toLowerCase() !== q.toLowerCase());
+        list.unshift(q);
+        saveRecentSearches(list);
+    }
+
+    // What kind of link was pasted (null: not a link)
+    function linkKind(q) {
+        if (!/^(https?:\/\/)?(www\.|m\.|music\.)?(youtube\.com|youtu\.be|open\.spotify\.com)\//i.test(q)) {
+            return /^https?:\/\//i.test(q) ? 'other' : null;
+        }
+        const spotify = q.match(/open\.spotify\.com\/(?:intl-[a-z-]+\/)?([a-z]+)\//i);
+        if (spotify) {
+            const type = spotify[1].toLowerCase();
+            return type === 'playlist' || type === 'track' || type === 'album' ? 'spotify-' + type : 'spotify-other';
+        }
+        if (/open\.spotify\.com\//i.test(q)) return 'spotify-other';
+        const video = /[?&]v=|youtu\.be\/|youtube\.com\/(shorts|live)\//i.test(q);
+        const list = q.match(/[?&]list=([\w-]+)/);
+        // A Mix (list=RD…) is made up on the fly: there's no list to import.
+        // RDCLAK… are YouTube Music's curated playlists, which import fine.
+        if (list && /^RD(?!CLAK)/.test(list[1])) return video ? 'youtube-video' : 'youtube-mix';
+        if (list) return video ? 'youtube-both' : 'youtube-playlist';
+        return video ? 'youtube-video' : 'other';
+    }
+
+    function playlistTileHtml(id) {
+        const meta = playlistsMeta[id];
+        const cover = safeUrl(playlistCover(id));
+        const color = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#d4a574';
+        const art = cover
+            ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy">`
+            : `<span class="m-rp-art-empty">${NOTE_ICON}</span>`;
+        const active = id === String(activePlaylistId) ? ' is-active' : '';
+        return `<button type="button" class="m-rp-tile${active}" data-playlist="${escapeHtml(id)}" style="--pl-color:${color}">
+            <span class="m-rp-art">${art}</span>
+            <span class="m-rp-name">${escapeHtml(meta.name || id)}</span>
+        </button>`;
+    }
+
+    // The empty field: recent searches, then your playlists.
+    function renderSearchHome() {
+        if (!searchResultsEl) return;
+        const recent = loadRecentSearches();
+        let html = '';
+        if (recent.length) {
+            html += `<div class="m-search-section"><h2 class="m-search-heading">Recent searches</h2>
+                <button type="button" class="m-search-clear-all" data-clear-recent>Clear</button></div>
+                <ul class="m-recent-list">${recent.map((q, i) => `<li class="m-recent-row">
+                    <button type="button" class="m-recent-q" data-recent="${i}">${CLOCK_ICON}<span>${escapeHtml(q)}</span></button>
+                    <button type="button" class="m-recent-x" data-recent-x="${i}" aria-label="Remove “${escapeHtml(q)}” from recent searches">&times;</button>
+                </li>`).join('')}</ul>`;
+        }
+        const ids = typeof playlistsMeta === 'object' && playlistsMeta ? Object.keys(playlistsMeta) : [];
+        if (ids.length) {
+            html += `<div class="m-search-section"><h2 class="m-search-heading">Your playlists</h2></div>
+                <div class="m-search-browse">${ids.slice(0, 12).map(playlistTileHtml).join('')}</div>`;
+        }
+        setResultsHtml(html || '<div class="m-search-hint">Find any song across your playlists, or search YouTube.</div>');
+    }
+    // Renames, recolors and playlist switches repaint the tiles.
+    const searchPrevCrateRecords = window.updateCrateRecords;
+    if (typeof searchPrevCrateRecords === 'function') {
+        window.updateCrateRecords = function () {
+            const out = searchPrevCrateRecords.apply(this, arguments);
+            if (searchInput && !searchInput.value.trim()) renderSearchHome();
+            return out;
+        };
+    }
+
+    const songFromYoutube = (r) => {
+        const parsed = parseYoutubeResultTitle(r.title, r.channel);
+        return { title: parsed.title || r.title, artist: parsed.artist || '', album: '', cover: safeUrl(r.thumbnail), youtube_id: r.videoId, mp3_url: '', spotify_id: '' };
+    };
+
+    function linkRowsHtml(q, kind) {
+        const row = (action, title, sub, icon) => `<button type="button" class="m-search-link" data-link="${action}">
+            <span class="m-search-link-ic">${icon}</span>
+            <span class="m-search-link-text"><b>${title}</b><small>${sub}</small></span>
+        </button>`;
+        const importIc = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg>';
+        const addIc = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+        let html = '<div class="m-search-section"><h2 class="m-search-heading">That’s a link</h2></div>';
+        if (kind === 'youtube-playlist' || kind === 'youtube-both') html += row('import-yt', 'Import this YouTube playlist', 'All its songs, into a new playlist', importIc);
+        if (kind === 'youtube-video' || kind === 'youtube-both' || kind === 'spotify-track') html += row('add-song', 'Add this song', 'Check its title, then save it', addIc);
+        if (kind === 'spotify-playlist') html += row('import-sp', 'Import this Spotify playlist', 'All its songs, into a new playlist', importIc);
+        const hint = (text) => `<div class="m-search-hint m-search-hint-sm">${text}</div>`;
+        if (kind === 'youtube-mix') html += hint('YouTube Mixes can’t be imported: paste a regular playlist link, or search a song from it.');
+        if (kind === 'spotify-album') html += hint('Spotify albums can’t be imported yet: paste a playlist link, or search the album’s songs.');
+        if (kind === 'spotify-other') html += hint('Paste a Spotify playlist or song link, or search the song’s name.');
+        if (kind === 'other') html += hint('Paste a YouTube or Spotify playlist link, or a song link.');
+        return html;
+    }
+
+    function libraryHtml(q) {
+        if (!pageResults.length) {
+            return libDone ? `<div class="m-search-hint m-search-hint-sm">Nothing in your library matches “${escapeHtml(q)}”.</div>` : '';
+        }
+        return '<div class="m-search-section"><h2 class="m-search-heading">In your library</h2></div>'
+            + pageResults.map((r, i) => {
+                const cover = safeUrl(r.cover);
+                const coverHtml = cover
+                    ? `<img class="search-result-cover" src="${escapeHtml(cover)}" alt="" loading="lazy">`
+                    : `<div class="search-result-cover search-result-cover-empty">${NOTE_ICON}</div>`;
+                const artist = r.artist ? `<span class="search-result-artist">${escapeHtml(r.artist)}</span>` : '';
+                const color = /^#[0-9a-fA-F]{6}$/.test(r.playlistColor || '') ? r.playlistColor : '#d4a574';
+                return `<div class="m-sr-row">
+                    <button type="button" class="search-result" data-lib="${i}" aria-label="Play ${escapeHtml(r.title)}${r.artist ? ' by ' + escapeHtml(r.artist) : ''}">
+                        ${coverHtml}
+                        <span class="search-result-info">
+                            <span class="search-result-title">${escapeHtml(r.title)}</span>
+                            ${artist}
+                        </span>
+                    </button>
+                    <button type="button" class="m-sr-open" data-open="${i}" style="--pl-color:${color}" aria-label="Open in ${escapeHtml(r.playlistName)}"><span class="search-result-pl">${escapeHtml(r.playlistName)}</span></button>
+                </div>`;
+            }).join('');
+    }
+
+    function youtubeHtml() {
+        let html = '<div class="m-search-section"><h2 class="m-search-heading">From YouTube</h2></div>';
+        const hint = (text) => `<div class="m-search-hint m-search-hint-sm">${text}</div>`;
+        if (ytState === 'limited') return html + hint('Searching too fast: wait a few seconds.');
+        if (ytState === 'error') return html + hint('YouTube search failed. Try again in a moment.');
+        if (ytState !== 'done') return html + hint('Searching YouTube…');
+        if (!ytResults.length) return html + hint('No YouTube matches.');
+        return html + ytResults.map((r, i) => {
+            const song = songFromYoutube(r);
+            const thumb = safeUrl(r.thumbnail);
+            return `<div class="m-sr-row">
+                <button type="button" class="search-result" data-yt="${i}" aria-label="Preview ${escapeHtml(song.title)}${song.artist ? ' by ' + escapeHtml(song.artist) : ''}">
+                    ${thumb ? `<img class="search-result-cover" src="${escapeHtml(thumb)}" alt="" loading="lazy">` : `<div class="search-result-cover search-result-cover-empty">${NOTE_ICON}</div>`}
+                    <span class="search-result-info">
+                        <span class="search-result-title">${escapeHtml(song.title)}</span>
+                        <span class="search-result-artist">${escapeHtml(song.artist || r.channel || '')}</span>
+                    </span>
+                </button>
+                <button type="button" class="m-sr-add" data-add="${i}" aria-label="Add ${escapeHtml(song.title)} to a playlist">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+            </div>`;
+        }).join('');
+    }
+
+    // The library part renders once per query; YouTube's loading and
+    // answer only redraw their own part, so the library rows (and focus on
+    // them) stay put.
+    function renderSearchResults(q, youtubeOnly) {
+        if (!searchResultsEl) return;
+        const kind = linkKind(q);
+        if (kind) {
+            setResultsHtml(linkRowsHtml(q, kind));
             return;
         }
-        announce(list.length === 1 ? '1 song found' : list.length + ' songs found');
-        searchResultsEl.innerHTML = list.map((r, i) => {
-            const cover = safeUrl(r.cover);
-            const coverHtml = cover
-                ? `<img class="search-result-cover" src="${escapeHtml(cover)}" alt="" loading="lazy">`
-                : `<div class="search-result-cover search-result-cover-empty">${NOTE_ICON}</div>`;
-            const artist = r.artist ? `<span class="search-result-artist">${escapeHtml(r.artist)}</span>` : '';
-            const color = /^#[0-9a-fA-F]{6}$/.test(r.playlistColor || '') ? r.playlistColor : '#d4a574';
-            return `<button type="button" class="search-result" data-i="${i}">
-                ${coverHtml}
-                <span class="search-result-info">
-                    <span class="search-result-title">${escapeHtml(r.title)}</span>
-                    ${artist}
-                </span>
-                <span class="search-result-pl" style="--pl-color:${color}">${escapeHtml(r.playlistName)}</span>
-            </button>`;
-        }).join('');
+        const ytBox = searchResultsEl.querySelector('.m-sr-yt');
+        if (youtubeOnly && ytBox && shownQuery === q) {
+            keepingFocus(() => { ytBox.innerHTML = youtubeHtml(); });
+            shownYt = ytState === 'done' ? ytResults : [];
+            return;
+        }
+        const lib = libraryHtml(q);
+        if (!lib && q.length < 3) {
+            setResultsHtml(`<div class="m-search-hint">No songs in your library match “${escapeHtml(q)}”.</div>`);
+            return;
+        }
+        keepingFocus(() => {
+            searchResultsEl.innerHTML = `<div class="m-sr-lib">${lib}</div>`
+                + (q.length >= 3 ? `<div class="m-sr-yt">${youtubeHtml()}</div>` : '');
+        });
+        shownLib = pageResults;
+        shownYt = ytState === 'done' ? ytResults : [];
+        shownQuery = q.length >= 3 ? q : null;
+    }
+
+    const songCount = (n, where) => (n === 1 ? '1 song' : n + ' songs') + where;
+    // For screen readers once both parts are in. withLibrary: YouTube got
+    // there first, so the library count hasn't been said yet.
+    function announceTotals(withLibrary) {
+        const lib = pageResults.length;
+        let yt = '';
+        if (ytState === 'limited') yt = 'YouTube search is busy. Wait a few seconds.';
+        else if (ytState === 'error') yt = 'YouTube search failed';
+        else if (ytResults.length) yt = lib ? ytResults.length + ' more from YouTube' : songCount(ytResults.length, ' from YouTube');
+        else if (!lib) yt = 'No songs found';
+        // (library hits and nothing from YouTube: the library count stands)
+        const text = [withLibrary && lib ? songCount(lib, ' in your library') : '', yt].filter(Boolean).join('. ');
+        if (text) announce(text);
     }
 
     function runPageSearch() {
@@ -9173,16 +9435,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if (searchClear) searchClear.hidden = !searchInput.value;
         try { sessionStorage.setItem('mSearchQuery', searchInput.value); } catch (e) {}
         clearTimeout(pageSearchTimer);
+        clearTimeout(ytTimer);
         const seq = ++pageSearchSeq;
-        if (q.length < 2) {
-            pageResults = [];
-            searchHint(q ? 'Keep typing…' : 'Find any song across all your playlists.');
+        pageResults = [];
+        ytResults = [];
+        libDone = false;
+        ytState = 'idle';
+        if (!q) {
+            renderSearchHome();
             return;
         }
+        if (linkKind(q)) {
+            renderSearchResults(q);
+            announce('Link found');
+            return;
+        }
+        if (q.length < 2) {
+            searchHint('Keep typing…');
+            return;
+        }
+        const withYoutube = q.length >= 3;
         pageSearchTimer = setTimeout(async () => {
             try {
                 const list = await fetchLibrarySearch(q);
-                if (seq === pageSearchSeq) renderPageResults(list, q);
+                if (seq !== pageSearchSeq) return;
+                pageResults = list;
+                libDone = true;
+                renderSearchResults(q);
+                const ytIn = ytState === 'done' || ytState === 'limited' || ytState === 'error';
+                if (withYoutube && ytIn) announceTotals(true);
+                else if (list.length) announce(songCount(list.length, ' in your library'));
+                else announce(withYoutube ? 'No songs in your library' : 'No songs found');
             } catch (e) {
                 if (seq === pageSearchSeq) {
                     searchHint('Search failed. Check your connection and try again.');
@@ -9190,12 +9473,73 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }, 220);
+        if (withYoutube) {
+            // YouTube once the typing settles (and once per query)
+            ytTimer = setTimeout(async () => {
+                const cacheKey = q.toLowerCase();
+                if (ytCache.has(cacheKey)) {
+                    ytResults = ytCache.get(cacheKey);
+                    ytState = 'done';
+                } else {
+                    ytState = 'loading';
+                    if (libDone) renderSearchResults(q, true);
+                    let data = null;
+                    try {
+                        data = await postJsonRetrying('/search-youtube', { query: q }, { retries: 0 });
+                    } catch (e) { /* below */ }
+                    if (seq !== pageSearchSeq) return;
+                    if (data && data.rateLimited) ytState = 'limited';
+                    else if (!data || !data.success) ytState = data && data.error && /no results|not found/i.test(data.error) ? 'done' : 'error';
+                    else {
+                        ytResults = Array.isArray(data.results) ? data.results.filter((r) => r && r.videoId).slice(0, 6) : [];
+                        ytCache.set(cacheKey, ytResults);
+                        ytState = 'done';
+                    }
+                }
+                if (seq === pageSearchSeq && libDone) {
+                    renderSearchResults(q, true);
+                    announceTotals();
+                }
+            }, 650);
+        }
+    }
+
+    // A hit plays where you are: from the list on screen when it's in it
+    // (so it's never a preview whose + would save a second copy), otherwise
+    // on its own (like Jump back in).
+    function playInPlace(song) {
+        const key = songPlayKey(song);
+        const idx = songsData.findIndex((s) => songPlayKey(s) === key);
+        if (idx < 0) playRadioSong(song);
+        else if (idx === currentSongIndex && !currentRadioSong && !currentRowUnloaded) playSongSource(songsData[idx], false);
+        else switchSong(idx);
+    }
+
+    // Import / add from a pasted link: the right sheet, filled in.
+    function actOnLink(action, q) {
+        if (action === 'import-yt' || action === 'import-sp') {
+            window.showSpotifyImportModal();
+            setImportTab(action === 'import-yt' ? 'youtube' : 'spotify');
+            const field = document.getElementById(action === 'import-yt' ? 'youtubeImportUrl' : 'spotifyImportUrl');
+            if (field) field.value = q;
+            if (action === 'import-yt' && typeof fetchYoutubePlaylist === 'function') fetchYoutubePlaylist();
+            if (action === 'import-sp' && typeof fetchSpotifyPlaylistUrl === 'function') fetchSpotifyPlaylistUrl();
+        } else if (action === 'add-song') {
+            window.showAddSongModal();
+            const field = document.getElementById('addSongSearch');
+            if (field) {
+                field.value = q;
+                if (typeof runAddSongSearch === 'function') runAddSongSearch();
+            }
+        }
     }
 
     if (searchInput) {
         searchInput.addEventListener('input', runPageSearch);
         searchInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') searchInput.blur(); // done typing: drop the keyboard
+            if (e.key !== 'Enter') return;
+            rememberSearch();
+            searchInput.blur(); // done typing: drop the keyboard
         });
         let savedQuery = '';
         try { savedQuery = sessionStorage.getItem('mSearchQuery') || ''; } catch (e) {}
@@ -9211,11 +9555,152 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (searchResultsEl) {
         searchResultsEl.addEventListener('click', (e) => {
-            const row = e.target.closest('.search-result');
-            const hit = row ? pageResults[parseInt(row.dataset.i, 10)] : null;
-            if (!hit) return;
-            if (searchInput) searchInput.blur();
-            playSearchHit(hit);
+            const q = searchInput ? searchInput.value.trim() : '';
+            const t = e.target.closest('[data-lib], [data-open], [data-yt], [data-add], [data-recent], [data-recent-x], [data-clear-recent], [data-playlist], [data-link]');
+            if (!t) return;
+            const d = t.dataset;
+            if (d.lib !== undefined || d.open !== undefined) {
+                const hit = shownLib[parseInt(d.lib !== undefined ? d.lib : d.open, 10)];
+                if (!hit) return;
+                rememberSearch();
+                if (searchInput) searchInput.blur();
+                if (d.lib !== undefined) playInPlace(hit);
+                else playSearchHit(hit); // open its playlist at the song
+            } else if (d.yt !== undefined || d.add !== undefined) {
+                const r = shownYt[parseInt(d.yt !== undefined ? d.yt : d.add, 10)];
+                if (!r) return;
+                rememberSearch();
+                if (searchInput) searchInput.blur();
+                if (d.yt !== undefined) playInPlace(songFromYoutube(r)); // a preview
+                else window.mShowAddToSheet(songFromYoutube(r), d.add);
+            } else if (d.recent !== undefined) {
+                const recent = loadRecentSearches()[parseInt(d.recent, 10)];
+                if (!recent || !searchInput) return;
+                searchInput.value = recent;
+                runPageSearch();
+            } else if (d.recentX !== undefined) {
+                const i = parseInt(d.recentX, 10);
+                const list = loadRecentSearches();
+                list.splice(i, 1);
+                saveRecentSearches(list);
+                renderSearchHome();
+                // The next × (not the field: that would pop the keyboard).
+                const xs = searchResultsEl.querySelectorAll('.m-recent-x');
+                (xs[Math.min(i, xs.length - 1)] || searchResultsEl).focus({ preventScroll: true });
+            } else if (d.clearRecent !== undefined) {
+                saveRecentSearches([]);
+                renderSearchHome();
+                searchResultsEl.focus({ preventScroll: true });
+            } else if (d.playlist !== undefined) {
+                window.selectPlaylistFromCrate(d.playlist);
+            } else if (d.link !== undefined) {
+                actOnLink(d.link, q);
+            }
+        });
+    }
+
+    // "Add to playlist" for a song found on YouTube (not in the library yet)
+    const addToSheet = document.getElementById('mAddToSheet');
+    let addToSong = null;
+    let addToOpener = null;      // the + it came from (its data-add), for focus
+    window.mShowAddToSheet = function (song, opener) {
+        if (!addToSheet || !song) return;
+        addToSong = song;
+        addToOpener = opener === undefined ? null : String(opener);
+        const list = addToSheet.querySelector('.m-addto-list');
+        const title = addToSheet.querySelector('.m-addto-song');
+        if (title) title.textContent = song.artist ? `${song.title} · ${song.artist}` : song.title;
+        if (list) {
+            list.innerHTML = Object.keys(playlistsMeta).map((id) => {
+                const meta = playlistsMeta[id];
+                const thumb = safeUrl(playlistThumbUrl(id));
+                const color = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#d4a574';
+                const count = meta.songCount || 0;
+                return `<button type="button" class="m-sheet-row m-sheet-compact m-addto-row" data-addto="${escapeHtml(id)}">
+                    <span class="send-menu-pick-art" aria-hidden="true" style="--pl-color:${color}">${thumb ? `<img src="${escapeHtml(thumb)}" alt="" loading="lazy">` : '&#9834;'}</span>
+                    <span class="m-sheet-text"><b>${escapeHtml(meta.name)}</b><small>${count} ${count === 1 ? 'song' : 'songs'}</small></span>
+                </button>`;
+            }).join('') || '<p class="m-sleep-status">Make a playlist first (Library → +).</p>';
+        }
+        addToSheet.classList.add('active');
+        const first = addToSheet.querySelector('.m-addto-row');
+        if (first) first.focus({ preventScroll: true });
+    };
+    window.mHideAddToSheet = function () {
+        if (!addToSheet) return;
+        const hadFocus = addToSheet.contains(document.activeElement);
+        addToSheet.classList.remove('active');
+        if (hadFocus && searchResultsEl && !document.querySelector('.add-song-modal.active')) {
+            const back = addToOpener !== null ? searchResultsEl.querySelector(`[data-add="${addToOpener}"]`) : null;
+            (back || searchResultsEl).focus({ preventScroll: true });
+        }
+    };
+    wrapModalPair('mShowAddToSheet', 'mHideAddToSheet', 'addTo');
+
+    async function addFoundSong(id, song) {
+        const meta = playlistsMeta[id];
+        if (!meta || !song) return;
+        let res = null;
+        try {
+            res = await saveMusicRequest({ action: 'addBatch', playlist: id, songs: [song] });
+        } catch (e) { /* below */ }
+        if (!res || !res.success) {
+            window.mToast(res && res.error ? `Couldn't add it: ${res.error}` : 'Couldn\'t add it. Check your connection and try again.');
+            return;
+        }
+        if (!res.added) {
+            window.mToast(`Already in ${meta.name}`);
+            return;
+        }
+        meta.songCount = (meta.songCount || 0) + res.added;
+        setCrateCardCount(id, meta.songCount);
+        if (id === 'favorites') {
+            favoriteKeys.add(songPlayKey(song));
+            updateFavoriteHearts();
+        }
+        if (String(id) === String(activePlaylistId)) joinOnScreenList(song);
+        window.mToast(`Added to ${meta.name}`);
+    }
+
+    // The server appended a song to the active playlist: the list on screen
+    // gets it too. Shuffle includes it, and a preview of the same song counts
+    // as saved (its + would store a second copy).
+    function joinOnScreenList(song) {
+        const wasEmpty = songsData.length === 0;
+        songsData.push(Object.assign({}, song));
+        if (currentRadioSong && songPlayKey(currentRadioSong) === songPlayKey(song)) currentRadioSongSaved = true;
+        // A playlist that was empty gets the song cued, so the player isn't
+        // left on "Nothing playing". Not while something is audible:
+        // switching into an empty playlist leaves the old track playing, and a
+        // cue would cut it off. Then the song waits as an unloaded current row
+        // (unless it is the very track playing).
+        const audible = isChangingSong || (!!vinyl && vinyl.classList.contains('playing'));
+        const cue = wasEmpty && !currentRadioSong && !audible;
+        if (wasEmpty && !currentRadioSong) {
+            currentSongIndex = 0;
+            currentRowUnloaded = audible && currentRowStillUnloaded();
+        }
+        if (shuffleMode !== 'off') buildShuffleQueue();
+        rebuildSongList();
+        updateTrackCount();
+        if (cue) {
+            updateSongDisplay(songsData[0]);
+            playSongSource(songsData[0], true);
+        }
+    }
+
+    if (addToSheet) {
+        addToSheet.addEventListener('click', (e) => {
+            if (e.target.closest('[data-m-addto-close]')) {
+                window.mHideAddToSheet();
+                return;
+            }
+            const row = e.target.closest('[data-addto]');
+            if (!row || !addToSong) return;
+            const song = addToSong;
+            addToSong = null; // one add per open
+            window.mHideAddToSheet();
+            addFoundSong(row.dataset.addto, song);
         });
     }
 
@@ -9820,11 +10305,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const nowFav = favoriteKeys.has(key);
             // Liked while Favorites is the list on screen (a radio pick): the
             // server appended it, so the list shows it too.
-            if (nowFav && !wasFav && activePlaylistId === 'favorites' && !inLoadedList(song)) {
-                songsData.push(Object.assign({}, song));
-                rebuildSongList();
-                updateTrackCount();
-            }
+            if (nowFav && !wasFav && activePlaylistId === 'favorites' && !inLoadedList(song)) joinOnScreenList(song);
             syncNpLike();
             window.mToast(nowFav === wasFav ? 'Couldn\'t update Favorites. Try again.'
                 : (nowFav ? 'Added to Favorites' : 'Removed from Favorites'));
