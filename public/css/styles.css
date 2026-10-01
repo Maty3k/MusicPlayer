@@ -14308,7 +14308,7 @@ html.app-shell { --m-dock-h: 0px; }
     to { transform: scaleY(1); }
 }
 
-/* Avatar coin: the Home header and the account sheet */
+/* Avatar coin: the Home header and the You page */
 .m-avatar {
     width: 36px;
     height: 36px;
@@ -14324,37 +14324,13 @@ html.app-shell { --m-dock-h: 0px; }
     transition: transform 120ms ease;
 }
 
-.m-avatar-lg {
-    width: 52px;
-    height: 52px;
-    font-size: 1.4rem;
+.m-avatar-xl {
+    width: 68px;
+    height: 68px;
+    font-size: 1.8rem;
 }
 
-/* Small menu sheets: the avatar's (stats, settings, log out) and the
-   Library + (new playlist, import) */
-#mAccountSheet .m-account-who {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 0 44px 14px 4px; /* clear of the close button */
-}
-
-#mAccountSheet .m-account-id {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-}
-
-#mAccountSheet .m-account-id b {
-    font: 600 1.15rem/1.2 var(--display);
-    color: var(--cream);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-#mAccountSheet .m-account-id small,
+/* Small menu sheets (the Library +, the playlist and song menus, …) */
 .m-menu-sheet .m-sheet-text small {
     font-size: 0.8rem;
     color: color-mix(in srgb, var(--cream) 65%, transparent);
@@ -14408,18 +14384,6 @@ html.app-shell { --m-dock-h: 0px; }
     overflow-wrap: anywhere;
     font: 600 1.2rem/1.2 var(--display);
     color: var(--cream);
-}
-
-#mAccountSheet .m-account-logout {
-    width: 100%;
-    height: 48px;
-    margin-top: 12px;
-    border-radius: 24px;
-    border: 1px solid var(--line);
-    background: none;
-    color: color-mix(in srgb, var(--cream) 65%, transparent);
-    font: 500 0.95rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
-    cursor: pointer;
 }
 
 @media (max-width: 600px) {
@@ -15922,4 +15886,346 @@ button.send-menu-cancel {
 
     #mAddToSheet .m-addto-row { gap: 12px; }
     #mAddToSheet .m-addto-song { margin-top: -6px; overflow-wrap: anywhere; }
+}
+
+/* ============================================================
+   YOU PAGE (portrait web shell): the Home avatar opens it as a layer over
+   Home, under the Now Playing sheet. Identity, your listening, the doors
+   into Settings, log out. Plus the Settings and Stats sheets it opens.
+   ============================================================ */
+@media (max-width: 600px) {
+    html[data-m-tab="home"].m-you #mYouPage {
+        display: block;
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        padding: 0 16px calc(var(--m-dock-h) + var(--m-tabs-h) + 24px + var(--m-safe-b));
+        scroll-padding-bottom: calc(var(--m-dock-h) + var(--m-tabs-h) + 12px + var(--m-safe-b));
+        background: linear-gradient(180deg, var(--sleeve) 0, var(--ink) 320px);
+    }
+
+    /* A playlist opened over it ("Show in playlist" from Now Playing) */
+    html[data-m-tab="home"].m-you.m-pv #mYouPage {
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    /* Hidden, not removed: the crate keeps Home's scroll position */
+    html[data-m-tab="home"].m-you #vinylCrateView { visibility: hidden; }
+
+    #mYouPage .m-you-bar {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        height: 52px;
+        margin: 0 -16px;
+        padding: env(safe-area-inset-top, 0px) 6px 0 4px;
+        box-sizing: content-box;
+        background: transparent;
+        transition: background-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    #mYouPage.m-you-raised .m-you-bar {
+        background: var(--sleeve);
+        box-shadow: 0 1px 0 var(--line);
+    }
+
+    #mYouPage .m-you-bar .m-icon-btn { margin: 0; }
+
+    .m-you-head {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 4px 0 22px;
+    }
+
+    .m-you-id {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+    }
+
+    .m-you-name {
+        margin: 0;
+        font: 600 1.6rem/1.15 var(--display);
+        letter-spacing: -0.01em;
+        color: var(--cream);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .m-you-name b { font-weight: inherit; }
+
+    .m-you-sub,
+    .m-you-counts {
+        margin: 0;
+        font-size: 0.86rem;
+        color: color-mix(in srgb, var(--cream) 65%, transparent);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .m-you-sub[hidden] { display: none; }
+
+    .m-you-card {
+        padding: 6px 14px 14px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 245, 233, 0.04);
+    }
+
+    .m-you-card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 44px;
+    }
+
+    .m-you-h2 {
+        margin: 0;
+        font: 600 1.1rem/1.2 var(--display);
+        color: var(--cream);
+    }
+
+    .m-you-link {
+        min-height: 44px;
+        margin: 0 -8px 0 0;
+        padding: 0 8px;
+        border: 0;
+        border-radius: 10px;
+        background: none;
+        color: var(--amber);
+        font: 600 0.9rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .m-you-link[hidden] { display: none; }
+    .m-you-link:active { background: rgba(255, 245, 233, 0.07); }
+
+    .m-you-note {
+        margin: 2px 0 4px;
+        font-size: 0.9rem;
+        line-height: 1.45;
+        color: color-mix(in srgb, var(--cream) 65%, transparent);
+    }
+
+    .m-you-note .m-you-link { margin: 0 0 0 -8px; }
+
+    /* Inside the rounded list: drawn within the row so it isn't clipped */
+    .m-you-row:focus-visible,
+    .m-you-link:focus-visible,
+    .m-you-logout:focus-visible {
+        outline: 2px solid var(--amber);
+        outline-offset: -2px;
+    }
+
+    #mYouPage:focus { outline: none; }
+
+    .m-you-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .m-you-stat {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+        padding: 10px 10px 9px;
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.18);
+    }
+
+    .m-you-stat b {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font: 600 clamp(1rem, 5.4vw, 1.4rem)/1.1 var(--display);
+        font-variant-numeric: tabular-nums;
+        color: var(--cream);
+        white-space: nowrap;
+    }
+
+    /* Wide compact forms ("123 mil", "124 тыс.") */
+    .m-you-stat b.m-you-stat-long { font-size: clamp(0.85rem, 4.2vw, 1.1rem); }
+
+    /* Wraps rather than cutting "songs played" on narrow phones */
+    .m-you-stat span {
+        font-size: 0.76rem;
+        line-height: 1.25;
+        color: color-mix(in srgb, var(--cream) 65%, transparent);
+    }
+
+    .m-you-top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+        min-width: 0;
+    }
+
+    .m-you-top-art {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 auto;
+        border-radius: 6px;
+        object-fit: cover;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    /* YouTube covers without their letterbox bars */
+    img.m-you-top-art[src*="hqdefault"],
+    img.m-you-top-art[src*="sddefault"] {
+        transform: scale(1.34);
+        clip-path: inset(12.5% round 5px);
+    }
+
+    .m-you-top-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: color-mix(in srgb, var(--cream) 50%, transparent);
+    }
+
+    .m-you-top-text {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .m-you-top-text small {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--amber);
+    }
+
+    .m-you-top-text b,
+    .m-you-top-text span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .m-you-top-text b { font-size: 0.95rem; color: var(--cream); }
+    .m-you-top-text span { font-size: 0.8rem; color: color-mix(in srgb, var(--cream) 65%, transparent); }
+
+    .m-you-top-plays {
+        flex: 0 0 auto;
+        font-size: 0.8rem;
+        color: color-mix(in srgb, var(--cream) 65%, transparent);
+    }
+
+    .m-you-group {
+        margin: 26px 4px 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: color-mix(in srgb, var(--cream) 60%, transparent);
+    }
+
+    .m-you-list {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 245, 233, 0.04);
+        overflow: hidden;
+    }
+
+    .m-you-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        width: 100%;
+        min-height: 64px;
+        padding: 10px 12px 10px 14px;
+        border: 0;
+        background: none;
+        color: var(--cream);
+        font-family: inherit;
+        text-align: left;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .m-you-row + .m-you-row { box-shadow: inset 0 1px 0 var(--line); }
+    .m-you-row:active { background: rgba(255, 245, 233, 0.07); }
+
+    .m-you-ic {
+        width: 38px;
+        height: 38px;
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: rgba(var(--amber-rgb), 0.12);
+        color: var(--amber);
+    }
+
+    .m-you-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .m-you-text b { font-size: 0.98rem; font-weight: 600; }
+
+    .m-you-text small {
+        font-size: 0.8rem;
+        color: color-mix(in srgb, var(--cream) 65%, transparent);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .m-you-chev {
+        flex: 0 0 auto;
+        color: color-mix(in srgb, var(--cream) 45%, transparent);
+    }
+
+    .m-you-logout-form { margin: 28px 0 0; }
+
+    .m-you-logout {
+        width: 100%;
+        height: 48px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: none;
+        color: color-mix(in srgb, var(--cream) 70%, transparent);
+        font: 500 0.95rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .m-you-logout:active { background: rgba(255, 245, 233, 0.07); }
+
+    /* Settings and Stats on phones: the sheet is the one scroller (no
+       inner scroll areas), the × closes it (no footer Close), and the
+       lyrics-sleeve choice, which only changes the desktop deck, is gone. */
+    #settingsModal .settings-panel-scroll,
+    #statsBody {
+        max-height: none;
+        overflow: visible;
+    }
+
+    #settingsModal .add-song-modal-buttons,
+    #settingsModal .settings-sleeve-group { display: none; }
 }

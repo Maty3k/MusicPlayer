@@ -2844,11 +2844,11 @@ function classifyAddSongInput(value) {
     if (youtubeId) return { kind: 'youtube', youtubeId };
 
     if (/open\.spotify\.com\/(playlist|album)\//i.test(text)) {
-        return { kind: '', error: 'That is a Spotify playlist or album. Use "Import playlist" (Settings \u2192 Account \u2192 Spotify) for those.' };
+        return { kind: '', error: 'That is a Spotify playlist or album. Playlists come in through "Import a playlist"; albums can\u2019t be imported yet.' };
     }
     if (/^https?:\/\/[^\s]+$/i.test(text)) {
         if (musicSource === 'mp3' || DIRECT_AUDIO_URL.test(text)) return { kind: 'mp3', mp3Url: text };
-        return { kind: '', error: 'That link is not a YouTube video or Spotify track. For a direct audio file, switch the add-song source to MP3 URL.' };
+        return { kind: '', error: 'That link is not a YouTube video or Spotify track. For a direct audio file, set Settings → Playback → Advanced → Add-song source to MP3 URL.' };
     }
 
     const hints = {
@@ -4616,9 +4616,12 @@ const STATS_EMPTY_COVER = '<svg viewBox="0 0 24 24" width="20" height="20" fill=
 
 let statsRange = (function () { try { return localStorage.getItem('statsRange') || 'all'; } catch (e) { return 'all'; } })();
 
-async function showStatsModal() {
+async function showStatsModal(range) {
     const modal = document.getElementById('statsModal');
     if (!modal) return;
+    // A caller may open it on a range (the phone You card is all time)
+    // without changing the one remembered for next time.
+    if (['week', 'month', 'year', 'all'].includes(range)) statsRange = range;
     modal.classList.add('active');
     syncStatsRangeButtons();
     fetchStats();
@@ -4659,6 +4662,8 @@ async function fetchStats() {
 function hideStatsModal() {
     const modal = document.getElementById('statsModal');
     if (modal) modal.classList.remove('active');
+    // Back to the remembered range (a caller may have opened it on another)
+    try { statsRange = localStorage.getItem('statsRange') || 'all'; } catch (e) { statsRange = 'all'; }
 }
 
 function renderStats(stats) {
@@ -4880,6 +4885,7 @@ async function attachAccountEmail() {
             setSettingsStatus('settingsAttachEmailStatus', 'Email attached — you can log in with it now.', true);
             const label = document.getElementById('settingsAccountEmail');
             if (label) label.textContent = data.email + ' · ' + label.textContent.replace(' · no email attached', '');
+            if (window.mOnAccountEmail) window.mOnAccountEmail(data.email);
         } else {
             setSettingsStatus('settingsAttachEmailStatus', firstValidationError(data, 'Could not attach the email.'), false);
         }
@@ -8642,10 +8648,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (closed.some((l) => l.name === 'tab')) tabGen++;
         closed.reverse().forEach((layer) => { try { layer.closeFn(); } catch (e) {} });
         if (layerStack.length === depth) stamp();
+        // Back on the You page: edits made above it (a delete, a like) count
+        if (topLayerIs('you')) renderYouCounts();
         // Landscape has no tab bar: a bare tab layer left on top would make
         // the next back press a dead one — fold it (Home there is the full
         // crate anyway).
-        if (!onPhone() && topLayerIs('tab')) backOneLayer();
+        if (!onPhone() && (topLayerIs('tab') || topLayerIs('you'))) backOneLayer();
         flushAfterBack();
     });
 
@@ -8710,9 +8718,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabScroller = (t) => (t === 'search' ? searchPage : roomCenter);
 
     function setBackLabel() {
-        if (backText) backText.textContent = onPhone() ? TAB_NAMES[currentTab] : 'Crate';
+        // A playlist opened over the You page goes back to it
+        const name = hasLayer('you') ? 'You' : TAB_NAMES[currentTab];
+        if (backText) backText.textContent = onPhone() ? name : 'Crate';
         const barBack = document.getElementById('mPlBack');
-        if (barBack) barBack.setAttribute('aria-label', 'Back to ' + TAB_NAMES[currentTab]);
+        if (barBack) barBack.setAttribute('aria-label', 'Back to ' + name);
     }
 
     function setTab(t) {
@@ -8944,22 +8954,180 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // The Home avatar's sheet (stats, settings, log out)
-    const accountSheet = document.getElementById('mAccountSheet');
-    window.mShowAccountSheet = function () {
-        if (!accountSheet) return;
-        accountSheet.classList.add('active');
-        const first = accountSheet.querySelector('.m-sheet-row');
-        if (first) first.focus({ preventScroll: true });
+    // ---- You page (the Home avatar): who you are, your listening, the
+    // doors into Settings, log out. A layer over Home, so back (or the
+    // chevron, or a Home re-tap) closes it; Settings and Stats open as
+    // sheets on top of it and back returns to it.
+    const youPage = document.getElementById('mYouPage');
+    const youBack = document.getElementById('mYouBack');
+    const youListen = document.getElementById('mYouListen');
+    const youSeeAll = document.getElementById('mYouSeeAll');
+    const youCounts = document.getElementById('mYouCounts');
+    const avatarBtn = document.getElementById('mAvatarBtn');
+    let youReturnFocus = null;   // the row that opened Settings or Stats
+    let youStats = null;         // the last all-time stats, shown at once on reopen
+    let youStatsSeq = 0;
+
+    const youOpen = () => htmlEl.classList.contains('m-you');
+    const countOf = (n, one, many) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+
+    // Live from playlistsMeta (adds, moves and deletes keep it current).
+    function renderYouCounts() {
+        if (!youCounts) return;
+        const ids = typeof playlistsMeta === 'object' && playlistsMeta ? Object.keys(playlistsMeta) : [];
+        const songs = ids.reduce((n, id) => n + (Number(playlistsMeta[id].songCount) || 0), 0);
+        youCounts.textContent = ids.length
+            ? `${countOf(songs, 'song', 'songs')} in ${countOf(ids.length, 'playlist', 'playlists')}`
+            : 'No playlists yet';
+    }
+
+    const statNum = (n) => {
+        n = Number(n) || 0;
+        if (n < 10000) return n.toLocaleString();
+        try {
+            // No decimal from 100K up: some locales' compact forms are wide
+            return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: n < 100000 ? 1 : 0 }).format(n);
+        } catch (e) { return n.toLocaleString(); }
     };
-    window.mHideAccountSheet = function () {
-        if (!accountSheet) return;
-        const hadFocus = accountSheet.contains(document.activeElement);
-        accountSheet.classList.remove('active');
-        // Closed without picking a row (nothing else opened): back to the avatar.
-        if (hadFocus && !document.querySelector('.add-song-modal.active')) {
-            const avatar = document.getElementById('mAvatarBtn');
-            if (avatar) avatar.focus({ preventScroll: true });
+
+    function renderYouStats() {
+        if (!youListen) return;
+        const st = youStats;
+        if (!st || (!st.totalPlays && !st.distinctSongs)) {
+            youListen.innerHTML = '<p class="m-you-note">Play some songs and your listening will show up here.</p>';
+            if (youSeeAll) youSeeAll.hidden = true;
+            return;
+        }
+        const tile = (n, one, many) => {
+            const v = Number(n) || 0;
+            const txt = statNum(v);
+            return `<div class="m-you-stat"><b${txt.length > 6 ? ' class="m-you-stat-long"' : ''}>${escapeHtml(txt)}</b> <span>${v === 1 ? one : many}</span></div>`;
+        };
+        let html = '<div class="m-you-stats">'
+            + tile(st.totalPlays, 'play', 'plays')
+            + tile(st.distinctArtists, 'artist', 'artists')
+            + tile(st.distinctSongs, 'song played', 'songs played')
+            + '</div>';
+        const top = Array.isArray(st.topSongs) ? st.topSongs[0] : null;
+        if (top && top.title) {
+            const cover = safeUrl(top.cover);
+            const plays = Number(top.plays) || 0;
+            html += `<div class="m-you-top">
+                ${cover ? `<img class="m-you-top-art" src="${escapeHtml(cover)}" alt="" loading="lazy">` : `<span class="m-you-top-art m-you-top-empty">${NOTE_ICON}</span>`}
+                <span class="m-you-top-text"><small>Most played</small> <b>${escapeHtml(top.title)}</b>${top.artist ? ` <span>${escapeHtml(top.artist)}</span>` : ''}</span>
+                <span class="m-you-top-plays">${escapeHtml(countOf(plays, 'play', 'plays'))}</span>
+            </div>`;
+        }
+        youListen.innerHTML = html;
+        if (youSeeAll) youSeeAll.hidden = false;
+    }
+
+    // All time, fetched on each open (cheap); the last answer shows at once.
+    async function loadYouStats() {
+        if (!youListen) return;
+        const seq = ++youStatsSeq;
+        // Try again had focus: it goes to what replaces it, not to <body>
+        const hadFocus = youListen.contains(document.activeElement);
+        if (hadFocus && youPage) youPage.focus({ preventScroll: true });
+        if (youStats) renderYouStats();
+        else youListen.innerHTML = '<p class="m-you-note">Loading…</p>';
+        let data = null;
+        try {
+            data = await saveMusicRequest({ action: 'stats', range: 'all' });
+        } catch (e) { /* below */ }
+        if (seq !== youStatsSeq) return;
+        if (data && data.success && data.stats) {
+            youStats = data.stats;
+            renderYouStats();
+        } else if (!youStats) {
+            youListen.innerHTML = '<p class="m-you-note">Couldn’t load your listening. <button type="button" class="m-you-link m-you-retry">Try again</button></p>';
+            if (youSeeAll) youSeeAll.hidden = true;
+        }
+        if (hadFocus && document.activeElement === youPage) {
+            const next = youListen.querySelector('.m-you-retry') || (youSeeAll && !youSeeAll.hidden ? youSeeAll : null);
+            if (next) next.focus({ preventScroll: true });
+        }
+    }
+
+    // The top bar gets a background once the page scrolls under it.
+    function syncYouBar() {
+        if (youPage) youPage.classList.toggle('m-you-raised', youPage.scrollTop > 8);
+    }
+
+    function closeYouPage() {
+        const had = !!youPage && youPage.contains(document.activeElement);
+        htmlEl.classList.remove('m-you');
+        youReturnFocus = null;
+        setBackLabel();
+        if (had && avatarBtn && !document.querySelector('.add-song-modal.active')) avatarBtn.focus({ preventScroll: true });
+    }
+
+    function openYouPage() {
+        if (!youPage || !onPhone()) return;
+        if (pendingBack) {
+            afterBack.push(openYouPage);
+            return;
+        }
+        if (hasLayer('you') || hasLayer('memberWelcome') || currentTab !== 'home' || playerViewActive()) return;
+        renderYouCounts();
+        htmlEl.classList.add('m-you');
+        youPage.scrollTop = 0; // once it has a box (a hidden page ignores it)
+        syncYouBar();
+        openLayer('you', closeYouPage);
+        setBackLabel();
+        if (youBack) youBack.focus({ preventScroll: true });
+        loadYouStats();
+    }
+
+    if (avatarBtn) avatarBtn.addEventListener('click', openYouPage);
+    if (youBack) youBack.addEventListener('click', () => { if (topLayerIs('you')) backOneLayer(); });
+    if (youPage) {
+        youPage.addEventListener('click', (e) => {
+            const row = e.target.closest('[data-m-you]');
+            if (row) {
+                youReturnFocus = row;
+                window.showSettingsModal();
+                setSettingsTab(row.dataset.mYou); // it opens on Playback
+                return;
+            }
+            if (e.target.closest('#mYouSeeAll')) {
+                youReturnFocus = youSeeAll;
+                window.showStatsModal('all'); // the card's numbers are all time
+                return;
+            }
+            if (e.target.closest('.m-you-retry')) loadYouStats();
+        });
+        youPage.addEventListener('scroll', syncYouBar, { passive: true });
+    }
+
+    // Settings or Stats closed back onto the page: focus returns to the row
+    // that opened it (their own controls are gone, so it would fall to body).
+    ['settingsModal', 'statsModal'].forEach((id) => {
+        const modal = document.getElementById(id);
+        if (!modal) return;
+        new MutationObserver(() => {
+            if (modal.classList.contains('active') || !youOpen() || !youReturnFocus) return;
+            if (document.querySelector('.add-song-modal.active')) return;
+            const a = document.activeElement;
+            if (a && a !== document.body && !modal.contains(a)) return;
+            youReturnFocus.focus({ preventScroll: true });
+        }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+    });
+
+    // An email attached in Settings reaches the page (and the initial, while
+    // the name is still a placeholder: the server takes it from the email).
+    window.mOnAccountEmail = function (email) {
+        const clean = String(email || '').trim();
+        if (!clean) return;
+        const sub = document.getElementById('mYouSub');
+        if (sub) {
+            sub.textContent = clean;
+            sub.hidden = false;
+        }
+        const name = document.getElementById('mAccountName');
+        if (name && name.textContent === 'Your account') {
+            const initial = Array.from(clean)[0].toUpperCase();
+            document.querySelectorAll('.m-avatar').forEach((el) => { el.textContent = initial; });
         }
     };
 
@@ -8973,7 +9141,6 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapModalPair('showStatsModal', 'hideStatsModal', 'stats');
     wrapModalPair('openQueueModal', 'hideQueueModal', 'queue');
     wrapModalPair('openVinylGifModal', 'closeVinylGifModal', 'vinylGif');
-    wrapModalPair('mShowAccountSheet', 'mHideAccountSheet', 'account');
     wrapModalPair('mShowAddSheet', 'mHideAddSheet', 'libraryAdd');
 
     // Portrait phones search on the Search tab; the modal is for landscape
@@ -8987,21 +9154,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return modalShowSearch.apply(this, arguments);
     };
 
-    if (accountSheet) {
-        accountSheet.addEventListener('click', (e) => {
-            if (e.target.closest('[data-m-account-close]')) {
-                window.mHideAccountSheet();
-                return;
-            }
-            const row = e.target.closest('[data-m-account]');
-            if (!row) return;
-            window.mHideAccountSheet();
-            if (row.dataset.mAccount === 'stats') window.showStatsModal();
-            else if (row.dataset.mAccount === 'settings') window.showSettingsModal();
-        });
-    }
-    const avatarBtn = document.getElementById('mAvatarBtn');
-    if (avatarBtn) avatarBtn.addEventListener('click', () => window.mShowAccountSheet());
     const libraryNew = document.getElementById('mLibraryNew');
     if (libraryNew) libraryNew.addEventListener('click', () => window.mShowAddSheet());
     if (addSheet) {
@@ -9018,7 +9170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // A saved display name reaches the avatar and the account sheet.
+    // A saved display name reaches the avatar and the You page.
     window.mOnAccountName = function (name) {
         const clean = String(name || '').trim();
         if (!clean || clean === 'New member' || clean === 'Spotify listener') return;
@@ -10045,12 +10197,29 @@ document.addEventListener('DOMContentLoaded', () => {
             layerStack.push({ name: 'tab', closeFn: closeTabLayer, meta: { t: saved[i].t } });
             i++;
         }
+        // The You page (over Home only) comes back on a phone; anywhere else
+        // its entry is consumed, and the head script's early class dropped.
+        const youAdopted = i === 0 && !!saved[0] && saved[0].n === 'you' && !!youPage
+            && (onPhone() || playlistAt(1)); // landscape keeps [you, playlist]; a bare one folds
+        if (youAdopted) {
+            layerStack.push({ name: 'you', closeFn: closeYouPage });
+            i++;
+        }
+        htmlEl.classList.toggle('m-you', youAdopted);
         if (playlistAt(i)) {
             origOpenPlayerView();
             layerStack.push({ name: 'playlist', closeFn: closePlaylistLayer, meta: { p: saved[i].p } });
             i++;
         }
         setTab(tabLayerIndex() >= 0 ? layerStack[tabLayerIndex()].meta.t : 'home');
+        if (youAdopted) {
+            // Filled now even in landscape (under a playlist there), so it's
+            // ready when a rotation and a back show it.
+            setBackLabel();
+            renderYouCounts();
+            syncYouBar();
+            loadYouStats();
+        }
         const extra = depth - layerStack.length;
         if (extra > 0) traverse(-extra); // the landing popstate stamps it
         else stamp();

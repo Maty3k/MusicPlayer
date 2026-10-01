@@ -78,7 +78,7 @@ class SpotifyController extends Controller
     private function login(Request $request): JsonResponse
     {
         if (! $this->configured()) {
-            return response()->json(['error' => 'Fill in config.php first']);
+            return response()->json(['error' => 'Spotify sign-in isn\'t set up on this server.']);
         }
 
         return response()->json(['authUrl' => $this->authorizeUrl($request, 'connect')]);

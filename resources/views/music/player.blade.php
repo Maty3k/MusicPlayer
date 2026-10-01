@@ -67,6 +67,8 @@
             try {
                 var st = history.state;
                 if (st && st.mDepth > 0 && (st.mTab === 'search' || st.mTab === 'library')) tab = st.mTab;
+                // The You page over Home (script.js drops this if it doesn't adopt it)
+                else if (st && st.mDepth > 0 && st.mStack && st.mStack[0] && st.mStack[0].n === 'you') root.classList.add('m-you');
             } catch (e) {}
             root.setAttribute('data-m-tab', tab);
         })();
@@ -315,18 +317,23 @@
                         if (in_array($acctName, ['New member', 'Spotify listener'], true)) $acctName = '';
                         $acctInitial = mb_strtoupper(mb_substr($acctName !== '' ? $acctName : (string) auth()->user()->email, 0, 1));
                         if ($acctInitial === '') $acctInitial = '♪';
-                        // Under the name in the account sheet: the email, the member
+                        // Under the name on the phone You page: the email, the member
                         // number, or how a Spotify-only account signs in.
                         $acctSub = (string) auth()->user()->email;
                         if ($acctSub === '' && auth()->user()->member_number !== null) $acctSub = 'Member ' . auth()->user()->formattedMemberNumber();
                         if ($acctSub === '' && auth()->user()->spotify_user_id) $acctSub = 'Signed in with Spotify';
+                        // A password (or PIN) the user knows: Spotify-only accounts
+                        // have none, so Settings offers them no password forms.
+                        $acctHasLogin = auth()->user()->email || auth()->user()->member_number !== null;
+                        // Spotify is offered only when this server is set up for it.
+                        $spotifyOn = (bool) config('services.spotify.client_id');
                     @endphp
                     {{-- Phone tabs: Home and Library headers over the same crate
                          (shown per tab by the phone CSS; .m-only keeps them off
                          desktop, landscape and the app) --}}
                     <header class="m-tab-head m-only" id="mHomeHead">
                         <h1 class="m-tab-title" id="mGreeting">Hello</h1>
-                        <button type="button" class="m-avatar-btn" id="mAvatarBtn" aria-label="Your stats and settings">
+                        <button type="button" class="m-avatar-btn" id="mAvatarBtn" aria-label="You: your listening and settings">
                             <span class="m-avatar" id="mAvatar">{{ $acctInitial }}</span>
                         </button>
                     </header>
@@ -606,6 +613,54 @@
             </div>
             <div class="m-search-results" id="mSearchResults" tabindex="-1"></div>
             <div class="m-sr-only" id="mSearchStatus" role="status" aria-live="polite"></div>
+        </section>
+
+        {{-- Phone You page, opened from the Home avatar: who you are, your
+             listening, the doors into Settings, log out. A layer over Home
+             (script.js registers it for back), under the Now Playing sheet. --}}
+        <section class="m-you-page m-only" id="mYouPage" aria-labelledby="mAccountName" tabindex="-1">
+            <div class="m-you-bar">
+                <button type="button" class="m-icon-btn" id="mYouBack" aria-label="Back to Home">
+                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 5.5-6.5 6.5 6.5 6.5"/></svg>
+                </button>
+            </div>
+            <header class="m-you-head">
+                <span class="m-avatar m-avatar-xl" aria-hidden="true">{{ $acctInitial }}</span>
+                <div class="m-you-id">
+                    <h1 class="m-you-name"><b id="mAccountName">{{ $acctName !== '' ? $acctName : 'Your account' }}</b></h1>
+                    <p class="m-you-sub" id="mYouSub"@if ($acctSub === '') hidden @endif>{{ $acctSub }}</p>
+                    <p class="m-you-counts" id="mYouCounts"></p>
+                </div>
+            </header>
+            <section class="m-you-card" aria-labelledby="mYouListenTitle">
+                <div class="m-you-card-head">
+                    <h2 class="m-you-h2" id="mYouListenTitle">Your listening</h2>
+                    <button type="button" class="m-you-link" id="mYouSeeAll" hidden>See all</button>
+                </div>
+                <div class="m-you-listen" id="mYouListen"></div>
+            </section>
+            <h2 class="m-you-group">Settings</h2>
+            <div class="m-you-list">
+                <button type="button" class="m-you-row" data-m-you="playback">
+                    <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></span>
+                    <span class="m-you-text"><b>Playback</b><small>Crossfade, lyrics, record crackle</small></span>
+                    <svg class="m-you-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>
+                </button>
+                <button type="button" class="m-you-row" data-m-you="appearance">
+                    <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg></span>
+                    <span class="m-you-text"><b>Appearance</b><small>Room colors</small></span>
+                    <svg class="m-you-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>
+                </button>
+                <button type="button" class="m-you-row" data-m-you="account">
+                    <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg></span>
+                    <span class="m-you-text"><b>Account</b><small>{{ $acctHasLogin ? 'Name and password' : 'Your name' }}{{ $spotifyOn ? ', Spotify' : '' }}</small></span>
+                    <svg class="m-you-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>
+                </button>
+            </div>
+            <form method="POST" action="{{ route('logout') }}" class="m-you-logout-form">
+                @csrf
+                <button type="submit" class="m-you-logout">Log out</button>
+            </form>
         </section>
 
         <!-- Music Player View (hidden initially) -->
@@ -1227,33 +1282,6 @@
             </div>
         </div>
     </div>
-    {{-- Phone: the Home avatar's sheet (stats, settings, log out). Opened by
-         the phone shell in script.js, which also registers it for back. --}}
-    <div class="add-song-modal m-menu-sheet" id="mAccountSheet" role="dialog" aria-modal="true" aria-labelledby="mAccountName">
-        <div class="add-song-modal-backdrop" data-m-account-close></div>
-        <div class="add-song-modal-panel">
-            <button type="button" class="add-song-modal-close" data-m-account-close aria-label="Close">&times;</button>
-            <div class="m-account-who">
-                <span class="m-avatar m-avatar-lg" aria-hidden="true">{{ $acctInitial }}</span>
-                <span class="m-account-id">
-                    <b id="mAccountName">{{ $acctName !== '' ? $acctName : 'Your account' }}</b>
-                    @if ($acctSub !== '')<small>{{ $acctSub }}</small>@endif
-                </span>
-            </div>
-            <button type="button" class="m-sheet-row" data-m-account="stats">
-                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg></span>
-                <span class="m-sheet-text"><b>Your listening</b><small>Top songs and artists</small></span>
-            </button>
-            <button type="button" class="m-sheet-row" data-m-account="settings">
-                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7.5h7M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="14.5" cy="7.5" r="2.2"/><circle cx="8" cy="16.5" r="2.2"/></svg></span>
-                <span class="m-sheet-text"><b>Settings</b><small>Playback, look, account, Spotify</small></span>
-            </button>
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit" class="m-account-logout">Log out</button>
-            </form>
-        </div>
-    </div>
     {{-- Phone: the playlist screen's ⋯ (everything about the playlist on
          screen, which is always the active one). Opened and registered for
          back by the phone shell in script.js; rows it can't use are hidden. --}}
@@ -1375,7 +1403,7 @@
     <div class="add-song-modal" id="statsModal">
         <div class="add-song-modal-backdrop" onclick="hideStatsModal()"></div>
         <div class="add-song-modal-panel stats-panel">
-            <button class="add-song-modal-close" onclick="hideStatsModal()">&times;</button>
+            <button type="button" class="add-song-modal-close" onclick="hideStatsModal()" aria-label="Close">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg></div>
                 <h2 class="add-song-modal-title">Your listening</h2>
@@ -1393,7 +1421,7 @@
     <div class="add-song-modal" id="settingsModal">
         <div class="add-song-modal-backdrop" onclick="hideSettingsModal()"></div>
         <div class="add-song-modal-panel settings-modal-panel">
-            <button class="add-song-modal-close" onclick="hideSettingsModal()">&times;</button>
+            <button type="button" class="add-song-modal-close" onclick="hideSettingsModal()" aria-label="Close">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V15z"/></svg></div>
                 <h2 class="add-song-modal-title">Settings</h2>
@@ -1414,16 +1442,6 @@
             <div class="settings-panel active" data-panel="playback">
             <div class="settings-panel-scroll">
             <div class="add-song-form-group">
-                <label>Add-song source</label>
-                <div class="settings-source-options" id="settingsSourceOptions">
-                    <button type="button" class="settings-source-btn active" data-source="youtube" onclick="setMusicSource('youtube')">YouTube</button>
-                    <button type="button" class="settings-source-btn" data-source="mp3" onclick="setMusicSource('mp3')">MP3 URL</button>
-                    <button type="button" class="settings-source-btn" data-source="spotify" onclick="setMusicSource('spotify')">Spotify</button>
-                </div>
-                <p class="settings-hint">What the Add Song box asks for by default. YouTube and Spotify links are recognised automatically whichever is selected; MP3 URL also enables file upload. Spotify tracks stream via the Web Playback SDK (Premium) or a matched YouTube video.</p>
-            </div>
-
-            <div class="add-song-form-group">
                 <label>Crossfade</label>
                 <div class="settings-source-options" id="crossfadeOptions">
                     <button type="button" class="settings-source-btn active" data-xf="0" onclick="setCrossfade(0)">Off</button>
@@ -1431,7 +1449,7 @@
                     <button type="button" class="settings-source-btn" data-xf="6" onclick="setCrossfade(6)">6s</button>
                     <button type="button" class="settings-source-btn" data-xf="12" onclick="setCrossfade(12)">12s</button>
                 </div>
-                <p class="settings-hint">Fades each song out and the next one in so tracks blend instead of cutting. (Single-player fade, not a true overlap.)</p>
+                <p class="settings-hint">Fades each song out and the next one in, so tracks blend instead of cutting.</p>
             </div>
 
             <div class="add-song-form-group">
@@ -1460,6 +1478,19 @@
                 </div>
                 <p class="settings-hint" id="sleepStatusHint">Fades the volume out and pauses when the timer ends.</p>
             </div>
+
+            <details class="settings-password-details settings-advanced" id="settingsAdvancedDetails">
+                <summary>Advanced</summary>
+                <div class="add-song-form-group">
+                    <label>Add-song source</label>
+                    <div class="settings-source-options" id="settingsSourceOptions">
+                        <button type="button" class="settings-source-btn active" data-source="youtube" onclick="setMusicSource('youtube')">YouTube</button>
+                        <button type="button" class="settings-source-btn" data-source="mp3" onclick="setMusicSource('mp3')">MP3 URL</button>
+                        <button type="button" class="settings-source-btn" data-source="spotify" onclick="setMusicSource('spotify')">Spotify</button>
+                    </div>
+                    <p class="settings-hint">What Add song asks for first. YouTube and Spotify links work whichever is picked; MP3 URL also lets you upload a file.</p>
+                </div>
+            </details>
             </div>
             </div>
 
@@ -1486,7 +1517,7 @@
                 </div>
             </div>
 
-            <div class="add-song-form-group">
+            <div class="add-song-form-group settings-sleeve-group">
                 <label>Lyrics sleeve</label>
                 <div class="settings-source-options" id="sleeveStyleOptions">
                     <button type="button" class="settings-source-btn active" data-sleeve="stand" onclick="setSleeveStyle('stand')">Standing</button>
@@ -1499,10 +1530,11 @@
 
             <div class="settings-panel" data-panel="account">
             <div class="settings-panel-scroll">
+            @if ($spotifyOn)
             <div class="add-song-form-group settings-spotify-group">
                 <label>Spotify</label>
                 <div id="spotifyNotConfigured" class="spotify-state" style="display:none">
-                    <p class="settings-hint">Not configured. Add your Spotify app's Client ID/Secret and redirect URI to the server's environment (services.spotify).</p>
+                    <p class="settings-hint">Spotify isn't available right now.</p>
                 </div>
                 <div id="spotifyNotConnected" class="spotify-state" style="display:none">
                     <button type="button" class="spotify-connect-btn" onclick="connectSpotify()">
@@ -1517,13 +1549,16 @@
                     </div>
                 </div>
             </div>
+            @endif
 
             <div class="add-song-form-group settings-account-group">
                 <label>Account</label>
                 @if (auth()->user()->email)
                     <div class="settings-hint" id="settingsAccountEmail">{{ auth()->user()->email }}@if (auth()->user()->member_number) &middot; Member {{ auth()->user()->formattedMemberNumber() }}@endif</div>
-                @else
+                @elseif (auth()->user()->member_number !== null)
                     <div class="settings-hint" id="settingsAccountEmail">Member {{ auth()->user()->formattedMemberNumber() }} &middot; no email attached</div>
+                @else
+                    <div class="settings-hint" id="settingsAccountEmail">Signed in with Spotify</div>
                 @endif
 
                 <div class="settings-inline-form">
@@ -1532,7 +1567,7 @@
                 </div>
                 <div class="settings-status" id="settingsNameStatus"></div>
 
-                @if (! auth()->user()->email)
+                @if (! auth()->user()->email && auth()->user()->member_number !== null)
                 <details class="settings-password-details" id="settingsAttachEmailDetails">
                     <summary>Attach an email</summary>
                     <p class="settings-hint">Adds email login and password reset. Your member number and PIN keep working.</p>
@@ -1540,13 +1575,14 @@
                         <input type="email" id="settingsAttachEmail" placeholder="you@example.com" autocomplete="email">
                     </div>
                     <div class="add-song-form-group">
-                        <input type="password" id="settingsAttachEmailPin" placeholder="Current PIN" inputmode="numeric" maxlength="4" autocomplete="current-password">
+                        <input type="password" id="settingsAttachEmailPin" placeholder="Current PIN or password" autocomplete="current-password">
                     </div>
                     <button type="button" class="add-song-btn-save" onclick="attachAccountEmail()">Attach email</button>
                     <div class="settings-status" id="settingsAttachEmailStatus"></div>
                 </details>
                 @endif
 
+                @if ($acctHasLogin)
                 <details class="settings-password-details" id="settingsPasswordDetails">
                     <summary>{{ auth()->user()->email ? 'Change password' : 'Change PIN to a password' }}</summary>
                     <div class="add-song-form-group">
@@ -1561,10 +1597,11 @@
                     <button type="button" class="add-song-btn-save" onclick="changeAccountPassword()">Update password</button>
                     <div class="settings-status" id="settingsPasswordStatus"></div>
                 </details>
+                @endif
 
                 <form method="POST" action="{{ route('logout') }}" class="settings-logout-form">
                     @csrf
-                    <button class="add-song-btn-cancel">Log out</button>
+                    <button type="submit" class="add-song-btn-cancel">Log out</button>
                 </form>
             </div>
             </div>

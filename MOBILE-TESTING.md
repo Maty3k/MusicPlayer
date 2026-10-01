@@ -70,7 +70,8 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Reload (pull to refresh) on a playlist opened from Library: the same
   playlist and tab come back, and each back press does something.
 - [ ] Jump back in plays the song without leaving Home.
-- [ ] Avatar → Your listening / Settings open, and back closes them.
+- [ ] The avatar opens the You page; back (or its chevron, or tapping Home)
+  closes it.
 - [ ] Typing in Search: the tab bar and mini player hide for the keyboard
   and come back after.
 - [ ] Gesture bar / home indicator: the tab bar's labels sit above it.
@@ -129,6 +130,19 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
   shows in the mini player, ready to play.
 - [ ] Airplane mode, type: the library part still says what failed, YouTube
   says it couldn't search; nothing hangs.
+
+## You page (the Home avatar)
+
+- [ ] Your name, your email (or member number), and "N songs in M
+  playlists".
+- [ ] Your listening: plays, artists and songs played, plus your most played
+  song. See all opens the full stats on All time; back returns to the page.
+- [ ] Playback / Appearance / Account open Settings on that tab; back
+  returns to the page. Settings scrolls as one sheet and closes with ×.
+- [ ] Settings → Playback → Advanced holds Add-song source. Nothing in
+  Settings mentions "services.spotify" or other server setup.
+- [ ] Pull to refresh on the page: it comes back. Rotate: it closes.
+- [ ] Log out at the bottom isn't covered by the mini player.
 
 ## Now Playing tools row
 
