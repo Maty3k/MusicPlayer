@@ -162,7 +162,7 @@ const YT = [
         await typeAdd(p, 'first find');
         await p.tap('#addSongSearchResults [data-add-i="0"]'); await p.waitForTimeout(900);
         const w = { title: await p.evaluate(() => document.getElementById('addSongModalTitle').textContent), adds: p.__posts.filter(x => x.action === 'add'), batches: p.__posts.filter(x => x.action === 'addBatch') };
-        check('D1 the wizard\'s first song still saves and cues straight away', w.title === 'Add your first song' && w.adds.length === 1 && !w.adds[0].playlist && w.batches.length === 0, w);
+        check('D1 the wizard\'s first song still saves and cues straight away', w.title === 'Add your first song' && w.adds.length === 1 && w.adds[0].playlist === await p.evaluate(() => String(activePlaylistId)) && w.batches.length === 0, w); // step 12: adds name the playing list
         await ctx.close();
     }
     {
@@ -173,7 +173,7 @@ const YT = [
         await typeAdd(p, 'first find');
         await p.click('#addSongSearchResults [data-add-i="0"]'); await p.waitForTimeout(900);
         const adds = p.__posts.filter(x => x.action === 'add');
-        check('E1 desktop: the Import button stays, no To line or rows, a result saves as before', d.bulk === true && d.rows === false && d.to === false && adds.length === 1 && !adds[0].playlist, { d, adds });
+        check('E1 desktop: the Import button stays, no To line or rows, a result saves as before', d.bulk === true && d.rows === false && d.to === false && adds.length === 1 && adds[0].playlist === await p.evaluate(() => String(activePlaylistId)), { d, adds }); // step 12: adds name the playing list
         await ctx.close();
     }
     // review fixes
@@ -286,7 +286,7 @@ const YT = [
         await p.waitForTimeout(2000);
         const adds = p.__posts.slice(before).filter(x => x.action === 'add');
         const sheetOpen = await p.evaluate(() => document.getElementById('addSongModal').classList.contains('active'));
-        check('G10 the wizard\'s single file goes through the visible batch path (untargeted)', adds.length === 1 && adds[0].link === true && !('playlist' in adds[0]) && !sheetOpen, { adds, sheetOpen });
+        check('G10 the wizard\'s single file goes through the visible batch path (untargeted)', adds.length === 1 && adds[0].link === true && adds[0].playlist === await p.evaluate(() => String(activePlaylistId)) && !sheetOpen, { adds, sheetOpen }); // step 12: names the playing list
         await ctx.close();
     }
     await b.close();

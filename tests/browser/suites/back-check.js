@@ -104,7 +104,10 @@ const VIEWPORTS = { landscape: { width: 844, height: 390 } };
             await press(`.record-card[data-playlist="${target}"]`); await wait(1000);
             r.failFirst = { ...(await look()), guard: await p.evaluate(() => isChangingPlaylist),
                 toast: await p.evaluate(() => (document.getElementById('clientToast') || {}).textContent || null) };
-            await press(`.record-card[data-playlist="${target}"]`); await wait(1200);
+            // Step 12: a failed open keeps the playlist screen up with Retry
+            // (it covers the cards), so the retry is that button when shown.
+            const retry = await p.evaluate(() => { const x = document.querySelector('.song-list-retry'); return !!(x && x.getClientRects().length); });
+            await press(retry ? '.song-list-retry' : `.record-card[data-playlist="${target}"]`); await wait(1200);
             r.failRetry = { ...(await look()), active: await p.evaluate(() => String(activePlaylistId)) };
             // put the account's active playlist back (the retry really switched it)
             await p.evaluate(() => fetch('/save-music', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'switchPlaylist', playlist: 'favorites' }) }));

@@ -3775,12 +3775,13 @@ function startSongDrag(e) {
 // dragId / dragArr: the list on screen when the drag started (it may be one
 // that's only being viewed). Another one on screen by the drop (the view
 // moved on or reloaded mid-drag): the rows are redrawn, nothing is saved.
+// Without them (a direct call), the list on screen now is the one.
 function finishSongDrag(dragId, dragArr) {
     const list = document.getElementById('songList');
     if (!list) return;
     const id = String(listId());
     const arr = listSongs();
-    if (id !== dragId || arr !== dragArr) { rebuildSongList(); return; }
+    if (dragId !== undefined && (id !== dragId || arr !== dragArr)) { rebuildSongList(); return; }
     const rows = [...list.querySelectorAll('.song-list-item:not(.discover-item):not(.radio-song-item)')];
     const order = rows.map(r => parseInt(r.getAttribute('data-index'), 10));
 
