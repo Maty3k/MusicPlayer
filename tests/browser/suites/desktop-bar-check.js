@@ -296,7 +296,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             const fav = await p.evaluate(() => ({ active: String(activePlaylistId), pressed: document.getElementById('dvBarLike').getAttribute('aria-pressed'), dis: document.getElementById('dvBarLike').getAttribute('aria-disabled') }));
             await p.evaluate(() => { window.__favCalls = []; window.toggleFavoriteSong = async function (s) { window.__favCalls.push(s && s.title); const k = songPlayKey(s); if (favoriteKeys.has(k)) favoriteKeys.delete(k); else favoriteKeys.add(k); updateFavoriteHearts(); }; });
             if (fav.active === 'favorites') {
-                await p.click('#dvBarLike');
+                await p.click('#dvBarLike', { force: true }); // aria-disabled on purpose: the click must only hint
                 const lk = await p.evaluate(() => ({ n: window.__favCalls.length, toast: window.__toasts.slice(-1)[0] }));
                 check(`${tag} F in Favorites the ♥ is on and locked (no toggle, a hint)`, fav.pressed === 'true' && fav.dis === 'true' && lk.n === 0 && /Favorites/.test(lk.toast || ''), { fav, lk });
             }
