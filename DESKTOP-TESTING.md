@@ -1,9 +1,10 @@
 # Desktop checklist: desktop redesign
 
 `tests/browser/suites/desktop-bar-check.js` covers the player bar in Chrome at
-1440×900 and 1024×768, and `desktop-sidebar-check.js` covers the sidebar at
-1440×900, 1024×768 and 800×600. Both check that phones (390×844, 844×390)
-and the app (`?app=1`) don't get them. The items below need a person at a
+1440×900 and 1024×768, `desktop-sidebar-check.js` covers the sidebar at
+1440×900, 1024×768 and 800×600, and `desktop-home-check.js` covers Home at
+the same three sizes (plus an axe scan). All three check that phones
+(390×844, 844×390) and the app (`?app=1`) don't get them. The items below need a person at a
 real desktop browser. Run them in Chrome and in Firefox or Safari.
 
 ## Scope (step 1)
@@ -101,3 +102,54 @@ changes only when you press Play or click a song.
 - [ ] Narrow the window below 600px while a playlist is shown: the phone
   layout returns showing the playing list. Widen it again and the sidebar
   comes back.
+
+## Home (step 4)
+
+Home is now a rounded panel beside the sidebar: a greeting, Stats and
+Settings at the top right, "Jump back in" and "Your playlists". Clicking a
+Jump back in song now plays it right there; Home stays on screen and the
+bar shows the song. (It used to open the turntable.)
+
+- [ ] The room is gone: no wall art, poster, shelf, clock, rug, lights,
+  plant or cat, and no VINYLS crate. Nothing scrolls by on its own.
+- [ ] The heading says "Good morning", "Good afternoon" or "Good evening"
+  for the time of day. It changes when you come back to the tab later.
+- [ ] Stats and Settings sit at the top right and open their windows. The
+  old Search and "+ New playlist" buttons are gone (Search and + are in the
+  sidebar).
+- [ ] Jump back in is one row of song cards. Hovering a card shows a round
+  play button. Clicking it plays the song, Home stays, and the bar shows it.
+  Make the window narrower and wider: the row always fits on one line.
+- [ ] Your playlists is a grid of square covers with the name and the song
+  count under each, in the order you made them. A playlist without a cover
+  shows a music note on its colour. Long names end in "…".
+- [ ] The playing playlist has an amber name and small bars, which move
+  only while music plays. An empty playlist is never marked.
+- [ ] Clicking a cover opens the playlist. The song in the bar keeps
+  playing.
+- [ ] Hovering a card shows ⋯ on its cover. It opens the playlist's edit
+  window. On a touch screen ⋯ is always there.
+- [ ] Keyboard: Tab goes Stats, Settings, the Jump back in cards (each shows
+  its play button and an amber ring), then each cover and its ⋯, then the
+  two tiles (601–900px: the All / Local / Spotify chips come before the
+  covers). Enter opens or plays.
+- [ ] The New playlist and Bring your music over tiles come last in the
+  grid, with dashed covers the size of the others. Each opens its window.
+- [ ] A new account (demo: one empty Favorites): the "Start your
+  collection" card shows with Bring your music over and Add a song. After
+  you add a song, it goes away.
+- [ ] An account with no playlists: the "Where's your music now?" chooser
+  opens on load. Close it: the start card and the two tiles show.
+- [ ] Sidebar All / Local / Spotify filter the grid too. Filtered to a
+  source with no playlists, the grid says "No local playlists yet." (or
+  Spotify).
+- [ ] 601–900px window (icon rail): smaller cards, and All / Local /
+  Spotify show next to "Your playlists" instead.
+- [ ] 901–1920px windows: more columns as the window widens, nothing runs
+  off the right edge, and there's no sideways scroll.
+- [ ] Each room theme (Settings → Appearance): the panel and the text
+  follow the theme.
+- [ ] With "reduce motion" on in the OS, cards don't animate and the bars
+  stand still.
+- [ ] A phone, and the app (`?app=1`), show their own Home exactly as
+  before.

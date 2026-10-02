@@ -17556,3 +17556,600 @@ html.dv2 #dvPlPlay.is-playing .dv-pl-ic-pause { display: block; }
     html.dv2 #dvSide .dv-side-extra,
     html.dv2 #dvPlPlay { transition: none; }
 }
+
+/* ---------- Step 4: a clean Home (the crate, #vinylCrateView) ----------
+   One rounded panel beside the sidebar: a greeting, quiet Stats and
+   Settings at the top right, the first-run card, "Jump back in" (one row
+   of song cards) and "Your playlists" (a grid of cover cards, then the New
+   playlist and Bring your music over tiles). The room's scenery, the
+   VINYLS crate, the marquee, the sleeve's record and badges, the old
+   toolbar's Search and + New (the sidebar has both) and its All / Local /
+   Spotify filter (the sidebar's chips; kept on Home only at 601-900px,
+   where the rail has none) all go. Same DOM as the phone's Home and
+   Library: everything here is html.dv2 only. */
+html.dv2 #vinylCrateView {
+    --dv-home-pad: clamp(20px, 2.4vw, 36px);
+    --dv-card-min: 164px;
+    --dv-card-gap: 8px;
+    --dv-card-pad: 12px;
+    --dv-cover-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+    background: var(--dv-side-bg);
+}
+
+/* The phone dock's "Player" region (its dock is phone-only): the bar is the
+   desktop's one Player landmark */
+html.dv2 div[role="region"]:has(> #mDock) { display: none; }
+
+/* What goes */
+html.dv2 #vinylCrateView .room-bg,
+html.dv2 #vinylCrateView .room-right,
+html.dv2 #vinylCrateView .greeting-text,
+html.dv2 #vinylCrateView .collection-stats,
+html.dv2 #vinylCrateView .collection-toolbar .new-playlist-btn:not(.crate-stats-btn):not(.crate-settings-btn),
+html.dv2 #vinylCrateView .conveyor-dupes,
+html.dv2 #vinylCrateView .record-card-vinyl,
+html.dv2 #vinylCrateView .cover-overlay,
+html.dv2 #vinylCrateView .cover-texture,
+html.dv2 #vinylCrateView .cover-badge,
+html.dv2 #vinylCrateView .cover-info,
+html.dv2 #vinylCrateView .cover-glow,
+html.dv2 #vinylCrateView .play-hint,
+html.dv2 #vinylCrateView .card-reflection,
+html.dv2 #vinylCrateView .playlist-edit-btn,
+html.dv2 #vinylCrateView #mFsBtn,
+html.dv2 #vinylCrateView #mAvatarBtn { display: none; }
+html.dv2 #vinylCrateView .record-card::after { content: none; display: none; }
+
+/* The panel: the page's own scroller */
+html.dv2 #vinylCrateView .room-content {
+    position: absolute;
+    inset: 8px;
+    width: auto;
+    height: auto;
+    display: block;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--surface-hi) 55%, var(--ink)) 0, var(--dv-panel) 300px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--cream) 16%, transparent) transparent;
+    -webkit-mask-image: none;
+            mask-image: none;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html.dv2 #vinylCrateView .room-center {
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+        "head   stats  settings"
+        "hint   hint   hint"
+        "recent recent recent"
+        "shelf  shelf  shelf";
+    align-items: center;
+    align-content: start;
+    column-gap: 4px;
+    row-gap: 0;
+    width: auto;
+    max-width: 1880px;
+    height: auto;
+    min-width: 0;
+    flex: none;
+    margin: 0 auto;
+    padding: 20px var(--dv-home-pad) 48px;
+    overflow: visible;
+}
+html.dv2 #vinylCrateView .collection-toolbar { display: contents; }
+
+/* ---- Greeting (the phone's #mGreeting: Good morning / afternoon / evening) */
+html.dv2 #vinylCrateView #mHomeHead {
+    grid-area: head;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    background: none;
+}
+html.dv2 #vinylCrateView #mGreeting {
+    margin: 0;
+    font-family: var(--display);
+    font-size: clamp(1.75rem, 1.3rem + 1vw, 2.25rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--cream);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---- Stats and Settings: two quiet buttons at the top right */
+html.dv2 #vinylCrateView .collection-toolbar .crate-stats-btn { grid-area: stats; }
+html.dv2 #vinylCrateView .collection-toolbar .crate-settings-btn { grid-area: settings; }
+html.dv2 #vinylCrateView .collection-toolbar .crate-stats-btn,
+html.dv2 #vinylCrateView .collection-toolbar .crate-settings-btn {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--cream-60);
+    font: 500 0.85rem/1 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+html.dv2 #vinylCrateView .collection-toolbar .crate-stats-btn:hover,
+html.dv2 #vinylCrateView .collection-toolbar .crate-settings-btn:hover {
+    background: var(--dv-hover);
+    border-color: transparent;
+    color: var(--cream);
+}
+html.dv2 #vinylCrateView .collection-toolbar .crate-stats-btn svg,
+html.dv2 #vinylCrateView .collection-toolbar .crate-settings-btn svg { width: 15px; height: 15px; }
+
+/* ---- Section headings */
+html.dv2 #vinylCrateView .recent-songs-label {
+    margin: 0 0 8px;
+    padding: 0;
+    font-family: var(--display);
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    text-transform: none;
+    color: var(--cream);
+}
+
+/* ---- Card grids: the same columns for both; the cards' own padding is
+   the gutter, so the grids reach out by it and the covers line up with
+   the headings */
+html.dv2 #vinylCrateView .recent-songs-track,
+html.dv2 #vinylCrateView .conveyor-rows,
+html.dv2 #vinylCrateView .records-conveyor.is-static .conveyor-rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--dv-card-min), 1fr));
+    gap: var(--dv-card-gap);
+    margin: 0 calc(-1 * var(--dv-card-pad));
+    padding: 0;
+    overflow: visible;
+}
+
+/* ---- Jump back in: one row (fitRecentSongsRow hides what would wrap) */
+html.dv2 #vinylCrateView .recent-songs {
+    grid-area: recent;
+    display: block;
+    width: auto;
+    margin-top: 28px;
+}
+html.dv2 #vinylCrateView .recent-songs.hidden { display: none; }
+html.dv2 #vinylCrateView .recent-song,
+html.dv2 #vinylCrateView .record-card,
+html.dv2 #vinylCrateView .crate-new-tile {
+    position: relative;
+    min-width: 0;
+    width: auto;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+    margin: 0;
+    padding: var(--dv-card-pad);
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--cream);
+    font-family: inherit;
+    text-align: left;
+    transform: none;
+    animation: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+html.dv2 #vinylCrateView .recent-song[hidden] { display: none; }
+html.dv2 #vinylCrateView .recent-song:hover,
+html.dv2 #vinylCrateView .record-card:hover,
+html.dv2 #vinylCrateView .crate-new-tile:hover {
+    background: var(--dv-hover);
+    transform: none;
+}
+html.dv2 #vinylCrateView .recent-song-art {
+    position: relative;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--sleeve);
+    box-shadow: var(--dv-cover-shadow);
+    transform: none;
+}
+html.dv2 #vinylCrateView .recent-song:hover .recent-song-art { transform: none; box-shadow: var(--dv-cover-shadow); }
+html.dv2 #vinylCrateView .recent-song-cover { width: 100%; height: 100%; object-fit: cover; }
+html.dv2 #vinylCrateView .recent-song > * { grid-row: auto; align-self: auto; }
+html.dv2 #vinylCrateView .recent-song-cover-empty {
+    display: grid;
+    place-items: center;
+    color: var(--cream-40);
+}
+html.dv2 #vinylCrateView .recent-song-cover-empty svg { width: 40px; height: 40px; }
+/* Play on hover (and on keyboard focus) */
+html.dv2 #vinylCrateView .recent-song-play {
+    inset: auto 8px 8px auto;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--amber);
+    color: var(--on-amber);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
+}
+html.dv2 #vinylCrateView .recent-song-play svg { width: 18px; height: 18px; margin-left: 2px; }
+html.dv2 #vinylCrateView .recent-song:hover .recent-song-play,
+html.dv2 #vinylCrateView .recent-song:focus-visible .recent-song-play { opacity: 1; transform: none; }
+html.dv2 #vinylCrateView .recent-song-play:hover { background: var(--amber-hi); }
+html.dv2 #vinylCrateView .recent-song-title {
+    margin-top: 10px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--cream);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+html.dv2 #vinylCrateView .recent-song-artist {
+    margin-top: 3px;
+    font-size: 0.8rem;
+    line-height: 1.3;
+    color: var(--cream-60);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* YouTube hqdefault/sddefault thumbnails are 4:3 with letterbox bars: crop to the picture */
+html.dv2 #vinylCrateView img[src*="hqdefault"],
+html.dv2 #vinylCrateView img[src*="sddefault"] { transform: scale(1.3334); }
+
+/* ---- Your playlists: a grid in creation order */
+html.dv2 #vinylCrateView .crate-shelf {
+    grid-area: shelf;
+    display: block;
+    width: auto;
+    margin-top: 28px;
+}
+html.dv2 #vinylCrateView .records-conveyor,
+html.dv2 #vinylCrateView .records-conveyor.is-static {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    -webkit-mask-image: none;
+            mask-image: none;
+}
+html.dv2 #vinylCrateView .conveyor-row,
+html.dv2 #vinylCrateView .conveyor-track { display: contents; }
+html.dv2 #vinylCrateView .conveyor-row .conveyor-track { animation: none; }
+html.dv2 #vinylCrateView .record-card { order: var(--ord, 0); }
+html.dv2 #vinylCrateView .record-card.pulling,
+html.dv2 #vinylCrateView .record-card.now-playing { animation: none; transform: none; }
+
+/* The cover: square, on the playlist's colour */
+html.dv2 #vinylCrateView .record-card-cover {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--sleeve);
+    box-shadow: var(--dv-cover-shadow);
+    outline: none;
+    transform: none;
+    transition: none;
+}
+html.dv2 #vinylCrateView .record-card:hover .record-card-cover,
+html.dv2 #vinylCrateView .record-card.now-playing .record-card-cover,
+html.dv2 #vinylCrateView .record-card.now-playing.is-empty .record-card-cover { box-shadow: var(--dv-cover-shadow); }
+html.dv2 #vinylCrateView .record-card-cover::after {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 8%, transparent);
+}
+html.dv2 #vinylCrateView .cover-art { width: 100%; height: 100%; }
+/* No cover yet: a note on the playlist's colour */
+html.dv2 #vinylCrateView .cover-art::before { content: none; }
+html.dv2 #vinylCrateView .cover-art:not(:has(img.cover-main))::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 30%;
+    height: 30%;
+    transform: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: color-mix(in srgb, #fff 70%, transparent);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l10-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='16' cy='16' r='3'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l10-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='16' cy='16' r='3'/%3E%3C/svg%3E") center / contain no-repeat;
+    pointer-events: none;
+}
+
+/* Name, song count and the edit button (the phone's caption, which
+   renames and counts keep in step) */
+html.dv2 #vinylCrateView .record-card .card-caption {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 10px 0 0;
+}
+html.dv2 #vinylCrateView .card-caption-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+html.dv2 #vinylCrateView .card-caption-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--cream);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+html.dv2 #vinylCrateView .card-caption-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 0.8rem;
+    line-height: 1.3;
+    color: var(--cream-60);
+    white-space: nowrap;
+}
+/* The edit button sits on the cover's corner, so names get the full width */
+html.dv2 #vinylCrateView .card-more {
+    position: absolute;
+    top: calc(var(--dv-card-pad) + 8px);
+    right: calc(var(--dv-card-pad) + 8px);
+    z-index: 4;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: color-mix(in srgb, #000 55%, transparent);
+    color: #fff;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+html.dv2 #vinylCrateView .record-card:hover .card-more,
+html.dv2 #vinylCrateView .record-card:focus-within .card-more { opacity: 1; }
+html.dv2 #vinylCrateView .card-more:hover { background: color-mix(in srgb, #000 75%, transparent); }
+@media (hover: none) {
+    html.dv2 #vinylCrateView .card-more { opacity: 1; }
+}
+
+/* The playing playlist: amber name and moving bars, as in the sidebar
+   (an empty playlist is never marked) */
+html.dv2 #vinylCrateView .card-eq { display: none; }
+html.dv2 #vinylCrateView .record-card.now-playing:not(.is-empty) .card-caption-title { color: var(--amber); }
+html.dv2 #vinylCrateView .record-card.now-playing:not(.is-empty) .card-eq {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: flex-end;
+    gap: 2px;
+    width: 11px;
+    height: 10px;
+}
+html.dv2 #vinylCrateView .card-eq i {
+    display: block;
+    width: 2.5px;
+    height: 100%;
+    border-radius: 1px;
+    background: var(--amber);
+    transform-origin: bottom;
+    transform: scaleY(0.4);
+}
+html.dv2 #vinylCrateView .card-eq i:nth-child(2) { transform: scaleY(0.75); }
+html.dv2 #vinylCrateView .card-eq i:nth-child(3) { transform: scaleY(0.55); }
+html.dv2 body.m-playing #vinylCrateView .record-card.now-playing .card-eq i { animation: mEqBar 900ms ease-in-out infinite alternate; }
+html.dv2 body.m-playing #vinylCrateView .record-card.now-playing .card-eq i:nth-child(2) { animation-delay: -300ms; }
+html.dv2 body.m-playing #vinylCrateView .record-card.now-playing .card-eq i:nth-child(3) { animation-delay: -600ms; }
+
+/* ---- New playlist / Bring your music over: cards with a dashed cover */
+html.dv2 #vinylCrateView .crate-new-tile {
+    order: 100000;
+    aspect-ratio: auto;
+    font-size: inherit;
+    line-height: inherit;
+}
+html.dv2 #vinylCrateView .crate-new-tile-icon {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border: 1.5px dashed color-mix(in srgb, var(--cream) 22%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--cream) 3%, transparent);
+    color: var(--cream-60);
+    font-size: 2.25rem;
+    font-weight: 300;
+    line-height: 1;
+    transition: border-color 0.2s ease, color 0.2s ease;
+}
+html.dv2 #vinylCrateView .crate-new-tile-icon svg { width: 30px; height: 30px; }
+html.dv2 #vinylCrateView .crate-new-tile:hover .crate-new-tile-icon {
+    border-color: color-mix(in srgb, var(--cream) 42%, transparent);
+    color: var(--cream);
+}
+html.dv2 #vinylCrateView .crate-new-tile-label,
+html.dv2 #vinylCrateView .crate-bring-tile .crate-new-tile-label {
+    padding: 10px 0 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: left;
+    color: var(--cream);
+}
+
+/* ---- First run: no songs anywhere yet */
+html.dv2 #vinylCrateView .crate-empty-hint {
+    grid-area: hint;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-top: 24px;
+    padding: 20px 24px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: linear-gradient(120deg, color-mix(in srgb, var(--amber) 14%, var(--dv-panel)), var(--dv-panel) 70%);
+}
+html.dv2 #vinylCrateView .crate-empty-disc {
+    width: 56px;
+    height: 56px;
+    flex: none;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle, var(--ink) 0 3px, var(--amber) 3.5px 11px, transparent 11.5px),
+        repeating-radial-gradient(circle, #151515 0 1px, #0e0e0e 1px 3px);
+    box-shadow: 0 0 0 1px var(--line), 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+html.dv2 #vinylCrateView .crate-empty-copy { flex: 1; min-width: 0; }
+html.dv2 #vinylCrateView .crate-empty-title {
+    margin: 0 0 4px;
+    font-family: var(--display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--cream);
+}
+html.dv2 #vinylCrateView .crate-empty-text {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--cream-60);
+}
+html.dv2 #vinylCrateView .crate-empty-actions { flex: none; display: flex; gap: 8px; }
+html.dv2 #vinylCrateView .crate-empty-actions button {
+    height: 38px;
+    padding: 0 18px;
+    border: 1px solid color-mix(in srgb, var(--cream) 30%, transparent);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--cream);
+    font: 600 0.86rem/1 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+html.dv2 #vinylCrateView .crate-empty-actions button:hover { border-color: var(--cream); background: var(--dv-hover); }
+html.dv2 #vinylCrateView .crate-empty-actions button.is-primary {
+    border-color: transparent;
+    background: var(--amber);
+    color: var(--on-amber);
+}
+html.dv2 #vinylCrateView .crate-empty-actions button.is-primary:hover { background: var(--amber-hi); transform: scale(1.03); }
+
+/* All / Local / Spotify (the sidebar's chips, or Home's own at 601-900px)
+   hide the other source's cards, as everywhere */
+html.dv2 #vinylCrateView #roomCenter[data-active-source="user"] .record-card[data-source="spotify"],
+html.dv2 #vinylCrateView #roomCenter[data-active-source="spotify"] .record-card[data-source="user"] { display: none; }
+
+/* Filtered to a source with no playlists: say so before the tiles */
+html.dv2 #vinylCrateView #roomCenter[data-active-source="user"] .conveyor-rows:not(:has(.record-card[data-source="user"]))::before,
+html.dv2 #vinylCrateView #roomCenter[data-active-source="spotify"] .conveyor-rows:not(:has(.record-card[data-source="spotify"]))::before {
+    order: -1;
+    grid-column: 1 / -1;
+    padding: 4px var(--dv-card-pad) 0;
+    font-size: 0.9rem;
+    color: var(--cream-60);
+}
+html.dv2 #vinylCrateView #roomCenter[data-active-source="user"] .conveyor-rows:not(:has(.record-card[data-source="user"]))::before { content: 'No local playlists yet.'; }
+html.dv2 #vinylCrateView #roomCenter[data-active-source="spotify"] .conveyor-rows:not(:has(.record-card[data-source="spotify"]))::before { content: 'No Spotify playlists yet.'; }
+
+/* ---- All / Local / Spotify: the sidebar's chips, except on the rail */
+html.dv2 #vinylCrateView .source-filter { display: none; }
+
+/* ---- Focus */
+html.dv2 #vinylCrateView .recent-song:focus-visible,
+html.dv2 #vinylCrateView .crate-new-tile:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 0;
+    border-radius: 10px;
+}
+html.dv2 #vinylCrateView .record-card-cover:focus-visible,
+html.dv2 #vinylCrateView .card-more:focus-visible,
+html.dv2 #vinylCrateView .collection-toolbar button:focus-visible,
+html.dv2 #vinylCrateView .crate-empty-actions button:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+}
+
+/* ---- 601-900px (beside the icon rail): smaller cards, the filter on Home */
+@media (max-width: 900px) {
+    html.dv2 #vinylCrateView { --dv-card-min: 136px; --dv-home-pad: 20px; }
+    html.dv2 #vinylCrateView .source-filter {
+        grid-area: shelf;
+        justify-self: end;
+        align-self: start;
+        z-index: 1;
+        display: flex;
+        gap: 6px;
+        margin: 28px 0 0;
+        padding: 0;
+        border: 0;
+        background: none;
+    }
+    html.dv2 #vinylCrateView .source-filter-btn,
+    html.dv2 #vinylCrateView .source-filter-btn[data-source-filter="spotify"].active {
+        height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--cream) 8%, transparent);
+        color: var(--cream);
+        font: 500 0.78rem/1 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        letter-spacing: 0;
+        text-transform: none;
+        transition: background-color 0.15s ease;
+    }
+    html.dv2 #vinylCrateView .source-filter-btn:hover { background: color-mix(in srgb, var(--cream) 14%, transparent); }
+    html.dv2 #vinylCrateView .source-filter-btn.active,
+    html.dv2 #vinylCrateView .source-filter-btn[data-source-filter="spotify"].active { background: var(--cream); color: var(--ink); }
+    html.dv2 #vinylCrateView .source-filter-btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+    html.dv2 #vinylCrateView .crate-empty-hint { flex-wrap: wrap; }
+    html.dv2 #vinylCrateView .crate-empty-copy { flex-basis: calc(100% - 76px); }
+    html.dv2 #vinylCrateView .crate-empty-actions { margin-left: 76px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html.dv2 #vinylCrateView .recent-song,
+    html.dv2 #vinylCrateView .record-card,
+    html.dv2 #vinylCrateView .crate-new-tile,
+    html.dv2 #vinylCrateView .crate-new-tile-icon,
+    html.dv2 #vinylCrateView .card-more,
+    html.dv2 #vinylCrateView .collection-toolbar button,
+    html.dv2 #vinylCrateView .crate-empty-actions button { transition: none; }
+    html.dv2 #vinylCrateView .recent-song-play { transition: none; transform: none; }
+    html.dv2 #vinylCrateView .crate-empty-actions button.is-primary:hover { transform: none; }
+    html.dv2 body.m-playing #vinylCrateView .record-card.now-playing .card-eq i { animation: none; }
+}

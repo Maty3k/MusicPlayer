@@ -277,9 +277,11 @@ const STATS = { totalPlays: 12345, distinctSongs: 87, distinctArtists: 1, topSon
         await ctx.close();
     }
     // desktop and landscape never show the page
+    // (Desktop step 4 shows #mHomeHead on the desktop Home for its greeting,
+    // with the avatar inside it hidden: "no avatar" now checks either.)
     for (const vp of [{ width: 1280, height: 800, isMobile: false, hasTouch: false }, { width: 844, height: 390 }]) {
         const { ctx, p } = await open({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.isMobile, hasTouch: vp.hasTouch });
-        const d = await p.evaluate(() => ({ you: getComputedStyle(document.getElementById('mYouPage')).display, avatar: getComputedStyle(document.getElementById('mHomeHead')).display, footer: getComputedStyle(document.querySelector('#settingsModal .add-song-modal-buttons')).display }));
+        const d = await p.evaluate(() => ({ you: getComputedStyle(document.getElementById('mYouPage')).display, avatar: (getComputedStyle(document.getElementById('mHomeHead')).display === 'none' || getComputedStyle(document.getElementById('mAvatarBtn')).display === 'none') ? 'none' : 'shown', footer: getComputedStyle(document.querySelector('#settingsModal .add-song-modal-buttons')).display }));
         check(`Y19 ${vp.width}x${vp.height}: no You page or avatar; Settings keeps its Close`, d.you === 'none' && d.avatar === 'none' && d.footer !== 'none', d);
         await ctx.close();
     }

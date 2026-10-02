@@ -130,7 +130,10 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         const p = await desk.newPage(); await p.route(/youtube\.com|sdk\.scdn|spotify\.com/, r => r.abort());
         await p.goto(APP); await p.waitForTimeout(1000);
         const d = await p.evaluate(() => ({ caption: getComputedStyle(document.querySelector('.record-card .card-caption')).display, badge: getComputedStyle(document.querySelector('.record-card .cover-badge')).display, sheet: getComputedStyle(document.getElementById('mAddSheet')).display }));
-        check('S16 desktop: no captions, badges stay', d.caption === 'none' && d.badge !== 'none' && d.sheet === 'none', d);
+        // Desktop step 4 (desktop-home-check): the desktop Home's cards use the
+        // caption under the cover (name, count, ⋯) and drop the count badge.
+        // This used to check "no captions, badges stay".
+        check('S16 desktop: captions under the covers, no badges, no sheet', d.caption !== 'none' && d.badge === 'none' && d.sheet === 'none', d);
         await desk.close();
         const land = await open('mid', { width: 844, height: 390 });
         const l = await land.p.evaluate(() => ({ caption: getComputedStyle(document.querySelector('.record-card .card-caption')).display, pencil: getComputedStyle(document.querySelector('.record-card .playlist-edit-btn')).display }));

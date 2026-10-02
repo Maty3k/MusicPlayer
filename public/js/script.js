@@ -5242,16 +5242,18 @@ function updateRecentSongs() {
     fitRecentSongsRow();
 }
 
-// The desktop crate lays "Jump back in" on the playlist grid's columns as a
-// single row: hide the songs that would wrap to a second one (hidden, not
-// clipped, so they leave the tab order too). Other layouts scroll the shelf
-// and keep them all.
+// The desktop crate (and the desktop redesign's Home, html.dv2, at every
+// size) lays "Jump back in" on the playlist grid's columns as a single row:
+// hide the songs that would wrap to a second one (hidden, not clipped, so
+// they leave the tab order too). Other layouts scroll the shelf and keep
+// them all.
 function fitRecentSongsRow() {
     const track = document.getElementById('recentSongsTrack');
     if (!track) return;
     const songs = track.querySelectorAll('.recent-song');
     songs.forEach(s => { s.hidden = false; });
-    if (!window.matchMedia('(min-width: 901px) and (min-height: 501px)').matches) return;
+    if (!document.documentElement.classList.contains('dv2')
+        && !window.matchMedia('(min-width: 901px) and (min-height: 501px)').matches) return;
     const columns = getComputedStyle(track).gridTemplateColumns.split(' ').filter(Boolean).length;
     if (columns > 1) songs.forEach((s, i) => { s.hidden = i >= columns; });
 }
@@ -8813,13 +8815,22 @@ window.setSourceFilter = function(value) {
         if (!toolbar || !shelf || !filter || !settings || !newBtn) return;
         if (desktop.matches && !narrow.matches) settings.after(newBtn);
         else toolbar.prepend(newBtn);
-        if (desktop.matches) shelf.before(filter);  // still a grid item of .room-center
+        // The desktop redesign's Home (html.dv2) draws the filter, when it
+        // shows one (601-900px), on the "Your playlists" row too
+        const dv2 = document.documentElement.classList.contains('dv2');
+        if (desktop.matches || dv2) shelf.before(filter);  // still a grid item of .room-center
         else toolbar.prepend(filter);
     }
     function init() {
         place();
         desktop.addEventListener('change', place);
         narrow.addEventListener('change', place);
+        // html.dv2 comes and goes with the phone shells (script.js syncDv2)
+        let dv2Was = document.documentElement.classList.contains('dv2');
+        new MutationObserver(() => {
+            const now = document.documentElement.classList.contains('dv2');
+            if (now !== dv2Was) { dv2Was = now; place(); }
+        }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
@@ -10162,11 +10173,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return out;
     };
 
-    // Jump back in plays in place on phones: the mini player shows it, and
-    // Home stays put (the desktop crate still opens the player).
+    // Jump back in plays in place on phones (the mini player shows it) and
+    // on the desktop Home (the player bar does, desktop step 4): Home stays
+    // put. Landscape phones still open the player.
     const origPlayRecentSong = window.playRecentSong;
     window.playRecentSong = function (i, opts) {
-        if (onPhone()) return origPlayRecentSong.call(this, i, Object.assign({ stay: true }, opts));
+        if (onPhone() || dvBrowse()) return origPlayRecentSong.call(this, i, Object.assign({ stay: true }, opts));
         return origPlayRecentSong.apply(this, arguments);
     };
 

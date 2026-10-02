@@ -283,7 +283,11 @@ const check = (name, ok, info) => { results.push({ name, ok: !!ok, info }); };
         const desk = await phone({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false });
         s = await look(desk.p);
         const deskUi = await desk.p.evaluate(() => ({ tabs: getComputedStyle(document.getElementById('mTabs')).display, home: getComputedStyle(document.getElementById('mHomeHead')).display, rp: getComputedStyle(document.getElementById('mRecentPlaylists')).display, search: getComputedStyle(document.getElementById('mSearchPage')).display, greet: getComputedStyle(document.querySelector('.greeting-text')).display, dock: getComputedStyle(document.getElementById('mDock')).display }));
-        check('M2 desktop: nothing new shows', deskUi.tabs === 'none' && deskUi.home === 'none' && deskUi.rp === 'none' && deskUi.search === 'none' && deskUi.greet !== 'none' && deskUi.dock === 'none', deskUi);
+        // Desktop step 4 (desktop-home-check): the desktop Home heads with the
+        // phone's greeting header (#mHomeHead: just #mGreeting there) instead
+        // of the crate's old "My Collection" (.greeting-text). The tabs, the
+        // recent-playlists row, the Search page and the dock stay phone-only.
+        check('M2 desktop: no phone tabs, recent playlists, Search page or dock; the greeting heads Home', deskUi.tabs === 'none' && deskUi.home !== 'none' && deskUi.rp === 'none' && deskUi.search === 'none' && deskUi.greet === 'none' && deskUi.dock === 'none', deskUi);
         await desk.p.screenshot({ path: L.shot('tabs-shots', 'desktop.png') });
         check('M2 desktop errors', desk.p.__errs.length === 0, desk.p.__errs);
         await desk.ctx.close();

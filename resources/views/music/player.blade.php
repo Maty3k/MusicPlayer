@@ -1065,7 +1065,7 @@
                         </div>
                         <div class="record-player-controls">
                             <button class="rp-btn" onclick="prevSong()" title="Previous"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="5" y="5.4" width="2.4" height="13.2" rx="1.1"/><path d="M18.6 6.3a1.1 1.1 0 0 0-1.7-.93l-8 5.7a1.1 1.1 0 0 0 0 1.86l8 5.7a1.1 1.1 0 0 0 1.7-.93z"/></svg></button>
-                            <button class="rp-btn rp-play" id="playBtn" onclick="toggleMusic()"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></button>
+                            <button class="rp-btn rp-play" id="playBtn" onclick="toggleMusic()" aria-label="Play/Pause"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></button>
                             <button class="rp-btn" onclick="nextSong()" title="Next"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M5.4 6.3a1.1 1.1 0 0 1 1.7-.93l8 5.7a1.1 1.1 0 0 1 0 1.86l-8 5.7a1.1 1.1 0 0 1-1.7-.93z"/><rect x="16.6" y="5.4" width="2.4" height="13.2" rx="1.1"/></svg></button>
                         </div>
                         <div class="pitch-slider" id="pitchSlider">
