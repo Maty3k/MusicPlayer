@@ -202,6 +202,38 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Without Spotify set up on the server, Import has no Spotify tab and
   nothing mentions Connect Spotify.
 
+## Bringing your music over ("Where's your music now?")
+
+Browser suite: `tests/browser/suites/onboarding-check.js`.
+
+- [ ] A brand-new account (no playlists) opens on "Where's your music now?",
+  not the playlist wizard. Back closes it. Start fresh opens the wizard
+  ("Welcome to your record room"), and after it the first-song search.
+- [ ] Member signup: the welcome card, then the chooser, then Start fresh
+  gives the wizard with "Step 2 of 3".
+- [ ] An account with only empty playlists: Home's "Start your collection"
+  card has "Bring your music over" (above "Add a song"); it opens the sheet.
+- [ ] Spotify: with Spotify set up, Import opens on the Spotify link tab.
+  Without it: three steps (TuneMyMusic or Soundiiz, Public or Unlisted,
+  paste the link). The converter links open in a new tab, and coming back
+  leaves the steps as they were. "Paste the YouTube Music link" opens the
+  YouTube link tab.
+- [ ] Apple Music: the converter route opens the YouTube link tab. On a Mac,
+  select all songs in a Music playlist, copy, then Paste a list: each line
+  is matched by title and artist (not the time or album columns).
+- [ ] YouTube Music or YouTube: the YouTube link tab. A
+  music.youtube.com/playlist link that is Public or Unlisted imports into a
+  new playlist.
+- [ ] Files on this device: the picker allows several files. They import
+  with progress at the bottom; on an account with no playlists the page
+  reloads with a Favorites playlist holding them.
+- [ ] "All the ways" goes back to the list. Back, from the list or from a
+  way's steps, closes the whole sheet.
+- [ ] Any time: You page, then "Bring your music over" (back returns to the
+  page). Library + also has the last row "Bring your music over". On desktop,
+  the crate has a "Bring your music over" sleeve next to "New playlist".
+- [ ] Accounts with songs never get the chooser by themselves.
+
 ## Full screen and installing (browser tab)
 
 - [ ] In a Brave tab, You → This phone shows Full screen and Install the

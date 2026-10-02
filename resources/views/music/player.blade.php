@@ -514,11 +514,12 @@
                         <div class="crate-empty-disc" aria-hidden="true"></div>
                         <div class="crate-empty-copy">
                             <p class="crate-empty-title">Start your collection</p>
-                            <p class="crate-empty-text">Your playlists are empty. Add a song, or bring a playlist over from YouTube or Spotify.</p>
+                            <p class="crate-empty-text">Where&rsquo;s your music now? Bring it over from Spotify, Apple Music, YouTube or your files, or add songs one by one.</p>
                         </div>
                         <div class="crate-empty-actions">
-                            <button type="button" class="is-primary" onclick="showAddSongModal()">Add a song</button>
-                            <button type="button" onclick="showSpotifyImportModal()">Import a playlist</button>
+                            {{-- "Where's your music now?" (script.js showBringMusicModal) --}}
+                            <button type="button" class="is-primary" id="crateEmptyBring" onclick="showBringMusicModal()" aria-haspopup="dialog">Bring your music over</button>
+                            <button type="button" onclick="showAddSongModal()">Add a song</button>
                         </div>
                     </div>
                     @endif
@@ -556,6 +557,11 @@
                             <button type="button" class="crate-new-tile" onclick="showPlaylistCreateModal()">
                                 <span class="crate-new-tile-icon" aria-hidden="true">+</span>
                                 <span class="crate-new-tile-label">New playlist</span>
+                            </button>
+                            {{-- Desktop only, next to it: "Where's your music now?" any time --}}
+                            <button type="button" class="crate-new-tile crate-bring-tile" id="crateBringTile" onclick="showBringMusicModal()" aria-haspopup="dialog">
+                                <span class="crate-new-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg></span>
+                                <span class="crate-new-tile-label">Bring your music over</span>
                             </button>
                         </div>
                     </div>
@@ -654,6 +660,15 @@
                 </div>
                 <div class="m-you-listen" id="mYouListen"></div>
             </section>
+            {{-- "Where's your music now?" any time (script.js opens it) --}}
+            <h2 class="m-you-group">Your music</h2>
+            <div class="m-you-list">
+                <button type="button" class="m-you-row" id="mYouBring" aria-haspopup="dialog">
+                    <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg></span>
+                    <span class="m-you-text"><b>Bring your music over</b><small>From Spotify, Apple Music, YouTube or files</small></span>
+                    <svg class="m-you-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>
+                </button>
+            </div>
             <h2 class="m-you-group">Settings</h2>
             <div class="m-you-list">
                 <button type="button" class="m-you-row" data-m-you="playback">
@@ -1458,6 +1473,73 @@
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg></span>
                 <span class="m-sheet-text"><b>Import a playlist</b><small>{{ $spotifyOn ? 'Spotify, YouTube or a pasted list' : 'A YouTube link or a pasted list' }}</small></span>
             </button>
+            <button type="button" class="m-sheet-row" data-m-add="bring" aria-haspopup="dialog">
+                <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg></span>
+                <span class="m-sheet-text"><b>Bring your music over</b><small>From Spotify, Apple Music, YouTube or files</small></span>
+            </button>
+        </div>
+    </div>
+    {{-- "Where's your music now?": the ways to bring a library over from
+         another app, each straight into the import path that fits it (the
+         rows that need a few steps first open them here). Opens on a
+         brand-new account's first load, before the first-playlist wizard
+         (Start fresh leads on to it); any time from the empty Home card, the
+         phone's You page and Library +, and the desktop crate's sleeve tile.
+         showBringMusicModal() in script.js; the phone shell registers it
+         for back. --}}
+    <div class="add-song-modal m-menu-sheet bring-modal" id="bringMusicModal" role="dialog" aria-modal="true" aria-labelledby="bringMusicTitle">
+        <div class="add-song-modal-backdrop" data-bring-close></div>
+        <div class="add-song-modal-panel">
+            <button type="button" class="add-song-modal-close" data-bring-close aria-label="Close">&times;</button>
+            <h2 class="m-sheet-title" id="bringMusicTitle">Where&rsquo;s your music now?</h2>
+            <div class="bring-pane" id="bringMusicList">
+                <p class="bring-lede">Bring it over in a few steps, or start fresh.</p>
+                <button type="button" class="m-sheet-row" data-bring="spotify">
+                    <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M7.5 9.5c3-1 6.5-.7 9 .8M8 12.6c2.5-.7 5.2-.4 7.3.8M8.6 15.5c1.9-.5 3.8-.3 5.4.6"/></svg></span>
+                    <span class="m-sheet-text"><b>Spotify</b><small>{{ $spotifyOn ? 'Paste a playlist link' : 'Copy it to YouTube Music first, then paste the link' }}</small></span>
+                </button>
+                <button type="button" class="m-sheet-row" data-bring="apple">
+                    <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg></span>
+                    <span class="m-sheet-text"><b>Apple Music</b><small>Through YouTube Music, or paste a list on a Mac</small></span>
+                </button>
+                <button type="button" class="m-sheet-row" data-bring="youtube">
+                    <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="3.5"/><path d="M10.5 9.5v5l4.2-2.5z" fill="currentColor"/></svg></span>
+                    <span class="m-sheet-text"><b>YouTube Music or YouTube</b><small>Paste a playlist link. It must be Public or Unlisted.</small></span>
+                </button>
+                <button type="button" class="m-sheet-row" data-bring="files">
+                    <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></span>
+                    <span class="m-sheet-text"><b>Files on this device</b><small>MP3s and other audio files, several at once</small></span>
+                </button>
+                <button type="button" class="m-sheet-row" data-bring="fresh">
+                    <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m20 20-4.4-4.4"/></svg></span>
+                    <span class="m-sheet-text"><b>Start fresh</b><small>Search for songs and add them</small></span>
+                </button>
+            </div>
+            <div class="bring-pane" id="bringStepSpotify" hidden>
+                <button type="button" class="bring-back" data-bring-back>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 5.5-6.5 6.5 6.5 6.5"/></svg>
+                    All the ways
+                </button>
+                <h3 class="bring-step-title" tabindex="-1">From Spotify</h3>
+                <ol class="bring-steps">
+                    <li>Copy the playlist to YouTube Music with a free converter: <a href="https://www.tunemymusic.com/" target="_blank" rel="noopener noreferrer">TuneMyMusic</a> or <a href="https://soundiiz.com/" target="_blank" rel="noopener noreferrer">Soundiiz</a>.</li>
+                    <li>In YouTube Music, set the playlist to <b>Public</b> or <b>Unlisted</b>.</li>
+                    <li>Copy its link and paste it here.</li>
+                </ol>
+                <button type="button" class="bring-go" data-bring="youtube">Paste the YouTube Music link</button>
+            </div>
+            <div class="bring-pane" id="bringStepApple" hidden>
+                <button type="button" class="bring-back" data-bring-back>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 5.5-6.5 6.5 6.5 6.5"/></svg>
+                    All the ways
+                </button>
+                <h3 class="bring-step-title" tabindex="-1">From Apple Music</h3>
+                <p class="bring-how"><b>Any device:</b> copy the playlist to YouTube Music with <a href="https://www.tunemymusic.com/" target="_blank" rel="noopener noreferrer">TuneMyMusic</a> or <a href="https://soundiiz.com/" target="_blank" rel="noopener noreferrer">Soundiiz</a> (free), set it to <b>Public</b> or <b>Unlisted</b>, then paste its link.</p>
+                <button type="button" class="bring-go" data-bring="youtube">Paste the YouTube Music link</button>
+                <p class="bring-how"><b>On a Mac:</b> open the playlist in Music, select all its songs (&#8984;A), copy them (&#8984;C), then paste them as a list.</p>
+                <button type="button" class="bring-go bring-go-quiet" data-bring="paste">Paste a list</button>
+            </div>
+            <input type="file" id="bringFilesInput" multiple accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.flac" aria-label="Audio files to add" style="display:none">
         </div>
     </div>
     <!-- Settings Modal (playback source + Spotify) -->

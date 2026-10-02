@@ -4312,7 +4312,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
         && document.getElementById('playlistEditModal') && !arrivedFromSpotifySignIn) {
-        showFirstRunWizard();
+        // "Where's your music now?" first; its Start fresh leads on to the
+        // wizard (straight to the wizard if the chooser isn't on the page)
+        if (document.getElementById('bringMusicModal')) showBringMusicModal();
+        else showFirstRunWizard();
         return;
     }
 
@@ -4327,6 +4330,146 @@ document.addEventListener('DOMContentLoaded', () => {
             showAddSongModal({ wizard: true, chip: firstRunAddSong === 'chip' });
         }
     }
+});
+
+// ---- "Where's your music now?": bringing a library over from another app.
+// One chooser (#bringMusicModal): Spotify, Apple Music, YouTube, files on
+// this device, or start fresh. Each row goes straight into the existing
+// import path that fits it; Spotify without this server's Spotify app, and
+// Apple Music, first show their few steps in the same sheet. Opened on a
+// brand-new account's first load (before the first-playlist wizard, which
+// Start fresh leads on to) and any time from the empty Home card, the
+// phone's You page and Library +, and the desktop crate's sleeve tile.
+let bringOpts = {};
+let bringOpener = null;
+let bringStepOpener = null;
+
+// opts.wizardStep: after the member welcome card (Start fresh's wizard then
+// shows its "Step 2 of 3" chip).
+function showBringMusicModal(opts) {
+    const modal = document.getElementById('bringMusicModal');
+    if (!modal) return;
+    bringOpts = opts && typeof opts === 'object' && !(opts instanceof Event) ? opts : {};
+    const a = document.activeElement;
+    bringOpener = a && a !== document.body && !modal.contains(a) ? a : null;
+    setBringStep(null);
+    modal.classList.add('active');
+    const first = modal.querySelector('#bringMusicList .m-sheet-row');
+    if (first) first.focus({ preventScroll: true });
+}
+
+function hideBringMusicModal() {
+    const modal = document.getElementById('bringMusicModal');
+    if (!modal) return;
+    const hadFocus = modal.contains(document.activeElement);
+    modal.classList.remove('active');
+    setBringStep(null);
+    // Back to what opened it, unless another sheet took over
+    if (hadFocus && bringOpener && bringOpener.isConnected && bringOpener.getClientRects().length
+        && !document.querySelector('.add-song-modal.active')) {
+        bringOpener.focus({ preventScroll: true });
+    }
+}
+
+// null: the list of ways; 'spotify' / 'apple': that one's steps.
+function setBringStep(step) {
+    const list = document.getElementById('bringMusicList');
+    const panes = { spotify: document.getElementById('bringStepSpotify'), apple: document.getElementById('bringStepApple') };
+    if (list) list.hidden = !!step;
+    Object.keys(panes).forEach(k => { if (panes[k]) panes[k].hidden = k !== step; });
+    const pane = step ? panes[step] : null;
+    if (pane) {
+        const title = pane.querySelector('.bring-step-title');
+        if (title) title.focus({ preventScroll: true });
+    }
+}
+
+// The import window on one tab, into a new playlist (a library brought over
+// keeps its own name). The field takes focus where there's a keyboard.
+function openBringImport(tab) {
+    hideBringMusicModal();
+    showSpotifyImportModal({ into: 'new' });
+    setImportTab(tab);
+    const field = document.getElementById(tab === 'spotify' ? 'spotifyImportUrl'
+        : tab === 'youtube' ? 'youtubeImportUrl' : 'pasteImportInput');
+    if (field && !window.matchMedia('(pointer: coarse)').matches) field.focus({ preventScroll: true });
+}
+
+function chooseBringMusic(kind, row) {
+    if (kind === 'spotify') {
+        if (typeof spotifyOn !== 'undefined' && spotifyOn) {
+            openBringImport('spotify');
+            return;
+        }
+        bringStepOpener = row || null;
+        setBringStep('spotify');
+    } else if (kind === 'apple') {
+        bringStepOpener = row || null;
+        setBringStep('apple');
+    } else if (kind === 'youtube' || kind === 'paste') {
+        openBringImport(kind);
+    } else if (kind === 'files') {
+        // Inside the tap (a file picker needs it); the sheet stays until
+        // files are picked
+        const input = document.getElementById('bringFilesInput');
+        if (input) {
+            input.value = '';
+            input.click();
+        }
+    } else if (kind === 'fresh') {
+        const asStepTwo = !!bringOpts.wizardStep;
+        hideBringMusicModal();
+        // No playlist yet: the first-run wizard (name one, then the first
+        // song); otherwise search and add songs
+        if (typeof playlistsMeta === 'object' && Object.keys(playlistsMeta).length === 0
+            && document.getElementById('playlistEditModal')) {
+            showFirstRunWizard(asStepTwo);
+        } else {
+            showAddSongModal();
+        }
+    }
+}
+
+// Picked files: the batch importer, into the playing playlist. A new
+// account's Favorites is made on the way, so the page then reloads to show it.
+async function onBringFilesPicked(input) {
+    const files = input && input.files ? [...input.files] : [];
+    if (input) input.value = '';
+    if (files.length === 0) return;
+    hideBringMusicModal();
+    const hadNoPlaylists = typeof playlistsMeta === 'object' && Object.keys(playlistsMeta).length === 0;
+    await importAudioFiles(files);
+    if (hadNoPlaylists && typeof songsData !== 'undefined' && songsData.length > 0) {
+        setTimeout(() => location.reload(), 1500);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('bringMusicModal');
+    if (!modal) return;
+    modal.addEventListener('click', (e) => {
+        if (e.target.closest('[data-bring-close]')) {
+            hideBringMusicModal();
+            return;
+        }
+        if (e.target.closest('[data-bring-back]')) {
+            setBringStep(null);
+            const back = bringStepOpener && bringStepOpener.isConnected ? bringStepOpener
+                : modal.querySelector('#bringMusicList .m-sheet-row');
+            if (back) back.focus({ preventScroll: true });
+            return;
+        }
+        const row = e.target.closest('[data-bring]');
+        if (row) chooseBringMusic(row.dataset.bring, row);
+    });
+    modal.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            hideBringMusicModal();
+        }
+    });
+    const files = document.getElementById('bringFilesInput');
+    if (files) files.addEventListener('change', () => onBringFilesPicked(files));
 });
 
 // The song menu's Like row: close the menu, toggle, say what happened (the
@@ -4393,7 +4536,9 @@ async function finishMemberWelcome() {
     if (modal) modal.classList.remove('active');
     if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
         && document.getElementById('playlistEditModal')) {
-        showFirstRunWizard(true);
+        // The chooser, then (Start fresh) the wizard as step 2 of 3
+        if (document.getElementById('bringMusicModal')) showBringMusicModal({ wizardStep: true });
+        else showFirstRunWizard(true);
     }
 }
 
@@ -6536,6 +6681,13 @@ async function resolvePasteList() {
         : '';
 
     const parsed = lines.map(line => {
+        // Songs copied from Apple Music on a Mac paste as tab-separated
+        // columns: Name, Time, Artist, Album, … (times and counts dropped)
+        if (line.includes('\t')) {
+            const cols = line.split('\t').map(c => c.trim()).filter(c => c && !/^\d+(:\d{2}){0,2}$/.test(c));
+            if (cols.length >= 2) return { artist: cols[1], title: cols[0], query: `${cols[1]} - ${cols[0]}` };
+            if (cols.length === 1) return { artist: '', title: cols[0], query: cols[0] };
+        }
         const m = line.split(/\s+[-–—]\s+/); // "Artist - Title" (hyphen/en/em dash)
         if (m.length >= 2) return { artist: m[0].trim(), title: m.slice(1).join(' - ').trim(), query: line };
         return { artist: '', title: line, query: line };
@@ -10100,6 +10252,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 setSettingsTab(row.dataset.mYou); // it opens on Playback
                 return;
             }
+            // "Where's your music now?" over the page: back returns here
+            if (e.target.closest('#mYouBring')) {
+                window.showBringMusicModal();
+                return;
+            }
             if (e.target.closest('#mYouSeeAll')) {
                 youReturnFocus = youSeeAll;
                 window.showStatsModal('all'); // the card's numbers are all time
@@ -10434,6 +10591,7 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapModalPair('openQueueModal', 'hideQueueModal', 'queue');
     wrapModalPair('openVinylGifModal', 'closeVinylGifModal', 'vinylGif');
     wrapModalPair('mShowAddSheet', 'mHideAddSheet', 'libraryAdd');
+    wrapModalPair('showBringMusicModal', 'hideBringMusicModal', 'bringMusic');
 
     // Portrait phones search on the Search tab; the modal is for landscape
     // and desktop (the crate's Search button is hidden on the Home tab).
@@ -10460,6 +10618,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (row.dataset.mAdd === 'playlist') window.showPlaylistCreateModal();
             else if (row.dataset.mAdd === 'songs') window.showAddSongModal();
             else if (row.dataset.mAdd === 'import') window.showSpotifyImportModal();
+            else if (row.dataset.mAdd === 'bring') window.showBringMusicModal();
         });
     }
 
@@ -11770,6 +11929,14 @@ document.addEventListener('DOMContentLoaded', () => {
             window.showFirstRunWizard = function () {
                 dropWelcomeGuard(); // the wizard's modal layer then waits for it
                 return origWizard.apply(this, arguments);
+            };
+        }
+        // The welcome card chains into the chooser too (then the wizard)
+        const origBring = window.showBringMusicModal;
+        if (typeof origBring === 'function') {
+            window.showBringMusicModal = function () {
+                dropWelcomeGuard(); // its modal layer then waits for it
+                return origBring.apply(this, arguments);
             };
         }
         const origFinishWelcome = window.finishMemberWelcome;

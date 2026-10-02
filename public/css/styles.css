@@ -16587,3 +16587,123 @@ button.send-menu-cancel {
 @media (prefers-reduced-motion: reduce) {
     .song-list-skeleton span { animation: none; }
 }
+
+/* ============================================================
+   "Where's your music now?" (#bringMusicModal): the ways to bring a
+   library over. Its rows are the .m-menu-sheet rows (a bottom sheet on
+   phones, a centred card elsewhere); Spotify and Apple Music open their
+   few steps in the same panel.
+   ============================================================ */
+.bring-modal .add-song-modal-panel {
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+}
+
+.bring-modal .m-sheet-title { margin-bottom: 4px; }
+.bring-modal .bring-pane[hidden] { display: none; }
+
+.bring-lede {
+    margin: 0 4px 10px;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: color-mix(in srgb, var(--cream) 65%, transparent);
+}
+
+/* The instructions are the point here: let them wrap */
+.bring-modal .m-sheet-text small {
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.35;
+}
+
+.bring-modal .m-sheet-row:hover { background: rgba(255, 245, 233, 0.06); }
+
+.bring-modal .m-sheet-row:focus-visible,
+.bring-modal .bring-back:focus-visible,
+.bring-modal .bring-go:focus-visible,
+.bring-modal a:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+}
+
+.bring-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 40px;
+    margin: 0 0 4px -4px;
+    padding: 0 10px 0 4px;
+    border: 0;
+    border-radius: 20px;
+    background: none;
+    color: var(--cream-60);
+    font: 500 0.9rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    cursor: pointer;
+}
+
+.bring-back:hover { color: var(--cream); }
+
+.bring-step-title {
+    margin: 0 4px 8px;
+    font: 600 1.05rem/1.25 var(--display);
+    color: var(--cream);
+}
+
+.bring-step-title:focus { outline: none; }
+
+.bring-steps {
+    margin: 0 4px 14px;
+    padding: 0 0 0 22px;
+    color: var(--cream);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.bring-steps li + li { margin-top: 6px; }
+
+.bring-how {
+    margin: 4px 4px 10px;
+    color: var(--cream);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.bring-modal a {
+    color: var(--amber);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.bring-go {
+    display: block;
+    width: 100%;
+    min-height: 48px;
+    margin: 0 0 16px;
+    padding: 0 16px;
+    border: 1px solid var(--amber);
+    border-radius: 24px;
+    background: var(--amber);
+    color: var(--on-amber);
+    font: 600 0.95rem/1.2 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    cursor: pointer;
+}
+
+.bring-go:last-child { margin-bottom: 0; }
+
+.bring-go.bring-go-quiet {
+    border-color: var(--line);
+    background: none;
+    color: var(--cream);
+}
+
+/* The desktop crate's sleeve tile, after "New playlist" */
+#vinylCrateView .crate-bring-tile { order: 100001; }
+#vinylCrateView .crate-bring-tile .crate-new-tile-label { padding: 0 12px; text-align: center; }
+
+/* Phone Home's empty card: the two actions stack ("Bring your music over"
+   is too long to share a row at 360px) */
+@media (max-width: 600px) {
+    #crateEmptyHint .crate-empty-actions { flex-direction: column; }
+    #crateEmptyHint .crate-empty-actions button { flex: 0 0 auto; }
+}
