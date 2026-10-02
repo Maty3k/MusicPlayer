@@ -183,6 +183,12 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
   goes back in.
 - [ ] In full screen, type in Search: the keyboard opens and the field stays
   visible.
+- [ ] You → Open in full screen: turning it on goes full screen at once.
+  Close the tab and open the site again: the first tap (on anything) goes
+  full screen and still does what you tapped. Switch to another app and
+  back: if the bars came back, the next tap hides them again.
+- [ ] You → Button on Home: a full-screen icon appears left of the avatar;
+  it goes in and, in full screen, comes back out.
 - [ ] Install the app: Brave's install dialog, or the steps sheet. After
   installing, the new icon opens without the address bar (remove the old
   icon).

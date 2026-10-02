@@ -9310,8 +9310,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // video player, and a lock, app switch or dialog ends it) and Install
     // the app (the browser's own prompt when it offered one, else how-to).
     // An installed app is already free of the address bar: neither shows.
+    // Two switches under Full screen, kept on this device: open in full
+    // screen (browsers only allow it from a tap, so the first tap after
+    // opening does it) and a full-screen button on Home.
     const youDevice = document.getElementById('mYouDevice');
     const fsRow = document.getElementById('mYouFullscreen');
+    const fsAutoRow = document.getElementById('mYouFsAuto');
+    const fsButtonRow = document.getElementById('mYouFsButton');
+    const fsBtn = document.getElementById('mFsBtn');
+    const FS_AUTO = 'mFullscreenAuto';
+    const FS_BUTTON = 'mFullscreenButton';
+    const fsPref = (key) => { try { return localStorage.getItem(key) === '1'; } catch (e) { return false; } };
+    const setFsPref = (key, on) => { try { if (on) localStorage.setItem(key, '1'); else localStorage.removeItem(key); } catch (e) {} };
     const installRow = document.getElementById('mYouInstall');
     const installSheet = document.getElementById('mInstallSheet');
     const canFullscreen = document.fullscreenEnabled === true && typeof htmlEl.requestFullscreen === 'function';
@@ -9321,14 +9331,27 @@ document.addEventListener('DOMContentLoaded', () => {
         || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     let appInstalled = false;
 
+    // Not on iOS: no back gesture there to leave it, and iPhone can't
+    const fsPossible = () => canFullscreen && !isIos && (inBrowserTab.matches || !!document.fullscreenElement);
+
     function syncDeviceRows() {
         const fsOn = !!document.fullscreenElement;
+        const can = fsPossible();
         htmlEl.classList.toggle('m-fs', fsOn);
         if (fsRow) {
-            // Not on iOS: no back gesture there to leave it, and iPhone can't
-            fsRow.hidden = !canFullscreen || isIos || !(inBrowserTab.matches || fsOn);
+            fsRow.hidden = !can;
             fsRow.querySelector('b').textContent = fsOn ? 'Exit full screen' : 'Full screen';
             fsRow.querySelector('small').textContent = fsOn ? 'Bring back the browser bars' : 'Hide the browser bars · back exits';
+        }
+        [[fsAutoRow, FS_AUTO], [fsButtonRow, FS_BUTTON]].forEach(([row, key]) => {
+            if (!row) return;
+            row.hidden = !can;
+            row.setAttribute('aria-checked', String(fsPref(key)));
+        });
+        if (fsBtn) {
+            fsBtn.hidden = !can || !fsPref(FS_BUTTON);
+            fsBtn.classList.toggle('is-on', fsOn);
+            fsBtn.setAttribute('aria-label', fsOn ? 'Exit full screen' : 'Full screen');
         }
         if (installRow) installRow.hidden = !inBrowserTab.matches || appInstalled;
         if (youDevice) youDevice.hidden = (!fsRow || fsRow.hidden) && (!installRow || installRow.hidden);
@@ -9400,7 +9423,55 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (fsRow) fsRow.addEventListener('click', toggleFullscreen);
+    if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
     if (installRow) installRow.addEventListener('click', installApp);
+
+    // Open in full screen: armed when the page opens or comes back into
+    // view on a phone, spent by the first tap or by going full screen any
+    // other way. Leaving full screen (back, or Exit) stays left until the
+    // next time the app is opened or brought back.
+    let fsArmed = false;
+    let fsRequesting = false;
+    const autoFsHere = () => fsPref(FS_AUTO) && fsPossible() && inShell();
+    const armAutoFullscreen = () => { fsArmed = autoFsHere() && !document.fullscreenElement; };
+    function enterFullscreenQuietly() {
+        if (!fsArmed || fsRequesting || document.fullscreenElement) return;
+        fsRequesting = true;
+        htmlEl.requestFullscreen({ navigationUI: 'hide' })
+            .catch(() => { /* no tap to go on: stay armed for the next one */ })
+            .finally(() => { fsRequesting = false; });
+    }
+    document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement) fsArmed = false;
+    });
+    // Capturing, so a control that stops the click still counts; the
+    // request waits a beat so the tap does its own job first. Controls
+    // that need the tap themselves after a wait (Share), and the
+    // full-screen controls, carry data-keeps-gesture.
+    window.addEventListener('click', (e) => {
+        if (!fsArmed || !e.isTrusted) return;
+        if (e.target && e.target.closest && e.target.closest('[data-keeps-gesture]')) return;
+        if (!autoFsHere()) { fsArmed = false; return; }
+        setTimeout(enterFullscreenQuietly, 0);
+    }, true);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') armAutoFullscreen();
+    });
+    armAutoFullscreen();
+
+    function flipFsSwitch(key) {
+        const on = !fsPref(key);
+        setFsPref(key, on);
+        syncDeviceRows();
+        if (key !== FS_AUTO) return;
+        // Not on this tap: full screen over You would spend the next back
+        // on bringing the bars back. The next tap (often You's back arrow)
+        // goes in.
+        armAutoFullscreen();
+        if (on && fsArmed) window.mToast('Full screen starts with your next tap');
+    }
+    if (fsAutoRow) fsAutoRow.addEventListener('click', () => flipFsSwitch(FS_AUTO));
+    if (fsButtonRow) fsButtonRow.addEventListener('click', () => flipFsSwitch(FS_BUTTON));
 
     // ---- One screen at a time for keyboards and screen readers (portrait
     // phones). Whatever the top surface covers is inert: out of the Tab and

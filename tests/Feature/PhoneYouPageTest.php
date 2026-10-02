@@ -110,9 +110,22 @@ class PhoneYouPageTest extends TestCase
         $this->actingAs($this->member())->get('/')
             ->assertOk()
             ->assertSee('<div class="m-you-device" id="mYouDevice" hidden>', false)
-            ->assertSee('id="mYouFullscreen" hidden', false)
+            ->assertSee('id="mYouFullscreen" data-keeps-gesture hidden', false)
             ->assertSee('id="mYouInstall" hidden', false)
             ->assertSee('id="mInstallSheet"', false);
+    }
+
+    public function test_full_screen_switches_and_the_home_button_start_hidden_and_off(): void
+    {
+        // Per-device choices (localStorage); script.js shows and sets them.
+        $this->actingAs($this->member())->get('/')
+            ->assertOk()
+            ->assertSee('id="mYouFsAuto" role="switch" aria-checked="false" data-keeps-gesture hidden', false)
+            ->assertSee('id="mYouFsButton" role="switch" aria-checked="false" data-keeps-gesture hidden', false)
+            ->assertSee('id="mFsBtn" aria-label="Full screen" data-keeps-gesture hidden', false)
+            ->assertSee('data-m-pl="share" data-keeps-gesture', false)
+            ->assertSeeInOrder(['id="mHomeHead"', 'id="mFsBtn"', 'id="mAvatarBtn"'], false)
+            ->assertSeeInOrder(['id="mYouFullscreen"', 'id="mYouFsAuto"', 'id="mYouFsButton"', 'id="mYouInstall"'], false);
     }
 
     public function test_add_song_source_sits_under_advanced(): void

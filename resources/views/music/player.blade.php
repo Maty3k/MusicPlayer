@@ -342,6 +342,12 @@
                          desktop, landscape and the app) --}}
                     <header class="m-tab-head m-only" id="mHomeHead">
                         <h1 class="m-tab-title" id="mGreeting">Hello</h1>
+                        {{-- Full screen on a tap, when the You page's "Button on
+                             Home" is on (browser tabs only; script.js shows it) --}}
+                        <button type="button" class="m-icon-btn m-fs-btn" id="mFsBtn" aria-label="Full screen" data-keeps-gesture hidden>
+                            <svg class="m-fs-enter" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/></svg>
+                            <svg class="m-fs-exit" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v3.5A1.5 1.5 0 0 1 7.5 9H4M20 9h-3.5A1.5 1.5 0 0 1 15 7.5V4M15 20v-3.5a1.5 1.5 0 0 1 1.5-1.5H20M4 15h3.5A1.5 1.5 0 0 1 9 16.5V20"/></svg>
+                        </button>
                         <button type="button" class="m-avatar-btn" id="mAvatarBtn" aria-label="You: your listening and settings">
                             <span class="m-avatar" id="mAvatar">{{ $acctInitial }}</span>
                         </button>
@@ -671,9 +677,17 @@
             <div class="m-you-device" id="mYouDevice" hidden>
                 <h2 class="m-you-group">This phone</h2>
                 <div class="m-you-list">
-                    <button type="button" class="m-you-row" id="mYouFullscreen" hidden>
+                    <button type="button" class="m-you-row" id="mYouFullscreen" data-keeps-gesture hidden>
                         <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/></svg></span>
                         <span class="m-you-text"><b>Full screen</b><small>Hide the browser bars · back exits</small></span>
+                    </button>
+                    <button type="button" class="m-you-row m-you-subrow" id="mYouFsAuto" role="switch" aria-checked="false" data-keeps-gesture hidden>
+                        <span class="m-you-text"><b>Open in full screen</b><small>Starts with your first tap</small></span>
+                        <span class="m-you-switch" aria-hidden="true"></span>
+                    </button>
+                    <button type="button" class="m-you-row m-you-subrow" id="mYouFsButton" role="switch" aria-checked="false" data-keeps-gesture hidden>
+                        <span class="m-you-text"><b>Button on Home</b><small>Full screen next to your avatar</small></span>
+                        <span class="m-you-switch" aria-hidden="true"></span>
                     </button>
                     <button type="button" class="m-you-row" id="mYouInstall" hidden>
                         <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M12 7.5v6.5M9.2 11.4 12 14.2l2.8-2.8"/></svg></span>
@@ -1360,7 +1374,7 @@
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>
                 <span class="m-sheet-text"><b>Edit details</b><small id="mPlSheetEditSub">Name, colour and cover</small></span>
             </button>
-            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="share">
+            <button type="button" class="m-sheet-row m-sheet-compact" data-m-pl="share" data-keeps-gesture>
                 <span class="m-sheet-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 12v7.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V12"/></svg></span>
                 <span class="m-sheet-text"><b>Share</b><small id="mPlSheetShareSub">A link anyone can open</small></span>
             </button>
