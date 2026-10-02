@@ -59,8 +59,8 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Installed app, fresh launch: opens on Home. Back on Home closes the
   app; back on Search or Library goes to Home first.
 - [ ] Library → open a playlist → back → Library → back → Home.
-- [ ] Search: type, tap a hit's playlist chip (its playlist opens), back →
-  the same results are still there.
+- [ ] Search: type, tap a hit's playlist chip (its playlist opens and the
+  song plays from it), back → the same results are still there.
 - [ ] Tap the mini player on each tab: Now Playing opens over that tab and
   closing it (back, chevron, drag down) shows the same tab again. The tab
   bar hides while Now Playing is up.
@@ -68,7 +68,9 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] While a playlist is open, tapping another tab closes it; tapping its
   own tab again goes back to the tab's top.
 - [ ] Reload (pull to refresh) on a playlist opened from Library: the same
-  playlist and tab come back, and each back press does something.
+  playlist and tab come back (also a playlist that isn't the one playing:
+  it loads again, the mini player keeps the playing song), and each back
+  press does something.
 - [ ] Jump back in plays the song without leaving Home.
 - [ ] The avatar opens the You page; back (or its chevron, or tapping Home)
   closes it.
@@ -82,8 +84,9 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 
 - [ ] Open a playlist: the name slides into the top bar as you scroll; the
   bar stays put and the list ends above the mini player.
-- [ ] Round Play starts the playlist and opens Now Playing; the shuffle
-  icon cycles off → on (dot) → Smart mix (spark).
+- [ ] Round Play starts the playlist and opens Now Playing; on the playlist
+  that's playing it pauses and resumes. The shuffle icon cycles off → on
+  (dot) → Smart mix (spark) and starts nothing.
 - [ ] Find (magnifier): the keyboard opens, typing filters, back closes it
   and shows every song again.
 - [ ] ⋯ → Share: the phone's share sheet opens with the playlist's link.
@@ -100,9 +103,41 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
   instead of copy" on it leaves this playlist. Back from the playlist list
   returns to the song menu; a quick double tap never picks a playlist.
 - [ ] Now Playing → ⋯ → Show in playlist: Now Playing closes and the
-  playlist scrolls to the song, which lights up briefly.
+  playlist scrolls to the song, which lights up briefly. With another
+  playlist open behind Now Playing, the playing one replaces it (find and
+  reorder close with it).
 - [ ] An empty playlist shows Add songs and Import; Import pre-selects
   "Add to <this playlist>".
+
+## Browsing playlists (they play only when you start them)
+
+- [ ] Play a song, then open another playlist from a Home tile, a Search
+  tile and a Library card: the playlist screen shows at once (a loading row
+  on a slow connection), and the music, the mini player, Now Playing and
+  the lock screen stay on the playing song.
+- [ ] That playlist marks no song as playing and its round button reads
+  Play while music plays. The Home/Search tiles and the Library card keep
+  marking the playlist that plays.
+- [ ] Tap one of its songs: it plays, and this playlist becomes the playing
+  one (its tile turns amber, Now Playing says "Playing from" it, Next goes
+  on through it).
+- [ ] Round Play on it starts the song it was left on (a random one with
+  shuffle on) and opens Now Playing; the old song doesn't pause first.
+- [ ] Next, Previous and a song ending stay in the playing playlist while
+  another one is open; so do the headset and lock-screen buttons.
+- [ ] Back while a playlist is still loading (slow connection): nothing pops
+  up later; tapping it again opens it.
+- [ ] Open an empty playlist with nothing playing: the mini player stays,
+  also after a reload.
+- [ ] With another playlist open, Now Playing → ⋯ acts on the playing song:
+  Remove takes it out of the playing playlist, not the open one.
+- [ ] Remove, move (song ⋯) and reorder songs in a playlist that isn't
+  playing: the music doesn't stop or skip, and the changes stick after a
+  reload.
+- [ ] Airplane mode, open a playlist that isn't playing: "Couldn't load this
+  playlist" with Retry; back online, Retry shows its songs.
+- [ ] Unfold a foldable (or leave the phone layout) with a playlist open
+  that isn't playing: the playing playlist is what shows.
 
 ## Search tab
 
@@ -110,7 +145,9 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
   your playlists as tiles; a tile opens that playlist.
 - [ ] Type a song you have: "In your library" first. Tapping the song plays
   it right there (the mini player updates, you stay on Search); its colored
-  playlist chip opens the playlist instead.
+  playlist chip opens the playlist and plays the song from it. Pressing
+  Next while that playlist is still loading wins: the song is then only
+  pointed out in the list.
 - [ ] "From YouTube" follows a moment later. Tapping one plays it as a
   preview; + → pick a playlist: "Added to …", and it's in that playlist.
   Adding it again says "Already in …". Back closes the picker first.
@@ -122,12 +159,12 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Preview a YouTube song, then + it into the playlist that's playing:
   the playlist shows it once, with a ✓ (no second +).
 - [ ] Play a song, open an empty playlist (the song keeps playing), and +
-  a song into it from Search: the music doesn't stop. Next, tapping the new
-  song, or the old song ending starts it, with its title on the screen and
-  lock screen. Pause still pauses the old song; Play after that starts the
-  new one.
-- [ ] The same with an empty playlist and nothing playing: the added song
-  shows in the mini player, ready to play.
+  a song into it from Search: the music doesn't stop and the song shows in
+  that playlist. Next stays in the playing playlist; tapping the new song
+  plays it and makes that playlist the playing one.
+- [ ] A new account (its empty Favorites is what "plays") with nothing
+  playing: + a song into Favorites: it shows in the mini player, ready to
+  play.
 - [ ] Airplane mode, type: the library part still says what failed, YouTube
   says it couldn't search; nothing hangs.
 
@@ -146,9 +183,9 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 
 ## Adding music
 
-- [ ] Library → + → Add songs, or a playlist's Add songs: the sheet says
-  "To <the open playlist>". Tap it, pick another playlist: the sheet stays,
-  now "To" that one.
+- [ ] A playlist's Add songs: the sheet says "To <that playlist>" (also when
+  it isn't the one playing); from Library → + it names the playing one.
+  Tap it, pick another playlist: the sheet stays, now "To" that one.
 - [ ] Search a song, tap a result: it gets a ✓ and "Added to …"; the sheet
   stays for the next one. The playlist you picked has it; the music that was
   playing didn't stop. Adding it again says "Already in …".
@@ -157,8 +194,8 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
   MP3 of a song that's already there becomes its offline copy).
 - [ ] Paste a YouTube playlist link into the search: "Import this YouTube
   playlist" opens the import already loading it.
-- [ ] Import a playlist (the row) opens Import; when "To" is the open
-  playlist it adds into it.
+- [ ] Import a playlist (the row) opens Import set to add into the "To"
+  playlist ("Add to <it>"), whichever playlist is open or playing.
 - [ ] Snap a record cover (only if cover recognition is set up on the
   server): the camera opens; a phone photo finds the album's songs, or says
   why it couldn't.
@@ -245,7 +282,8 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Landscape (wider than 600px — most phones) has no tab bar: the full
   crate (Search, Stats, Settings buttons) shows. Very small phones
   (568x320) keep the phone layout, tabs included. Rotating from the Search or Library tab lands on Home
-  when you come back; an open playlist survives the rotation.
+  when you come back; an open playlist survives the rotation, also one
+  that isn't playing (the deck beside it keeps the playing song).
 
 ## Known-acceptable
 
@@ -254,7 +292,7 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
   are the levers).
 - Playlist create/delete still reloads the page; the tab and an open
   playlist come back, Now Playing and sheets don't.
-- Switching tabs closes a playlist that was open on the old tab (reopening
-  a playlist can switch the active one and stop the music, so tabs don't
-  keep their own stack like Spotify's).
+- Switching tabs closes a playlist that was open on the old tab (tabs don't
+  keep their own stack like Spotify's). Reopening it is quick and never
+  touches the music; one that isn't playing loads again.
 - Vinyl GIF maker is desktop-oriented on phones.

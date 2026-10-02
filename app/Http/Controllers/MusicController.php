@@ -44,6 +44,7 @@ class MusicController extends Controller
             'searchLibrary' => $this->searchLibrary($request, $user),
             'stats' => $this->stats($request, $user),
             'getAll' => $this->getAll($user),
+            'getPlaylist' => $this->getPlaylist($request, $user),
             default => ['success' => false, 'error' => 'Invalid action'],
         };
 
@@ -52,19 +53,53 @@ class MusicController extends Controller
 
     // ---- Actions -----------------------------------------------------------
 
-    /** Switch to a different song within the current playlist. */
+    /**
+     * Save the song that plays. Plain: in the active playlist. With
+     * `playlist`: in that playlist only (the phone names the playing list,
+     * which may differ from the one on screen). `activate` (sent when the
+     * phone starts a playlist it was only showing) also makes it the active
+     * one and bumps it in recently-played. A refused request writes nothing.
+     */
     private function switchSong(Request $request, User $user): array
     {
         $index = (int) $request->input('index', 0);
-        $playlist = $this->findPlaylist($user, $this->activeSlug($user));
 
-        if ($playlist !== null && $this->songAt($playlist, $index) !== null) {
-            $playlist->update(['current_index' => $index]);
+        if (! $request->has('playlist')) {
+            $playlist = $this->findPlaylist($user, $this->activeSlug($user));
 
+            if ($playlist !== null && $this->songAt($playlist, $index) !== null) {
+                $playlist->update(['current_index' => $index]);
+
+                return ['success' => true];
+            }
+
+            return ['success' => false, 'error' => 'Invalid song index'];
+        }
+
+        // Targeted: never fall back to the active playlist.
+        $slug = $this->strInput($request, 'playlist');
+        $playlist = $this->findPlaylist($user, $slug);
+        if ($playlist === null) {
+            return ['success' => false, 'error' => 'Invalid playlist'];
+        }
+        if ($this->songAt($playlist, $index) === null) {
+            return ['success' => false, 'error' => 'Invalid song index'];
+        }
+
+        $playlist->update(['current_index' => $index]);
+        if (! $request->boolean('activate')) {
             return ['success' => true];
         }
 
-        return ['success' => false, 'error' => 'Invalid song index'];
+        $recent = $user->recently_played ?? [];
+        if ($slug !== $this->activeSlug($user)) {
+            $recent = $this->bumpRecent($recent, $slug);
+            $user->active_playlist_slug = $slug;
+            $user->recently_played = $recent;
+            $user->save();
+        }
+
+        return ['success' => true, 'recentlyPlayed' => $recent];
     }
 
     /** Switch to a different playlist; updates recently-played (front, max 4). */
@@ -77,10 +112,7 @@ class MusicController extends Controller
             return ['success' => false, 'error' => 'Invalid playlist'];
         }
 
-        $recent = $user->recently_played ?? [];
-        $recent = array_values(array_filter($recent, fn ($id) => $id !== $slug));
-        array_unshift($recent, $slug);
-        $recent = array_slice($recent, 0, 4);
+        $recent = $this->bumpRecent($user->recently_played ?? [], $slug);
 
         $user->active_playlist_slug = $slug;
         $user->recently_played = $recent;
@@ -1018,7 +1050,37 @@ class MusicController extends Controller
         ];
     }
 
+    /**
+     * One playlist, read-only: the phone shows a playlist without making it
+     * the playing one, so this touches neither the active playlist, the
+     * recents nor any resume point.
+     */
+    private function getPlaylist(Request $request, User $user): array
+    {
+        $slug = $this->strInput($request, 'playlist');
+        $playlist = $this->findPlaylist($user, $slug);
+
+        if ($playlist === null) {
+            return ['success' => false, 'error' => 'Invalid playlist'];
+        }
+
+        return [
+            'success' => true,
+            'playlistId' => $slug,
+            'playlist' => $playlist->toFrontend(),
+        ];
+    }
+
     // ---- Helpers -----------------------------------------------------------
+
+    /** Recently-played order: `$slug` to the front, no duplicates, at most 4. */
+    private function bumpRecent(array $recent, string $slug): array
+    {
+        $recent = array_values(array_filter($recent, fn ($id) => $id !== $slug));
+        array_unshift($recent, $slug);
+
+        return array_slice($recent, 0, 4);
+    }
 
     /**
      * Legacy active-playlist resolution: the stored active slug, else the

@@ -9858,11 +9858,13 @@ html[data-theme="greenroom"] {
         display: none;
     }
 
-    body.m-playing #mPlayAll .m-when-playing {
+    /* Pause only while the list on screen is the one playing (a playlist
+       that is only being shown has class m-pl-viewing) */
+    body.m-playing #musicSidebar:not(.m-pl-viewing) #mPlayAll .m-when-playing {
         display: inline-flex;
     }
 
-    body.m-playing #mPlayAll .m-when-paused {
+    body.m-playing #musicSidebar:not(.m-pl-viewing) #mPlayAll .m-when-paused {
         display: none;
     }
 
@@ -16523,4 +16525,65 @@ button.send-menu-cancel {
 @media (prefers-reduced-motion: reduce) {
     .m-you-switch,
     .m-you-switch::after { transition: none; }
+}
+
+/* ---- A playlist the phone shows while its songs load, or when they
+   didn't: one row in place of the songs (not a song row, so row code and a
+   find query leave it alone) */
+.song-list-loading {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 18px 4px 28px;
+    text-align: center;
+    color: color-mix(in srgb, var(--cream) 62%, transparent);
+    font-size: 0.9rem;
+}
+
+.song-list-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.song-list-skeleton span {
+    display: block;
+    height: 48px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--cream) 7%, transparent);
+    animation: songListPulse 1.2s ease-in-out infinite;
+}
+
+.song-list-skeleton span:nth-child(2) { animation-delay: 0.15s; }
+.song-list-skeleton span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes songListPulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+}
+
+.song-list-retry {
+    min-height: 44px;
+    padding: 0 22px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--amber) 55%, transparent);
+    background: transparent;
+    color: var(--amber);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* Nothing to play yet while it loads */
+#musicSidebar.m-pl-loading #mPlayAll {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .song-list-skeleton span { animation: none; }
 }
