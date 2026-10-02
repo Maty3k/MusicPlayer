@@ -1,0 +1,19 @@
+{
+  "name": "musicplayer-browser-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Phone browser suites (Playwright against a running dev server); see README.md",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "login": "node login.js",
+    "test": "node run-all.js"
+  },
+  "dependencies": {
+    "axe-core": "4.13.0",
+    "playwright-core": "1.63.0"
+  }
+}

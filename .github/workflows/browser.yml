@@ -1,0 +1,101 @@
+name: browser
+
+# The phone browser suites (tests/browser) against a real dev server, on
+# GitHub's runners because the dev laptop can't run php.exe.
+# About 30-45 minutes a run on a private repo, so not on every push to main:
+# feature branches, pull requests, and by hand from the Actions tab.
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  phone-suites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      # Job-level env wins over .env (Laravel never overwrites a variable that
+      # is already set); the .env edits below say the same for anyone reading it.
+      APP_URL: http://127.0.0.1:8123
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ${{ github.workspace }}/database/browser.sqlite
+      MAIL_MAILER: log
+      BROWSER_TEST_PASSWORD: demo-pass-123
+      # Read by tests/browser/lib.js
+      BASE_URL: http://127.0.0.1:8123/
+      # Not under .state/: upload-artifact skips hidden folders.
+      ARTIFACTS_DIR: ${{ github.workspace }}/browser-artifacts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, sqlite3, mbstring, intl
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          sed -i "s|^APP_URL=.*|APP_URL=$APP_URL|; s|^DB_CONNECTION=.*|DB_CONNECTION=sqlite|; s|^MAIL_MAILER=.*|MAIL_MAILER=log|" .env
+          echo "DB_DATABASE=$DB_DATABASE" >> .env
+          touch "$DB_DATABASE"
+          mkdir -p "$ARTIFACTS_DIR"
+
+      - name: Migrate and seed the test accounts
+        run: |
+          php artisan migrate --force
+          php artisan db:seed --class=BrowserTestSeeder --force
+
+      - name: Start the dev server
+        # Laravel's server.php router serves from getcwd(), so it has to run
+        # inside public/ (this is what `php artisan serve` does too).
+        working-directory: public
+        run: |
+          nohup php -S 127.0.0.1:8123 ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php > "$ARTIFACTS_DIR/php-server.log" 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8123/up; then echo "server up after ${i}s"; exit 0; fi
+            sleep 1
+          done
+          echo "server did not come up"; cat "$ARTIFACTS_DIR/php-server.log"; exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/browser/package-lock.json
+
+      - name: Install the browser test dependencies
+        working-directory: tests/browser
+        run: npm ci --no-audit --no-fund
+
+      - name: Show Chrome
+        # playwright-core launches the runner's preinstalled Google Chrome (channel "chrome").
+        run: google-chrome --version
+
+      - name: Run the phone suites
+        working-directory: tests/browser
+        env:
+          # Re-seed before every suite (keeps account ids, so the saved logins stay valid).
+          RESET_CMD: php artisan db:seed --class=BrowserTestSeeder --force
+        run: node run-all.js
+
+      - name: Collect the Laravel log
+        if: failure()
+        run: |
+          cp storage/logs/*.log "$ARTIFACTS_DIR/" 2>/dev/null || true
+          tail -n 80 storage/logs/laravel.log 2>/dev/null || true
+
+      - name: Upload screenshots and logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-suites-${{ github.run_id }}-${{ github.run_attempt }}
+          path: browser-artifacts
+          retention-days: 14
