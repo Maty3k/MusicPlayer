@@ -212,6 +212,16 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Login page: focus the PIN field — the submit button can be scrolled to
   while the keyboard is up.
 
+## Screen reader (TalkBack)
+
+- [ ] Open a sheet (Add songs, Settings, a song's ⋯): swiping stays inside
+  it, and closing it puts focus back on the button that opened it.
+- [ ] Now Playing and the You page read their names when they open; swiping
+  doesn't reach the Home or Library page behind them.
+- [ ] Tap-to-add in Add songs says "Added to …" (or "Already in …").
+- [ ] A song's ⋯ sheet offers "Remove from this playlist", so removing
+  doesn't need the swipe.
+
 ## PWA
 
 - [ ] "Add to Home Screen" from the player page; the installed app opens in

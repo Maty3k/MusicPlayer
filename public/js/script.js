@@ -1751,6 +1751,12 @@ function renderQueue() {
 // Lightweight client toast (reuses the .app-flash styling).
 let toastTimer = null;
 function showToast(msg) {
+    // The phone shell's toasts sit above the mini player (not over its top
+    // bars or a camera cutout)
+    if (window.mToast && document.documentElement.dataset.mTab && window.matchMedia('(max-width: 600px)').matches) {
+        window.mToast(msg);
+        return;
+    }
     let t = document.getElementById('clientToast');
     if (!t) {
         t = document.createElement('div');
@@ -2695,11 +2701,15 @@ let addSearchResults = [];  // last rendered results, indexed by row
 function parseYoutubeResultTitle(videoTitle, channel) {
     const noise = /[(\[](official\s*)?(music\s*)?(video|audio|visuali[sz]er|lyrics?(\s*video)?|hd|4k|hq)[)\]]/gi;
     const clean = String(videoTitle || '').replace(noise, '').replace(/\s{2,}/g, ' ').trim();
+    const cleanChannel = String(channel || '').replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/i, '').trim();
     const parts = clean.split(/\s+[-–—]\s+/);
-    if (parts.length >= 2) {
+    // "Song - Remastered 2011", "Song - Live": a version, not "Artist - Title".
+    // A "- Topic" channel's titles never carry the artist.
+    const version = /^((\d{4}\s+)?(re-?master(ed)?|remix|mono|stereo)|live\b|radio edit|(single|album|extended|acoustic|demo|instrumental)\b.*version|acoustic|instrumental|demo|bonus track)/i;
+    const topic = /\s-\s*Topic$/i.test(String(channel || ''));
+    if (parts.length >= 2 && !topic && !version.test(parts[1].trim())) {
         return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() };
     }
-    const cleanChannel = String(channel || '').replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/i, '').trim();
     return { artist: cleanChannel, title: clean };
 }
 
@@ -2777,6 +2787,11 @@ function renderAddSearchResults(results, status = '') {
     const box = document.getElementById('addSongSearchResults');
     if (!box) return;
     addSearchResults = results || [];
+    const said = document.getElementById('mAddStatus');
+    if (said && status !== 'Searching…') {
+        said.textContent = results === null ? ''
+            : (addSearchResults.length ? `${addSearchResults.length} ${addSearchResults.length === 1 ? 'result' : 'results'}` : status);
+    }
     if (results === null) { box.innerHTML = ''; return; }
     let html = status ? `<div class="search-result-status">${escapeHtml(status)}</div>` : '';
     addSearchResults.forEach((r, i) => {
@@ -4094,6 +4109,11 @@ function showSendMenu(btn, songIndex) {
     if (useSheet) menu.classList.add('send-menu-sheet');
 
     const song = songsData[songIndex];
+    if (useSheet) {
+        menu.setAttribute('role', 'dialog');
+        menu.setAttribute('aria-modal', 'true');
+        menu.setAttribute('aria-label', song && song.title ? `${song.title}: song options` : 'Song options');
+    }
     const icon = (paths, fill = 'none') => `<span class="send-menu-qicon"><svg viewBox="0 0 24 24" width="15" height="15" fill="${fill}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg></span>`;
     const row = (cls, action, iconHtml, label, attrs = '') =>
         `<button type="button" class="send-menu-item${cls}" onclick="event.stopPropagation(); ${action}"${attrs}>${iconHtml}<span class="send-menu-name">${label}</span></button>`;
@@ -4132,7 +4152,7 @@ function showSendMenu(btn, songIndex) {
         // One "Add to playlist…" instead of every playlist twice (send / keep a copy).
         if (targets.length) {
             html += row(' send-menu-open-picker', 'showSongPicker()',
-                icon('<path d="M4 6h11M4 12h11M4 18h7"/><path d="M18 14v6M15 17h6"/>'), 'Add to playlist…');
+                icon('<path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><path d="M19 17v6M16 20h6"/>'), 'Add to playlist…');
         }
         // From Now Playing: jump to the song in its playlist.
         if (btn && btn.id === 'mNpKebab' && typeof window.mGoToSong === 'function') {
@@ -7898,6 +7918,15 @@ async function scanAddSelected() {
 // Toggles data-active-source on the crate room-center; CSS hides the
 // non-matching record-cards. Persists the choice in localStorage.
 // ==========================================
+// Library cards open from the keyboard too: the cover is their button
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const cover = e.target && e.target.closest && e.target.closest('.record-card-cover[role="button"]');
+    if (!cover || e.target !== cover) return;
+    e.preventDefault();
+    cover.click();
+});
+
 window.setSourceFilter = function(value) {
     const valid = ['all', 'user', 'spotify'];
     if (!valid.includes(value)) value = 'all';
@@ -8813,6 +8842,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // the next back press a dead one — fold it (Home there is the full
         // crate anyway).
         if (!onPhone() && (topLayerIs('tab') || topLayerIs('you'))) backOneLayer();
+        // What the closed layers covered must take focus again before any
+        // queued step (Done in reorder mode, Now Playing) reaches for it.
+        try { syncInert(); } catch (e) {}
         flushAfterBack();
     });
 
@@ -9369,6 +9401,120 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (fsRow) fsRow.addEventListener('click', toggleFullscreen);
     if (installRow) installRow.addEventListener('click', installApp);
+
+    // ---- One screen at a time for keyboards and screen readers (portrait
+    // phones). Whatever the top surface covers is inert: out of the Tab and
+    // swipe order, and untappable. A surface that opens gets focus; one that
+    // closes hands it back to what opened it, if focus was lost with it.
+    const crateViewEl = document.getElementById('vinylCrateView');
+    const sidebarEl = document.getElementById('musicSidebar');
+    const npMainEl = document.querySelector('#musicPlayerView .music-main');
+    const musicSectionEl = document.getElementById('music-section');
+    const SHEETS = '.add-song-modal.active, .send-menu-sheet, .vgm-modal.active';
+    let inertNow = new Set();
+    let lastFocus = null;
+    let prevFocus = null;
+    const surfaces = []; // { el, opener }, bottom to top
+    document.addEventListener('focusin', (e) => {
+        if (e.target === lastFocus) return;
+        prevFocus = lastFocus;
+        lastFocus = e.target;
+    }, true);
+
+    function openSurfaces() {
+        const list = [];
+        if (htmlEl.classList.contains('m-you')) list.push(youPage);
+        if (htmlEl.classList.contains('m-pv')) list.push(sidebarEl);
+        if (document.body.classList.contains('m-np-open')) list.push(npMainEl);
+        document.querySelectorAll(SHEETS).forEach((s) => list.push(s));
+        return list.filter(Boolean);
+    }
+
+    function wantedInert(top) {
+        const set = new Set();
+        if (!onPhone()) return set;
+        const add = (el) => { if (el) set.add(el); };
+        if (dock && dock.classList.contains('m-dock-hidden')) add(dock);
+        if (!document.body.classList.contains('m-np-open')) add(npMainEl); // the closed Now Playing
+        if (!htmlEl.classList.contains('m-pv')) add(sidebarEl);
+        if (!youOpen()) add(youPage);
+        if (currentTab !== 'search') add(searchPage);
+        if (!top) return set;
+        if (top.matches && top.matches(SHEETS)) {
+            add(musicSectionEl);
+            add(dock);
+            add(tabBar);
+            document.querySelectorAll(SHEETS).forEach((s) => { if (s !== top) add(s); });
+        } else if (top === npMainEl) {
+            [crateViewEl, searchPage, youPage, sidebarEl, dock, tabBar].forEach(add);
+            set.delete(npMainEl);
+        } else if (top === sidebarEl) {
+            [crateViewEl, searchPage, youPage].forEach(add);
+        } else if (top === youPage) {
+            [crateViewEl, sidebarEl].forEach(add);
+        }
+        return set;
+    }
+
+    const focusLost = () => {
+        const a = document.activeElement;
+        return !a || a === document.body || !!(a.closest && a.closest('[inert]')) || a.getClientRects().length === 0;
+    };
+    const usable = (el) => !!el && el.isConnected && !(el.closest && el.closest('[inert]')) && el.getClientRects().length > 0;
+    const FOCUSABLE = 'button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    function firstFocusable(surface) {
+        const preferred = surface === npMainEl ? document.getElementById('mNpCollapse')
+            : surface === sidebarEl ? document.getElementById('mPlBack')
+                : surface === youPage ? document.getElementById('mYouBack') : null;
+        if (usable(preferred)) return preferred;
+        return [...surface.querySelectorAll(FOCUSABLE)].find(usable) || null;
+    }
+
+    function syncFocus() {
+        const open = openSurfaces();
+        const top = open[open.length - 1];
+        // Closed surfaces leave the stack; focus goes back to their opener,
+        // or into what's left on top when the opener went with them
+        while (surfaces.length && !open.includes(surfaces[surfaces.length - 1].el)) {
+            const gone = surfaces.pop();
+            if (!focusLost()) continue;
+            const back = usable(gone.opener) ? gone.opener : (top && surfaces.some((s) => s.el === top) ? firstFocusable(top) : null);
+            if (back) back.focus({ preventScroll: true });
+        }
+        if (!top || (surfaces.length && surfaces[surfaces.length - 1].el === top)) return;
+        // A new surface: remember what opened it, then move focus in
+        const opener = lastFocus && top.contains(lastFocus) ? prevFocus : lastFocus;
+        surfaces.push({ el: top, opener });
+        if (top.contains(document.activeElement)) return;
+        requestAnimationFrame(() => {
+            if (openSurfaces().slice(-1)[0] !== top || top.contains(document.activeElement)) return;
+            const target = firstFocusable(top);
+            if (target) target.focus({ preventScroll: true });
+        });
+    }
+
+    function syncInert() {
+        const open = openSurfaces();
+        const want = wantedInert(open[open.length - 1] || null);
+        inertNow.forEach((el) => { if (!want.has(el)) el.inert = false; });
+        want.forEach((el) => { if (!el.inert) el.inert = true; });
+        inertNow = want;
+        if (onPhone()) syncFocus();
+        else surfaces.length = 0;
+    }
+    let inertQueued = false;
+    const queueInert = () => {
+        if (inertQueued) return;
+        inertQueued = true;
+        queueMicrotask(() => { inertQueued = false; syncInert(); });
+    };
+    const surfaceWatch = new MutationObserver(queueInert);
+    surfaceWatch.observe(htmlEl, { attributes: true, attributeFilter: ['class', 'data-m-tab'] });
+    surfaceWatch.observe(document.body, { attributes: true, attributeFilter: ['class'], childList: true });
+    document.querySelectorAll('.add-song-modal, .vgm-modal').forEach((m) => surfaceWatch.observe(m, { attributes: true, attributeFilter: ['class'] }));
+    if (dock) surfaceWatch.observe(dock, { attributes: true, attributeFilter: ['class'] });
+    window.matchMedia('(max-width: 600px)').addEventListener('change', queueInert);
+    queueInert();
 
     // An email attached in Settings reaches the page (and the initial, while
     // the name is still a placeholder: the server takes it from the email).
@@ -10225,18 +10371,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const r = addSearchResults[index];
         const row = document.querySelector(`#addSongSearchResults [data-add-i="${index}"]`);
-        if (!r || !r.videoId || !row || row.disabled) return;
-        row.disabled = true;
+        // aria-disabled, not disabled: the row keeps keyboard/TalkBack focus
+        if (!r || !r.videoId || !row || row.getAttribute('aria-disabled') === 'true') return;
+        row.setAttribute('aria-disabled', 'true');
         row.classList.add('adding');
         const parsed = parseYoutubeResultTitle(r.title, r.channel);
         const song = { title: parsed.title || r.title, artist: parsed.artist, album: '', cover: safeUrl(r.thumbnail), youtube_id: r.videoId, mp3_url: '', spotify_id: '' };
         const out = await addSongTo(currentAddTarget(), song);
         row.classList.remove('adding');
         if (out) {
-            row.classList.add('is-added'); // stays disabled: one add per result
+            row.classList.add('is-added'); // stays aria-disabled: one add per result
             row.setAttribute('aria-label', `${song.title}: ${out === 'already' ? 'already there' : 'added'}`);
+            const meta = playlistsMeta[currentAddTarget()];
+            const said = document.getElementById('mAddStatus');
+            if (said) said.textContent = `${out === 'already' ? 'Already in' : 'Added to'} ${meta ? meta.name : 'Favorites'}`;
         } else {
-            row.disabled = false;
+            row.removeAttribute('aria-disabled');
         }
     };
 
@@ -10731,8 +10881,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const title = document.getElementById('playlistTitle');
         if (fromName && title) fromName.textContent = title.textContent;
         document.body.classList.add('m-np-open');
+        const npSheet = document.querySelector('.music-main');
+        if (npSheet) {
+            npSheet.setAttribute('role', 'dialog');
+            npSheet.setAttribute('aria-modal', 'true');
+            npSheet.setAttribute('aria-label', 'Now playing');
+        }
         openLayer('np', () => {
             document.body.classList.remove('m-np-open');
+            if (npSheet) ['role', 'aria-modal', 'aria-label'].forEach((a) => npSheet.removeAttribute(a));
             setVolumeOpen(false);
         });
     }
@@ -11221,10 +11378,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================================
     // Full-screen lyrics (phase 7)
     // ============================================================
+    function syncLyricsToggle() {
+        const btn = document.getElementById('mLyricsExpand');
+        if (!btn) return;
+        const open = document.body.classList.contains('m-lyrics-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.setAttribute('aria-label', open ? 'Collapse lyrics' : 'Expand lyrics');
+    }
+
     function openLyrics() {
         if (!onPhone() || document.body.classList.contains('m-lyrics-open')) return;
         document.body.classList.add('m-lyrics-open');
-        openLayer('lyrics', () => document.body.classList.remove('m-lyrics-open'));
+        syncLyricsToggle();
+        openLayer('lyrics', () => {
+            document.body.classList.remove('m-lyrics-open');
+            syncLyricsToggle();
+        });
     }
 
     function toggleLyricsExpand() {

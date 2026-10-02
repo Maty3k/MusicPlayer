@@ -84,7 +84,7 @@
 </head>
 <body>
 
-    <div id="music-section">
+    <main id="music-section">
         <!-- Vinyl Collection Room -->
         @if (session('status'))
         <div class="app-flash" id="appFlash">{{ session('status') }}</div>
@@ -458,7 +458,7 @@
                                     <div class="vinyl-hole"></div>
                                 </div>
                             </div>
-                            <div class="record-card-cover">
+                            <div class="record-card-cover" role="button" tabindex="0" aria-label="{$plName}, {$countText}">
                                 <div class="cover-art" style="background: linear-gradient(135deg, {$color} 0%, {$color}99 100%);">
                                     {$coverMain}
                                     <div class="cover-overlay"></div>
@@ -1006,34 +1006,36 @@
             </div>
         </div>
         </div><!-- End music-player-view -->
-    </div>
+    </main>
 
     <!-- Mobile dock: persistent bottom transport (phones only; .m-only is
          display:none outside the mobile media query). The .song-title /
          .song-artist spans ride setNowPlayingText's querySelectorAll fan-out,
          so every track change updates the dock with no extra wiring. -->
-    <div id="mDock" class="m-only" role="toolbar" aria-label="Playback">
-        <div id="mDockProgress"></div>
-        <button type="button" id="mDockInfo">
-            <span id="mDockArtWrap">
-                @if (!empty($current['cover']))
-                <img id="mDockArt" src="{{ $current['cover'] }}" alt="">
-                @else
-                <img id="mDockArt" src="" alt="" style="display:none;">
-                @endif
-                <span class="m-dock-hole"></span>
-            </span>
-            <span class="m-dock-meta">
-                <span class="song-title">{{ $current['title'] ?? 'Nothing playing' }}</span>
-                <span class="song-artist">{{ $current['artist'] ?? '' }}</span>
-            </span>
-        </button>
-        <button type="button" id="mDockPlay" aria-label="Play or pause">
-            <span class="m-ic-play"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></span><span class="m-ic-pause"><svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg></span>
-        </button>
-        <button type="button" id="mDockNext" aria-label="Next">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M5.4 6.3a1.1 1.1 0 0 1 1.7-.93l8 5.7a1.1 1.1 0 0 1 0 1.86l-8 5.7a1.1 1.1 0 0 1-1.7-.93z"/><rect x="16.6" y="5.4" width="2.4" height="13.2" rx="1.1"/></svg>
-        </button>
+    <div role="region" aria-label="Player">
+        <div id="mDock" class="m-only" role="toolbar" aria-label="Playback">
+            <div id="mDockProgress"></div>
+            <button type="button" id="mDockInfo">
+                <span id="mDockArtWrap">
+                    @if (!empty($current['cover']))
+                    <img id="mDockArt" src="{{ $current['cover'] }}" alt="">
+                    @else
+                    <img id="mDockArt" src="" alt="" style="display:none;">
+                    @endif
+                    <span class="m-dock-hole"></span>
+                </span>
+                <span class="m-dock-meta">
+                    <span class="song-title">{{ $current['title'] ?? 'Nothing playing' }}</span>
+                    <span class="song-artist">{{ $current['artist'] ?? '' }}</span>
+                </span>
+            </button>
+            <button type="button" id="mDockPlay" aria-label="Play or pause">
+                <span class="m-ic-play"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></span><span class="m-ic-pause"><svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg></span>
+            </button>
+            <button type="button" id="mDockNext" aria-label="Next">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M5.4 6.3a1.1 1.1 0 0 1 1.7-.93l8 5.7a1.1 1.1 0 0 1 0 1.86l-8 5.7a1.1 1.1 0 0 1-1.7-.93z"/><rect x="16.6" y="5.4" width="2.4" height="13.2" rx="1.1"/></svg>
+            </button>
+        </div>
     </div>
 
     <!-- Phone tab bar (portrait phones; wired in script.js's phone shell,
@@ -1054,7 +1056,7 @@
     </nav>
 
     <!-- Add Song Modal -->
-    <div class="add-song-modal m-menu-sheet" id="addSongModal">
+    <div class="add-song-modal m-menu-sheet" id="addSongModal" role="dialog" aria-modal="true" aria-labelledby="addSongModalTitle">
         <div class="add-song-modal-backdrop" onclick="hideAddSongModal()"></div>
         <div class="add-song-modal-panel">
             <button type="button" class="add-song-modal-close" onclick="hideAddSongModal()" aria-label="Close">&times;</button>
@@ -1080,6 +1082,7 @@
                 <input type="text" id="addSongSearch" placeholder="Search songs or paste a link" autocomplete="off" oninput="onAddSearchInput()" onkeydown="onAddSearchKeydown(event)">
             </div>
             <div class="add-song-search-results" id="addSongSearchResults"></div>
+            <div class="m-sr-only" id="mAddStatus" role="status" aria-live="polite"></div>
             {{-- Bulk import: paste a whole list or a Spotify playlist link
                  instead of searching one song at a time. --}}
             <button type="button" class="bulk-import-btn" onclick="hideAddSongModal(); showSpotifyImportModal();">
@@ -1164,10 +1167,10 @@
     </div>
 
     <!-- Playlist Edit Modal -->
-    <div class="add-song-modal" id="playlistEditModal">
+    <div class="add-song-modal" id="playlistEditModal" role="dialog" aria-modal="true" aria-labelledby="playlistEditModalTitle">
         <div class="add-song-modal-backdrop" onclick="hidePlaylistEditModal()"></div>
         <div class="add-song-modal-panel">
-            <button class="add-song-modal-close" onclick="hidePlaylistEditModal()">&times;</button>
+            <button type="button" class="add-song-modal-close" onclick="hidePlaylistEditModal()" aria-label="Close">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon">&#127912;</div>
                 <h2 class="add-song-modal-title" id="playlistEditModalTitle">Edit Playlist</h2>
@@ -1448,7 +1451,7 @@
     <div class="add-song-modal" id="searchModal">
         <div class="add-song-modal-backdrop" onclick="hideSearchModal()"></div>
         <div class="add-song-modal-panel search-panel">
-            <button class="add-song-modal-close" onclick="hideSearchModal()">&times;</button>
+            <button type="button" class="add-song-modal-close" onclick="hideSearchModal()" aria-label="Close">&times;</button>
             <div class="search-modal-input-wrap">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
                 <input type="search" id="librarySearchInput" placeholder="Search your whole library" autocomplete="off" oninput="runLibrarySearch()">
@@ -1458,26 +1461,26 @@
     </div>
 
     {{-- Up-next queue — filled + opened by openQueueModal() --}}
-    <div class="add-song-modal" id="queueModal">
+    <div class="add-song-modal" id="queueModal" role="dialog" aria-modal="true" aria-labelledby="queueModalTitle">
         <div class="add-song-modal-backdrop" onclick="hideQueueModal()"></div>
         <div class="add-song-modal-panel queue-panel">
-            <button class="add-song-modal-close" onclick="hideQueueModal()">&times;</button>
+            <button type="button" class="add-song-modal-close" onclick="hideQueueModal()" aria-label="Close">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/><path d="M21 18h-6"/></svg></div>
-                <h2 class="add-song-modal-title">Up next</h2>
+                <h2 class="add-song-modal-title" id="queueModalTitle">Up next</h2>
             </div>
             <div id="queueBody"></div>
         </div>
     </div>
 
     {{-- Listening stats — filled + opened by showStatsModal() --}}
-    <div class="add-song-modal" id="statsModal">
+    <div class="add-song-modal" id="statsModal" role="dialog" aria-modal="true" aria-labelledby="statsModalTitle">
         <div class="add-song-modal-backdrop" onclick="hideStatsModal()"></div>
         <div class="add-song-modal-panel stats-panel">
             <button type="button" class="add-song-modal-close" onclick="hideStatsModal()" aria-label="Close">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg></div>
-                <h2 class="add-song-modal-title">Your listening</h2>
+                <h2 class="add-song-modal-title" id="statsModalTitle">Your listening</h2>
             </div>
             <div class="settings-source-options stats-range" id="statsRange">
                 <button type="button" class="settings-source-btn" data-range="week" onclick="setStatsRange('week')">Week</button>
@@ -1489,13 +1492,13 @@
         </div>
     </div>
 
-    <div class="add-song-modal" id="settingsModal">
+    <div class="add-song-modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
         <div class="add-song-modal-backdrop" onclick="hideSettingsModal()"></div>
         <div class="add-song-modal-panel settings-modal-panel">
             <button type="button" class="add-song-modal-close" onclick="hideSettingsModal()" aria-label="Close">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V15z"/></svg></div>
-                <h2 class="add-song-modal-title">Settings</h2>
+                <h2 class="add-song-modal-title" id="settingsModalTitle">Settings</h2>
             </div>
 
             <div class="settings-tabs" id="settingsTabs">
@@ -1685,13 +1688,13 @@
     </div>
 
     <!-- Spotify Import Modal -->
-    <div class="add-song-modal" id="spotifyImportModal">
+    <div class="add-song-modal" id="spotifyImportModal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
         <div class="add-song-modal-backdrop" onclick="hideSpotifyImportModal()"></div>
         <div class="add-song-modal-panel">
             <button type="button" class="add-song-modal-close" onclick="hideSpotifyImportModal()" aria-label="Close">&times;</button>
             <div class="add-song-modal-header">
                 <div class="add-song-modal-icon">&#9834;</div>
-                <h2 class="add-song-modal-title">Import songs</h2>
+                <h2 class="add-song-modal-title" id="importModalTitle">Import songs</h2>
             </div>
 
             <div class="import-tabs" id="importTabs">

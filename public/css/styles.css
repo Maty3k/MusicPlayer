@@ -16351,3 +16351,124 @@ button.send-menu-cancel {
         max-height: calc(100dvh - 24px);
     }
 }
+
+/* ============================================================
+   VERIFICATION FIXES (step 11): toasts clear of a cutout, the closed Now
+   Playing's lyrics button, thumb-sized disclosures, steady tabbed sheets,
+   readable muted text, and a few visual seams on phones.
+   ============================================================ */
+.app-flash { top: calc(18px + env(safe-area-inset-top, 0px)); }
+
+@media (max-width: 600px) {
+    /* The no-sync override kept the expand chip visible in a closed NP */
+    body:not(.m-np-open) .lyrics-controls.no-sync #mLyricsExpand { visibility: hidden; }
+
+    /* The header keeps its (inset-padded) height; the deck absorbs a squeeze */
+    #mNpHeader { flex-shrink: 0; }
+
+    /* The preview's last row fades out before the expand chip */
+    body:not(.m-lyrics-open) .sleeve-lyrics {
+        -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 10%, #000 64%, transparent 90%);
+                mask-image: linear-gradient(180deg, transparent 0, #000 10%, #000 64%, transparent 90%);
+    }
+
+    #mFilterInput::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+
+    /* Import progress / results wrap to two lines instead of losing the end */
+    .import-toast {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        width: max-content;
+        max-width: calc(100vw - 32px);
+        white-space: normal;
+        line-height: 1.35;
+        text-overflow: clip;
+    }
+
+    /* Thumb-sized: the Discover refresh and the disclosure rows */
+    .discover-refresh-btn { width: 40px; height: 40px; }
+
+    .settings-password-details summary,
+    .add-song-manual summary {
+        padding-top: 13px;
+        padding-bottom: 13px;
+    }
+
+    /* Settings' three tabs share the track instead of pushing out of it */
+    .settings-tab { min-width: 0; }
+
+    /* Tabbed sheets keep one height, so their tab row stays put */
+    #settingsModal .add-song-modal-panel,
+    #spotifyImportModal .add-song-modal-panel { height: min(86dvh, calc(100dvh - 24px)); }
+
+    /* Muted text in sheets reads at AA */
+    .add-song-modal .settings-hint,
+    .add-song-modal .search-result-artist,
+    .add-song-modal .settings-account-group .settings-hint,
+    .add-song-modal .stats-section-label,
+    .add-song-modal .stats-stat-label,
+    .add-song-modal .stats-song-artist,
+    .add-song-modal .stats-plays-unit,
+    .add-song-modal .add-song-form-group > label,
+    .add-song-modal .playlist-wizard-hint,
+    .add-song-modal .theme-swatch-btn { color: rgba(251, 245, 234, 0.72); }
+
+    .add-song-modal .settings-tab:not(.active),
+    .add-song-modal .settings-source-btn:not(.active),
+    .add-song-modal .import-tab:not(.active) { color: rgba(251, 245, 234, 0.84); }
+
+    /* Song sheet actions: tiled amber icons like the other phone sheets */
+    .send-menu-sheet .send-menu-qicon {
+        width: 36px;
+        height: 36px;
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: rgba(var(--amber-rgb), 0.12);
+        color: var(--amber);
+    }
+
+    .send-menu-sheet .send-menu-qicon svg { width: 18px; height: 18px; }
+
+    /* Library: a source chip with nothing to show says so */
+    html[data-m-tab="library"] #roomCenter[data-active-source="user"] .conveyor-rows:not(:has(.record-card[data-source="user"]))::before,
+    html[data-m-tab="library"] #roomCenter[data-active-source="spotify"] .conveyor-rows:not(:has(.record-card[data-source="spotify"]))::before {
+        display: block;
+        grid-column: 1 / -1;
+        padding: 28px 4px;
+        text-align: center;
+        font-size: 0.92rem;
+        color: rgba(251, 245, 234, 0.72);
+    }
+
+    html[data-m-tab="library"] #roomCenter[data-active-source="user"] .conveyor-rows:not(:has(.record-card[data-source="user"]))::before { content: 'No local playlists yet. Make one with + above.'; }
+    html[data-m-tab="library"] #roomCenter[data-active-source="spotify"] .conveyor-rows:not(:has(.record-card[data-source="spotify"]))::before { content: 'No Spotify playlists yet.'; }
+
+    /* Library: a playlist without a cover gets the note, as on Home */
+    html[data-m-tab] #roomCenter .record-card .cover-art:not(:has(.cover-main))::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        width: 32%;
+        height: 32%;
+        background: rgba(251, 245, 234, 0.6);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l10-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='16' cy='16' r='3'/%3E%3C/svg%3E") center / contain no-repeat;
+                mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l10-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='16' cy='16' r='3'/%3E%3C/svg%3E") center / contain no-repeat;
+        pointer-events: none;
+    }
+
+    html[data-m-tab] #roomCenter .record-card .cover-art { position: relative; }
+}
+
+@media (max-width: 380px) {
+    /* Search: the playlist chip gives the title more room on narrow phones */
+    .m-sr-open { max-width: 32%; }
+}
+
+@media (max-width: 370px) {
+    .settings-tab svg { display: none; }
+}
