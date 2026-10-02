@@ -124,8 +124,11 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
     {
         const { ctx, p } = await open('many', { viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false });
         await p.evaluate(() => openPlayerView()); await p.waitForTimeout(500);
-        const r = { tools: await vis(p, '#mNpTools'), sleepCoaster: await vis(p, '#sleepBtn') };
-        check('O2 desktop: no tools row, sleep coaster unchanged', !r.tools && r.sleepCoaster, r);
+        // Desktop step 3: the crate's console rail (with the sleep coaster)
+        // is gone; the player bar's sleep button (desktop step 2) replaces it.
+        // This used to check the coaster was still shown.
+        const r = { tools: await vis(p, '#mNpTools'), sleepCoaster: await vis(p, '#sleepBtn'), barSleep: await vis(p, '#dvBarSleep') };
+        check('O2 desktop: no tools row; sleep is on the player bar (the rail coaster is gone)', !r.tools && !r.sleepCoaster && r.barSleep, r);
         await ctx.close();
     }
     await b.close();

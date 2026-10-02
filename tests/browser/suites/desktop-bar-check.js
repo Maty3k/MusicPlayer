@@ -5,6 +5,7 @@
 // should and reflects its state; seek (click, drag, keys); volume both ways
 // with the deck's knob; that the page ends above the bar; and that phones
 // (390x844, 844x390) and the app shell (?app=1) never get the scope or the bar.
+// (Desktop step 3 changed F: opening a playlist only shows it now.)
 // Writes to /save-music are faked and recorded (reads go through).
 const L = require('../lib');
 const APP = L.APP;
@@ -300,15 +301,20 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
                 const lk = await p.evaluate(() => ({ n: window.__favCalls.length, toast: window.__toasts.slice(-1)[0] }));
                 check(`${tag} F in Favorites the ♥ is on and locked (no toggle, a hint)`, fav.pressed === 'true' && fav.dis === 'true' && lk.n === 0 && /Favorites/.test(lk.toast || ''), { fav, lk });
             }
-            // Another playlist with songs: switch to it (desktop plays the opened list)
+            // Another playlist with songs: make it the playing one. Desktop step 3:
+            // opening a playlist only shows it now (it used to switch to it), so
+            // a song tap on it starts it, as the user would.
             const id = await p.evaluate(() => Object.keys(playlistsMeta).find(k => k !== String(activePlaylistId) && playlistsMeta[k].songCount > 3));
             await p.evaluate((i) => selectPlaylistFromCrate(i), id);
             await p.waitForTimeout(1200);
+            await p.click('#songList .song-list-item[data-index="0"]');
+            await p.waitForTimeout(1500);
             await p.evaluate(() => openPlayerView());
             await p.waitForTimeout(700);
             const s = await barState(p);
             const cur = await p.evaluate(() => songsData[currentSongIndex] && songsData[currentSongIndex].title);
-            check(`${tag} F the bar shows on the player view with the new list's song`, s.player && s.barCls && s.display !== 'none' && s.title === cur && s.msBottom <= s.top, { s, cur });
+            const adopted = await p.evaluate(() => String(activePlaylistId));
+            check(`${tag} F the bar shows on the player view with the new list's song`, adopted === id && s.player && s.barCls && s.display !== 'none' && s.title === cur && s.msBottom <= s.top, { s, cur, adopted, id });
             const rows = await p.evaluate(() => {
                 const sc = songListScroller();
                 if (sc) sc.scrollTop = sc.scrollHeight;
@@ -327,14 +333,22 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
                 before.dis === null && after.calls.length === 1 && after.calls[0] === cur && after.pressed === want && after.np === want
                 && after.toast === (want === 'true' ? 'Added to Favorites' : 'Removed from Favorites'), { before, after, cur });
 
-            // An empty playlist with nothing playing: the bar goes, the page takes the space back
+            // An empty playlist on screen doesn't touch the bar now (desktop
+            // step 3: opening only shows it; this used to switch to it and
+            // check the bar went). The bar still goes when the playing list
+            // empties with nothing playing: its last song removed.
             const empty = await p.evaluate(() => Object.keys(playlistsMeta).find(k => k !== String(activePlaylistId) && playlistsMeta[k].songCount === 0));
             if (empty) {
                 await p.evaluate((i) => selectPlaylistFromCrate(i), empty);
                 await p.waitForTimeout(1200);
                 const e = await barState(p);
-                check(`${tag} F switching to an empty playlist (nothing playing) hides the bar`, !e.barCls && e.display === 'none' && e.msBottom === e.vh, e);
+                const shown = await p.evaluate(() => String(listId()));
+                check(`${tag} F opening an empty playlist shows it and keeps the bar`, shown === empty && e.barCls && e.display !== 'none' && e.title === cur, { e, shown, cur });
             }
+            await p.evaluate(() => { songsData.length = 0; showPlaylistPicker(); rebuildSongList(); });
+            await p.waitForTimeout(300);
+            const gone = await barState(p);
+            check(`${tag} F the playing list emptied (nothing playing) hides the bar`, !gone.barCls && gone.display === 'none' && gone.msBottom === gone.vh, gone);
             check(`${tag} F errors`, p.__errs.length === 0, p.__errs);
             await ctx.close();
         }

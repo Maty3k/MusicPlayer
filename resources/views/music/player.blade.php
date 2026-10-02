@@ -90,6 +90,61 @@
 </head>
 <body>
 
+    {{-- Desktop sidebar: Home, Search, Your Library, + (html.dv2 only;
+         display:none everywhere else). script.js (desktopSidebar) fills the
+         playlist rows from playlistsMeta and keeps them in step. --}}
+    <nav id="dvSide" aria-label="Library and navigation">
+        <ul class="dv-side-nav">
+            <li>
+                <button type="button" class="dv-side-link" id="dvSideHome" aria-current="page" title="Home">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.2 12 4l8 6.2V19a1 1 0 0 1-1 1h-4.6v-5.6H9.6V20H5a1 1 0 0 1-1-1z"/></svg>
+                    <span class="dv-side-label">Home</span>
+                </button>
+            </li>
+            <li>
+                <button type="button" class="dv-side-link" id="dvSideSearch" aria-haspopup="dialog" title="Search">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m20 20-4.4-4.4"/></svg>
+                    <span class="dv-side-label">Search</span>
+                </button>
+            </li>
+        </ul>
+        <section class="dv-side-lib" aria-labelledby="dvSideLibTitle">
+            <div class="dv-side-lib-head">
+                <h2 class="dv-side-lib-title" id="dvSideLibTitle">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4v16M9.5 4v16"/><path d="m14 4.6 4.6 15"/></svg>
+                    <span class="dv-side-label">Your Library</span>
+                </h2>
+                <div class="dv-side-add-wrap">
+                    <button type="button" class="dv-side-icon-btn" id="dvSideAdd" aria-haspopup="menu" aria-expanded="false" aria-controls="dvSideAddMenu" aria-label="Add to your library" title="Add to your library">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                    </button>
+                    <div class="dv-side-menu" id="dvSideAddMenu" role="menu" aria-label="Add to your library" hidden>
+                        <button type="button" role="menuitem" data-dv-add="new">New playlist</button>
+                        <button type="button" role="menuitem" data-dv-add="bring" aria-haspopup="dialog">Bring your music over</button>
+                    </div>
+                </div>
+            </div>
+            <div class="dv-side-chips" role="group" aria-label="Show playlists from">
+                <button type="button" class="dv-side-chip" data-dv-source="all" aria-pressed="true">All</button>
+                <button type="button" class="dv-side-chip" data-dv-source="user" aria-pressed="false">Local</button>
+                <button type="button" class="dv-side-chip" data-dv-source="spotify" aria-pressed="false">Spotify</button>
+            </div>
+            <ul class="dv-side-list" id="dvSideList" aria-labelledby="dvSideLibTitle"></ul>
+            <p class="dv-side-empty" id="dvSideEmpty" hidden>No playlists yet. Use + to make one or bring your music over.</p>
+        </section>
+        {{-- The deck extras the old crate rail held (pitch stays on the deck) --}}
+        <div class="dv-side-foot" role="group" aria-label="Turntable extras">
+            <button type="button" class="dv-side-extra" id="dvSideCrackle" aria-pressed="false" title="Vinyl crackle between songs">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/></svg>
+                <span class="dv-side-label">Crackle</span>
+            </button>
+            <button type="button" class="dv-side-extra" id="dvSideGif" aria-haspopup="dialog" title="Make a spinning vinyl GIF">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3a9 9 0 0 1 9 9" stroke-width="2.4"/></svg>
+                <span class="dv-side-label">Make GIF</span>
+            </button>
+        </div>
+    </nav>
+
     <main id="music-section">
         <!-- Vinyl Collection Room -->
         @if (session('status'))
@@ -774,6 +829,13 @@
                     <button class="add-song-btn" onclick="showAddSongModal()" title="Add a song">+</button>
                 </div>
                 <div class="sidebar-track-count">{{ count($songs) }} {{ count($songs) === 1 ? 'song' : 'songs' }}</div>
+                {{-- Desktop (html.dv2) only: plays the list on screen; one that's
+                     only being shown becomes the playing one (script.js) --}}
+                <button type="button" class="dv-pl-play" id="dvPlPlay">
+                    <svg class="dv-pl-ic-play" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg>
+                    <svg class="dv-pl-ic-pause" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg>
+                    <span class="dv-pl-play-label">Play</span>
+                </button>
                 {{-- Phone-only hero actions + find-in-playlist (hidden by .m-only off-phone) --}}
                 <div class="m-hero-actions m-only">
                     <button type="button" class="m-pl-add" id="mPlAdd">

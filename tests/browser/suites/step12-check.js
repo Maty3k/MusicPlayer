@@ -382,19 +382,28 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         await ctx.close();
     }
 
-    // ---- 14. Desktop still switches and cues on open
+    // ---- 14. Desktop browses like the phone now (desktop step 3): opening a
+    // playlist shows it without switching or cueing; a row tap adopts it.
+    // (This used to pin the old desktop behaviour: open = switchPlaylist + cue,
+    // and a row tap saved into the already-active list without activating.
+    // The app shell (?app=1) keeps that; desktop-sidebar-check K covers it.)
     {
         const { ctx, p } = await open({ desktop: true });
-        const id = await p.evaluate(() => Object.keys(playlistsMeta).find(k => k !== String(activePlaylistId) && playlistsMeta[k].songCount > 0));
+        const id = await p.evaluate(() => Object.keys(playlistsMeta).find(k => k !== String(activePlaylistId) && playlistsMeta[k].songCount > 1));
+        const st0 = await p.evaluate(() => ({ active: String(activePlaylistId), cued: window.__cued.length, cur: songsData[currentSongIndex] && songsData[currentSongIndex].title }));
         await p.evaluate((i) => selectPlaylistFromCrate(i), id);
         await p.waitForTimeout(1200);
-        const st = await p.evaluate(() => ({ active: String(activePlaylistId), viewedId, cued: window.__cued.slice(), cur: songsData[currentSongIndex] && songsData[currentSongIndex].title, title: document.getElementById('playlistTitle').textContent.trim() }));
-        check('14 desktop: opening a playlist switches to it and cues its song', st.active === id && st.viewedId === null && st.cued.includes(st.cur)
-            && writes(p, 'switchPlaylist').length === 1 && writes(p, 'getPlaylist').length === 0, { st, posts: p.__posts.map(x => x.action) });
-        const row = await p.evaluate(() => { playListRow(1); return true; });
+        const st = await p.evaluate(() => ({ active: String(activePlaylistId), viewedId, list: String(listId()), cued: window.__cued.length, cur: songsData[currentSongIndex] && songsData[currentSongIndex].title, title: document.getElementById('playlistTitle').textContent.trim(), depth: (history.state && history.state.mDepth) || 0 }));
+        const name = (await meta(p))[id].name;
+        check('14 desktop: opening a playlist shows it without switching or cueing (no history layer)', st.active === st0.active && st.viewedId === id && st.list === id && st.cued === st0.cued && st.cur === st0.cur && st.title === name && st.depth === 0
+            && writes(p, 'switchPlaylist').length === 0 && writes(p, 'getPlaylist').length === 1, { st0, st, posts: p.__posts.map(x => x.action) });
+        const want = await p.evaluate(() => viewedSongs[1].title);
+        await p.evaluate(() => { playListRow(1); return true; });
         await p.waitForTimeout(1500);
         const sw = writes(p, 'switch');
-        check('14 desktop: a row tap saves into the open playlist (named), never activating', sw.length === 1 && sw[0].playlist === id && sw[0].index === 1 && !sw[0].activate, sw);
+        const st2 = await p.evaluate(() => ({ active: String(activePlaylistId), viewedId, cur: currentSongIndex, played: window.__played.slice() }));
+        check('14 desktop: a row tap makes it the playing list (saved with activate) and plays that song', st2.active === id && st2.viewedId === null && st2.cur === 1 && st2.played.includes(want)
+            && sw.some(x => x.playlist === id && x.index === 1 && x.activate === true), { st2, sw, want });
         check('14 errors', p.__errs.length === 0, p.__errs);
         await ctx.close();
     }

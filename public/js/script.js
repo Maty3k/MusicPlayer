@@ -220,11 +220,12 @@ let playQueue = []; // Up-next queue: song objects the user explicitly queued.
 
 // ---- The list on screen vs the list that plays (phone browsing) ----
 // activePlaylistId, songsData and currentSongIndex always describe the
-// PLAYING list. The phone shell can show another playlist without playing
-// it (like Spotify): viewedId names it and viewedSongs holds its songs (null
-// while they load). Only the phone shell sets viewedId, and only while that
-// playlist's screen is up (closing it collapses the view), so on desktop,
-// tablets and ?app=1 the list on screen always is the playing one.
+// PLAYING list. The phone shell and the desktop (html.dv2) can show another
+// playlist without playing it (like Spotify): viewedId names it and
+// viewedSongs holds its songs (null while they load). Only those two set
+// viewedId, and only while that playlist's screen is up (closing it, or going
+// Home on desktop, collapses the view), so in ?app=1 the list on screen
+// always is the playing one.
 // Declared up here: the phone shell's reload restore runs while this file loads.
 let viewedId = null;
 let viewedSongs = null;
@@ -5454,8 +5455,8 @@ async function playSearchHit(r) {
     // player moving on by itself meanwhile (a track ending) doesn't count.
     noteUserSongAsk();
     const askAt = userSongAskSeq;
-    // The phone opens the playlist without playing it (resolving false if it
-    // didn't load or the user left it meanwhile); elsewhere it switches to it.
+    // The phone and the desktop open the playlist without playing it (resolving
+    // false if it didn't load or the user left it meanwhile); the app switches to it.
     const ok = await selectPlaylistFromCrate(slug);
     // The playlist didn't load (offline, or deleted meanwhile): don't play a
     // song from whichever playlist is still showing.
@@ -9371,9 +9372,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Now Playing, lyrics and the song sheet stay portrait-only (onPhone).
     const shellMq = window.matchMedia('(max-width: 600px), (min-width: 601px) and (max-height: 500px) and (pointer: coarse)');
     const inShell = () => shellMq.matches;
-    // Only the shell shows a playlist without playing it: leaving it (an
-    // unfold, a split-screen resize) puts the playing list back on screen.
-    shellMq.addEventListener('change', (e) => { if (!e.matches) collapseView(); });
+    // The shell and the desktop each show a playlist without playing it, in
+    // their own way (the shell keeps a history layer for it, the desktop
+    // doesn't): crossing between them (an unfold, a split-screen resize)
+    // puts the playing list back on screen.
+    shellMq.addEventListener('change', () => collapseView());
 
     // ---- Desktop redesign scope (html.dv2): outside both phone shells (and
     // never in the app: this is past the app-shell gate). The head script sets
@@ -9990,7 +9993,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // The playing list: already loaded, nothing to wait for
             collapseView();
             origOpenPlayerView();
-            if (wasRoot) pushPlaylistLayer(stillWanted);
+            if (wasRoot && inShell()) pushPlaylistLayer(stillWanted);
             return Promise.resolve(true);
         }
         // A second tap while it is still loading on screen: the same open
@@ -10017,7 +10020,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof updateOfflineButton === 'function') updateOfflineButton();
         viewChanged();
         origOpenPlayerView();
-        if (wasRoot) pushPlaylistLayer(stillWanted);
+        // The shell's back closes it; the desktop has no history layers
+        // (the sidebar's Home goes back)
+        if (wasRoot && inShell()) pushPlaylistLayer(stillWanted);
         const gen = viewGen;
         const promise = loadView(id, gen);
         viewOpening = { id, gen, promise };
@@ -10112,11 +10117,17 @@ document.addEventListener('DOMContentLoaded', () => {
         viewOpening = { id, gen, promise: loadView(id, gen) };
     };
 
+    // The desktop redesign browses like the phone (desktop step 3). The app
+    // (?app=1, the React Native bridge) never gets here: it keeps the
+    // original, which switches to the playlist and cues its song.
+    const dvBrowse = () => document.documentElement.classList.contains('dv2');
     const origSelectPlaylist = window.selectPlaylistFromCrate;
     window.selectPlaylistFromCrate = async function (playlistId) {
-        // Decided now, before any wait: the shell shows the playlist without
-        // playing it; elsewhere opening a playlist plays it, as always.
-        if (inShell()) return openPlaylistView(playlistId);
+        // Decided now, before any wait: the shell and the desktop show the
+        // playlist without playing it; elsewhere (a tablet-sized touch
+        // window outside both, if html.dv2 is ever off there) opening a
+        // playlist plays it, as it used to.
+        if (inShell() || dvBrowse()) return openPlaylistView(playlistId);
         collapseView(); // (a view left over from the shell: the playing list first)
         const wasRoot = !playerViewActive();
         const genAt = openGen;
@@ -10144,7 +10155,11 @@ document.addEventListener('DOMContentLoaded', () => {
             popToDepth(pi);
             return;
         }
-        return origShowPicker.apply(this, arguments);
+        const out = origShowPicker.apply(this, arguments);
+        // Desktop Home: the playlist that was only shown is put away (adds
+        // and the bar act on the playing list again)
+        if (!inShell()) collapseView();
+        return out;
     };
 
     // Jump back in plays in place on phones: the mini player shows it, and
@@ -12916,6 +12931,273 @@ document.addEventListener('DOMContentLoaded', () => {
         syncNpLike();
         updateSleepLabel();
         if (typeof updateQueueBadge === 'function') updateQueueBadge();
+    })();
+
+    // ============================================================
+    // DESKTOP SIDEBAR (#dvSide, shown under html.dv2): Home, Search, and
+    // Your Library (every playlist, the playing one marked, the one on
+    // screen highlighted), a + menu, and the deck extras the old crate rail
+    // held (crackle, make gif). Opening a playlist only shows it (the
+    // browse path: openPlaylistView); Play or a song tap makes it the
+    // playing one. It follows the page's own update paths:
+    // updateCrateRecords (switches, renames, recolours, covers, deletes),
+    // setCrateCardCount (counts), viewChanged / rebuildSongList (which list
+    // is on screen or playing), and the player view's and the search
+    // window's open state.
+    // ============================================================
+    (function desktopSidebar() {
+        const side = document.getElementById('dvSide');
+        const list = document.getElementById('dvSideList');
+        if (!side || !list) return;
+        const $ = (id) => document.getElementById(id);
+        const homeBtn = $('dvSideHome');
+        const searchBtn = $('dvSideSearch');
+        const searchModal = $('searchModal');
+        const emptyNote = $('dvSideEmpty');
+
+        const sourceOf = (id) => {
+            let card = null;
+            try { card = document.querySelector('.record-card[data-playlist="' + CSS.escape(id) + '"]'); } catch (e) {}
+            return card && card.dataset.source === 'spotify' ? 'spotify' : 'user';
+        };
+        const countOf = (id) => {
+            if (id === String(activePlaylistId) && Array.isArray(songsData)) return songsData.length;
+            const meta = playlistsMeta[id];
+            return meta ? (meta.songCount || 0) : 0;
+        };
+        const rowButtons = () => [...list.querySelectorAll('.dv-side-pl')];
+        const shownRows = () => rowButtons().filter((b) => !b.parentElement.hidden);
+
+        // ---- The rows: rebuilt only when what they show changed (focus kept)
+        let lastHtml = null;
+        function rowHtml(id) {
+            const meta = playlistsMeta[id];
+            const name = meta.name || id;
+            const n = countOf(id);
+            const color = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#d4a574';
+            const cover = safeUrl(playlistCover(id));
+            const art = cover
+                ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy">`
+                : `<span class="dv-side-art-empty">${NOTE_ICON}</span>`;
+            return `<li data-source="${sourceOf(id)}"><button type="button" class="dv-side-pl" data-playlist="${escapeHtml(id)}" style="--pl-color:${color}" title="${escapeHtml(name)}" tabindex="-1">`
+                + `<span class="dv-side-art">${art}</span>`
+                + `<span class="dv-side-text"><span class="dv-side-name">${escapeHtml(name)}</span>`
+                + `<span class="dv-side-meta"><span class="dv-side-eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="dv-side-state"></span><span class="dv-side-count">${n} ${n === 1 ? 'song' : 'songs'}</span></span></span>`
+                + '</button></li>';
+        }
+        function render() {
+            const ids = typeof playlistsMeta === 'object' && playlistsMeta ? Object.keys(playlistsMeta) : [];
+            const html = ids.map(rowHtml).join('');
+            if (html !== lastHtml) {
+                const a = document.activeElement;
+                const focusId = a && list.contains(a) && a.dataset ? a.dataset.playlist : null;
+                list.innerHTML = html;
+                lastHtml = html;
+                if (focusId) {
+                    const again = rowButtons().find((b) => b.dataset.playlist === focusId);
+                    if (again) again.focus({ preventScroll: true });
+                }
+            }
+            if (emptyNote) emptyNote.hidden = ids.length > 0;
+            applyFilter();
+            sync();
+        }
+
+        // ---- State: the current nav item, the playlist on screen, the playing one
+        function setCurrent(el, on) {
+            if (!el) return;
+            if (on) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+        }
+        function sync() {
+            const playerOpen = playerViewActive();
+            const searchOpen = !!(searchModal && searchModal.classList.contains('active'));
+            setCurrent(homeBtn, !playerOpen && !searchOpen);
+            setCurrent(searchBtn, searchOpen);
+            const onScreen = playerOpen ? String(listId()) : null;
+            const playingId = String(activePlaylistId);
+            const rows = rowButtons();
+            rows.forEach((btn) => {
+                const id = btn.dataset.playlist;
+                // An empty playlist can't be playing (as on the phone Library)
+                const playing = id === playingId && countOf(id) > 0;
+                btn.classList.toggle('is-playing', playing);
+                btn.classList.toggle('is-open', id === onScreen);
+                setCurrent(btn, id === onScreen);
+                const state = btn.querySelector('.dv-side-state');
+                if (state) state.textContent = playing ? 'Playing, ' : '';
+            });
+            // One row in the Tab order (a roving tabindex: arrows move between rows)
+            const shown = shownRows();
+            const a = document.activeElement;
+            const keep = shown.find((b) => b === a)
+                || shown.find((b) => b.classList.contains('is-open'))
+                || shown.find((b) => b.classList.contains('is-playing'))
+                || shown[0];
+            rows.forEach((b) => { b.tabIndex = b === keep ? 0 : -1; });
+            syncPlay();
+        }
+        let queued = false;
+        const schedule = () => {
+            if (queued) return;
+            queued = true;
+            // After the caller's own updates: updateTrackCount sets the card
+            // count before refreshMetaCovers updates the meta read here
+            Promise.resolve().then(() => { queued = false; render(); });
+        };
+
+        // ---- All / Local / Spotify: the crate's own filter (one setting)
+        const chips = [...side.querySelectorAll('[data-dv-source]')];
+        function applyFilter() {
+            const room = $('roomCenter');
+            const value = (room && room.getAttribute('data-active-source')) || 'all';
+            chips.forEach((c) => c.setAttribute('aria-pressed', c.dataset.dvSource === value ? 'true' : 'false'));
+            [...list.children].forEach((li) => { li.hidden = value !== 'all' && li.dataset.source !== value; });
+        }
+        chips.forEach((c) => c.addEventListener('click', () => window.setSourceFilter(c.dataset.dvSource)));
+        const origSetSourceFilter = window.setSourceFilter;
+        if (typeof origSetSourceFilter === 'function') {
+            window.setSourceFilter = function () {
+                const out = origSetSourceFilter.apply(this, arguments);
+                applyFilter();
+                sync();
+                return out;
+            };
+        }
+
+        // ---- A playlist opens on screen; playback stays as it is
+        list.addEventListener('click', (e) => {
+            const btn = e.target.closest('.dv-side-pl');
+            if (btn) window.selectPlaylistFromCrate(btn.dataset.playlist);
+        });
+        list.addEventListener('keydown', (e) => {
+            const rows = shownRows();
+            const i = rows.indexOf(document.activeElement);
+            if (i === -1) return;
+            let to = null;
+            if (e.key === 'ArrowDown') to = Math.min(rows.length - 1, i + 1);
+            else if (e.key === 'ArrowUp') to = Math.max(0, i - 1);
+            else if (e.key === 'Home') to = 0;
+            else if (e.key === 'End') to = rows.length - 1;
+            if (to === null) return;
+            e.preventDefault();
+            rows.forEach((b, k) => { b.tabIndex = k === to ? 0 : -1; });
+            rows[to].focus();
+        });
+
+        if (homeBtn) {
+            homeBtn.addEventListener('click', () => {
+                if (searchModal && searchModal.classList.contains('active')) window.hideSearchModal();
+                window.showPlaylistPicker();
+                sync();
+            });
+        }
+        // The desktop search window for now (a Search page comes later)
+        if (searchBtn) searchBtn.addEventListener('click', () => window.showSearchModal());
+
+        // ---- The + menu: New playlist, Bring your music over
+        const addBtn = $('dvSideAdd');
+        const addMenu = $('dvSideAddMenu');
+        const addItems = () => [...addMenu.querySelectorAll('[role="menuitem"]')];
+        function setAddMenu(open, focusBtn) {
+            if (!addBtn || !addMenu) return;
+            addMenu.hidden = !open;
+            addBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) addItems()[0].focus({ preventScroll: true });
+            else if (focusBtn) addBtn.focus({ preventScroll: true });
+        }
+        if (addBtn && addMenu) {
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setAddMenu(addMenu.hidden, false);
+            });
+            addMenu.addEventListener('click', (e) => {
+                const item = e.target.closest('[data-dv-add]');
+                if (!item) return;
+                // Focus back on + first: the window that opens returns there
+                setAddMenu(false, true);
+                if (item.dataset.dvAdd === 'new') window.showPlaylistCreateModal();
+                else window.showBringMusicModal();
+            });
+            addMenu.addEventListener('keydown', (e) => {
+                const items = addItems();
+                const i = items.indexOf(document.activeElement);
+                if (e.key === 'Escape') { e.preventDefault(); setAddMenu(false, true); }
+                else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+                else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+                else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+                else if (e.key === 'Tab') setAddMenu(false, false);
+            });
+            document.addEventListener('click', (e) => {
+                if (!addMenu.hidden && !addMenu.contains(e.target) && !addBtn.contains(e.target)) setAddMenu(false, false);
+            });
+        }
+
+        // ---- Deck extras from the old crate rail: crackle and make gif
+        const crackleBtn = $('dvSideCrackle');
+        const railCrackle = $('crackleBtn');
+        const syncCrackle = () => {
+            if (crackleBtn) crackleBtn.setAttribute('aria-pressed', crackleEnabled ? 'true' : 'false');
+        };
+        if (crackleBtn) crackleBtn.addEventListener('click', () => { toggleCrackle(); syncCrackle(); });
+        // Settings and the rail flip it too: every way writes the rail's button
+        if (railCrackle) new MutationObserver(syncCrackle).observe(railCrackle, { attributes: true, attributeFilter: ['data-crackle'] });
+        const gifBtn = $('dvSideGif');
+        if (gifBtn) gifBtn.addEventListener('click', () => window.openVinylGifModal());
+
+        // ---- Play on the player view: the list on screen. One that's only
+        // shown starts at its saved song (a random one with shuffle on) and
+        // becomes the playing one; the playing one plays and pauses.
+        const plPlay = $('dvPlPlay');
+        const plPlayLabel = plPlay ? plPlay.querySelector('.dv-pl-play-label') : null;
+        function syncPlay() {
+            if (!plPlay) return;
+            const viewing = !listIsPlaying();
+            const playing = !viewing && !!vinyl && vinyl.classList.contains('playing');
+            const empty = viewing ? (listLoading() || !viewedSongs.length) : songsData.length === 0;
+            plPlay.classList.toggle('is-playing', playing);
+            plPlay.disabled = empty;
+            if (plPlayLabel) plPlayLabel.textContent = playing ? 'Pause' : 'Play';
+        }
+        if (plPlay) {
+            plPlay.addEventListener('click', () => {
+                if (!listIsPlaying()) {
+                    if (listLoading() || !viewedSongs.length) return;
+                    const n = viewedSongs.length;
+                    const at = shuffleMode !== 'off' ? Math.floor(Math.random() * n)
+                        : Math.max(0, Math.min(viewedResume, n - 1));
+                    startInViewedList(at);
+                    return;
+                }
+                if (songsData.length === 0) return;
+                toggleMusic();
+            });
+        }
+        if (vinyl) new MutationObserver(syncPlay).observe(vinyl, { attributes: true, attributeFilter: ['class'] });
+
+        // ---- Follow the page's update paths
+        const after = (name, fn) => {
+            const orig = window[name];
+            if (typeof orig !== 'function') return;
+            window[name] = function () {
+                const out = orig.apply(this, arguments);
+                fn();
+                return out;
+            };
+        };
+        after('updateCrateRecords', schedule);
+        after('setCrateCardCount', schedule);
+        after('rebuildSongList', schedule);
+        const prevViewHook = viewChangedHook;
+        viewChangedHook = function (opts) {
+            if (prevViewHook) prevViewHook(opts);
+            sync();
+        };
+        if (playerView) new MutationObserver(sync).observe(playerView, { attributes: true, attributeFilter: ['class'] });
+        if (searchModal) new MutationObserver(sync).observe(searchModal, { attributes: true, attributeFilter: ['class'] });
+
+        syncCrackle();
+        render();
     })();
 
     // ---- Leaving phone widths: strip mobile-only state so desktop is clean.

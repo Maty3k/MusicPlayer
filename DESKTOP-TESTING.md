@@ -1,9 +1,10 @@
 # Desktop checklist: desktop redesign
 
 `tests/browser/suites/desktop-bar-check.js` covers the player bar in Chrome at
-1440×900 and 1024×768, and checks that phones (390×844, 844×390) and the app
-(`?app=1`) don't get it. The items below need a person at a real desktop
-browser. Run them in Chrome and in Firefox or Safari.
+1440×900 and 1024×768, and `desktop-sidebar-check.js` covers the sidebar at
+1440×900, 1024×768 and 800×600. Both check that phones (390×844, 844×390)
+and the app (`?app=1`) don't get them. The items below need a person at a
+real desktop browser. Run them in Chrome and in Firefox or Safari.
 
 ## Scope (step 1)
 
@@ -54,3 +55,49 @@ browser. Run them in Chrome and in Firefox or Safari.
   overlaps.
 - [ ] Each room theme (Settings → Appearance): the bar's colours follow the
   theme.
+
+## Sidebar (step 3)
+
+Opening a playlist on desktop now only shows it, like on the phone. Playback
+changes only when you press Play or click a song.
+
+- [ ] The sidebar runs down the left from the top of the window to the
+  player bar. The page fills the rest. The sidebar's playlist list and the
+  page scroll separately.
+- [ ] Home and Search sit at the top. Home is highlighted on the
+  collection. Search opens the search window and is highlighted while it's
+  open. Home takes you back to the collection from a playlist.
+- [ ] Your Library lists every playlist with its cover, name and song
+  count. The one playing has an amber name and small bars, which move only
+  while music plays. An empty playlist is never marked as playing.
+- [ ] Click a playlist that isn't playing. Its songs show, and it's
+  highlighted in the sidebar. The song in the bar, the turntable and the
+  play state stay as they were.
+- [ ] Click a song in that playlist. It starts, and the sidebar now marks
+  that playlist as playing. Do the same with the Play button under the
+  playlist's name; with shuffle on, it starts a random song.
+- [ ] After Home, the turntable button in the bar opens the playing list,
+  not the one you looked at before.
+- [ ] The "← Crate" button and the old console on the left of the
+  collection are gone. Crackle and Make GIF are at the bottom of the
+  sidebar, and pitch is still on the turntable.
+- [ ] Crackle in the sidebar and in Settings → Playback show the same
+  state.
+- [ ] All, Local and Spotify filter the sidebar and the collection
+  together.
+- [ ] The + menu offers New playlist and Bring your music over. Each opens
+  its window. Esc closes the menu and returns focus to +.
+- [ ] Rename, recolour or change the cover of a playlist (pencil on its
+  card). The sidebar row follows. Adding or removing songs updates its
+  count. A deleted playlist disappears from it.
+- [ ] Keyboard: Tab reaches Home, Search, +, the chips, then one playlist
+  row. ↑/↓/Home/End move between rows, and Enter opens one. A screen reader
+  announces the open playlist as current and the playing one as "Playing".
+- [ ] 601–900px window: the sidebar becomes a narrow rail of icons and
+  covers. Hovering a cover shows its name, and the + menu opens to the
+  right, inside the window.
+- [ ] 901–1920px windows: nothing overlaps, and long playlist names end in
+  "…".
+- [ ] Narrow the window below 600px while a playlist is shown: the phone
+  layout returns showing the playing list. Widen it again and the sidebar
+  comes back.
