@@ -1813,6 +1813,19 @@ function updateSleepLabel() {
         const npLabel = document.getElementById('mNpSleepLabel');
         if (npLabel) npLabel.textContent = sleepEndOfTrack ? 'End' : (mins ? mins + 'm' : '');
     }
+    // The desktop player bar's sleep button.
+    const barSleep = document.getElementById('dvBarSleep');
+    if (barSleep) {
+        const on = !!(sleepEndOfTrack || sleepDeadline);
+        const mins = sleepDeadline ? Math.max(1, Math.ceil((sleepDeadline - Date.now()) / 60000)) : 0;
+        barSleep.classList.toggle('is-on', on);
+        barSleep.setAttribute('aria-label', sleepEndOfTrack ? 'Sleep timer: end of this song'
+            : (mins ? `Sleep timer: ${mins} min left` : 'Sleep timer'));
+        const barLabel = document.getElementById('dvBarSleepLabel');
+        if (barLabel) barLabel.textContent = sleepEndOfTrack ? 'End' : (mins ? mins + 'm' : '');
+        const barOff = document.getElementById('dvBarSleepOff');
+        if (barOff) barOff.hidden = !on;
+    }
     // The phone's sleep sheet, while it's open.
     if (typeof window.mSyncSleepSheet === 'function') window.mSyncSleepSheet();
     // Settings-modal status line (the mobile entry point's feedback).
@@ -2014,6 +2027,13 @@ function updateQueueBadge() {
         npCount.hidden = playQueue.length === 0;
         const btn = document.getElementById('mNpQueue');
         if (btn) btn.setAttribute('aria-label', playQueue.length ? `Up next: ${playQueue.length} queued` : 'Up next');
+    }
+    const barCount = document.getElementById('dvBarQueueCount');
+    if (barCount) {
+        barCount.textContent = playQueue.length;
+        barCount.hidden = playQueue.length === 0;
+        const barBtn = document.getElementById('dvBarQueue');
+        if (barBtn) barBtn.setAttribute('aria-label', playQueue.length ? `Up next: ${playQueue.length} queued` : 'Up next');
     }
     const badge = document.getElementById('queueCountBadge');
     if (!badge) return;
@@ -2378,6 +2398,8 @@ function updateSleeveProgress() {
     // Mobile dock groove (display:none on desktop; the write is harmless)
     const dockProgress = document.getElementById('mDockProgress');
     if (dockProgress) dockProgress.style.transform = 'scaleX(' + (pct / 100) + ')';
+    // Desktop player bar seek (display:none outside html.dv2; harmless)
+    dvBarProgress(current, duration);
 
     crossfadeOutTick(current, duration);
     updateActiveLyric();
@@ -2405,6 +2427,31 @@ function resetSleeveProgress() {
     if (knob) knob.style.left = '0%';
     if (elapsedEl) elapsedEl.textContent = '0:00';
     if (totalEl) totalEl.textContent = '0:00';
+    dvBarProgress(0, 0);
+}
+
+// The desktop player bar's seek slider follows the same tick as the sleeve.
+// While the bar is being dragged it shows the drag, not the tick.
+function dvBarProgress(current, duration) {
+    const seek = document.getElementById('dvBarSeek');
+    if (!seek || seek.dataset.scrubbing === '1') return;
+    current = Math.max(0, Math.min(current || 0, duration || 0));
+    const pct = duration ? (current / duration) * 100 : 0;
+    const fill = document.getElementById('dvBarFill');
+    const knob = document.getElementById('dvBarKnob');
+    const elapsedEl = document.getElementById('dvBarElapsed');
+    const totalEl = document.getElementById('dvBarTotal');
+    if (fill) fill.style.width = pct + '%';
+    if (knob) knob.style.left = pct + '%';
+    if (elapsedEl) elapsedEl.textContent = formatTime(current);
+    if (totalEl) totalEl.textContent = formatTime(duration);
+    const max = String(Math.round(duration || 0));
+    const now = String(Math.round(current));
+    if (seek.getAttribute('aria-valuemax') !== max) seek.setAttribute('aria-valuemax', max);
+    if (seek.getAttribute('aria-valuenow') !== now) {
+        seek.setAttribute('aria-valuenow', now);
+        seek.setAttribute('aria-valuetext', formatTime(current) + ' of ' + formatTime(duration));
+    }
 }
 
 // Click-to-seek on progress bar
@@ -2702,6 +2749,7 @@ function updateLyricsControls() {
     controls.classList.toggle('no-sync', !currentLyrics);
     const toggle = document.getElementById('lyricsToggleBtn');
     if (toggle) toggle.classList.toggle('off', !lyricsEnabled);
+    if (typeof window.dvSyncLyricsBtn === 'function') window.dvSyncLyricsBtn();
     const val = document.getElementById('lyricsOffsetValue');
     if (val) val.textContent = (currentLyricsOffset > 0 ? '+' : '') + currentLyricsOffset + 's';
 }
@@ -2910,6 +2958,18 @@ function setVolume(vol) {
     if (volumeLabel) volumeLabel.textContent = vol;
     if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(vol);
     if (vol > 0) lastVolume = vol;
+    // Desktop player bar: the slider and the mute button follow the knob
+    const barVol = document.getElementById('dvBarVolume');
+    if (barVol) {
+        if (String(barVol.value) !== String(vol)) barVol.value = vol;
+        barVol.setAttribute('aria-valuetext', vol + '%');
+        barVol.style.setProperty('--dv-vol', vol + '%');
+    }
+    const barMute = document.getElementById('dvBarMute');
+    if (barMute) {
+        barMute.setAttribute('aria-pressed', vol === 0 ? 'true' : 'false');
+        barMute.classList.toggle('is-muted', vol === 0);
+    }
 }
 
 // Init knob position
@@ -9315,6 +9375,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // unfold, a split-screen resize) puts the playing list back on screen.
     shellMq.addEventListener('change', (e) => { if (!e.matches) collapseView(); });
 
+    // ---- Desktop redesign scope (html.dv2): outside both phone shells (and
+    // never in the app: this is past the app-shell gate). The head script sets
+    // it before first paint; this keeps it in step across resizes, rotations,
+    // unfolds and split-screen. All desktop-redesign CSS hangs off it.
+    const syncDv2 = () => {
+        document.documentElement.classList.toggle('dv2', !shellMq.matches);
+        dvSyncBarVisibility();
+    };
+    shellMq.addEventListener('change', syncDv2);
+    syncDv2();
+
     const dock = document.getElementById('mDock');
     if (!dock) return;
     const dockInfo = document.getElementById('mDockInfo');
@@ -9367,6 +9438,16 @@ document.addEventListener('DOMContentLoaded', () => {
             && !document.body.classList.contains('m-playing');
         dock.classList.toggle('m-dock-hidden', empty || keyboardOpen);
         document.body.classList.toggle('m-kb', keyboardOpen);
+        dvSyncBarVisibility();
+    }
+    // The desktop player bar follows the dock's rule (no keyboard case: a
+    // desktop has none to make room for). html.dv2-bar shows it and pads
+    // the page above it. Hoisted and DOM-only: syncDv2 calls it early.
+    function dvSyncBarVisibility() {
+        const root = document.documentElement;
+        const empty = (typeof songsData === 'undefined' || songsData.length === 0)
+            && !document.body.classList.contains('m-playing');
+        root.classList.toggle('dv2-bar', root.classList.contains('dv2') && !empty);
     }
     document.addEventListener('focusin', (e) => {
         if (typingInField(e.target)) {
@@ -9455,6 +9536,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (npLoop) {
             npLoop.dataset.mode = loopMode;
             npLoop.setAttribute('aria-pressed', loopMode !== 'off' ? 'true' : 'false');
+        }
+        // The desktop player bar's pair
+        const barShuffle = document.getElementById('dvBarShuffle');
+        if (barShuffle) {
+            const label = shuffleMode === 'smart' ? 'Smart shuffle' : 'Shuffle';
+            barShuffle.dataset.mode = shuffleMode;
+            barShuffle.setAttribute('aria-pressed', shuffleMode !== 'off' ? 'true' : 'false');
+            barShuffle.setAttribute('aria-label', label);
+            barShuffle.title = shuffleMode === 'smart' ? 'Smart shuffle' : (shuffleMode === 'shuffle' ? 'Shuffle on' : 'Shuffle off');
+        }
+        const barLoop = document.getElementById('dvBarLoop');
+        if (barLoop) {
+            barLoop.dataset.mode = loopMode;
+            barLoop.setAttribute('aria-pressed', loopMode !== 'off' ? 'true' : 'false');
+            barLoop.setAttribute('aria-label', loopMode === 'single' ? 'Repeat one' : (loopMode === 'playlist' ? 'Repeat all' : 'Repeat'));
+            barLoop.title = loopMode === 'single' ? 'Repeat this song' : (loopMode === 'playlist' ? 'Repeat the playlist' : 'Repeat off');
         }
     }
 
@@ -12138,21 +12235,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // does it properly.
     const lockedInFavorites = (song) => activePlaylistId === 'favorites' && inLoadedList(song);
 
+    // The same ♥ sits in the desktop player bar: one song, one state.
+    const likeBtns = [npLike, document.getElementById('dvBarLike')].filter(Boolean);
     let npLikeBusy = false;
     function syncNpLike() {
-        if (!npLike) return;
+        if (!likeBtns.length) return;
         const song = npSong();
         const locked = lockedInFavorites(song);
         const liked = !!song && (locked || favoriteKeys.has(songPlayKey(song)));
-        npLike.classList.toggle('is-on', liked);
-        npLike.setAttribute('aria-pressed', liked ? 'true' : 'false');
-        npLike.setAttribute('aria-label', 'Favorite');
-        if (locked) npLike.setAttribute('aria-disabled', 'true'); else npLike.removeAttribute('aria-disabled');
-        npLike.disabled = !song;
+        likeBtns.forEach((btn) => {
+            btn.classList.toggle('is-on', liked);
+            btn.setAttribute('aria-pressed', liked ? 'true' : 'false');
+            btn.setAttribute('aria-label', 'Favorite');
+            if (locked) btn.setAttribute('aria-disabled', 'true'); else btn.removeAttribute('aria-disabled');
+            btn.disabled = !song;
+        });
     }
 
-    if (npLike) {
-        npLike.addEventListener('click', async () => {
+    likeBtns.forEach((likeBtn) => {
+        likeBtn.addEventListener('click', async () => {
             const song = npSong();
             if (!song || npLikeBusy) return;
             if (lockedInFavorites(song)) {
@@ -12162,7 +12263,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const key = songPlayKey(song);
             const wasFav = favoriteKeys.has(key);
             npLikeBusy = true;
-            npLike.classList.toggle('is-on', !wasFav); // answer the tap at once
+            likeBtns.forEach((btn) => btn.classList.toggle('is-on', !wasFav)); // answer the tap at once
             try {
                 await toggleFavoriteSong(song);
             } finally {
@@ -12174,7 +12275,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.mToast(nowFav === wasFav ? 'Couldn\'t update Favorites. Try again.'
                 : (nowFav ? 'Added to Favorites' : 'Removed from Favorites'));
         });
-    }
+    });
 
     // Track changes rewrite the now-playing text (the song object comes
     // through animateRecordChange / updateSongDisplay just before); favorites
@@ -12605,6 +12706,217 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.mOpenNowPlaying) window.mOpenNowPlaying();
         });
     }
+
+    // ============================================================
+    // DESKTOP PLAYER BAR (#dvBar, shown under html.dv2.dv2-bar): one
+    // transport under the crate and the player view. It calls the same
+    // engine functions as the deck; its state comes back through the shared
+    // syncs: mSyncModes (shuffle/loop), syncNpLike (♥), setVolume,
+    // updateSleepLabel, updateQueueBadge, updateLyricsControls and
+    // dvBarProgress (the sleeve's progress tick).
+    // ============================================================
+    (function desktopBar() {
+        const bar = document.getElementById('dvBar');
+        if (!bar) return;
+        const $ = (id) => document.getElementById(id);
+        const click = (id, fn) => { const el = $(id); if (el) el.addEventListener('click', fn); };
+
+        click('dvBarPlay', () => toggleMusic());
+        click('dvBarPrev', () => prevSong());
+        click('dvBarNext', () => nextSong());
+        click('dvBarShuffle', () => { toggleShuffle(); mSyncModes(); });
+        click('dvBarLoop', () => { toggleLoopMode(); mSyncModes(); });
+        click('dvBarQueue', () => window.openQueueModal());
+
+        // ---- Play / pause: #vinyl.playing is the play state (see syncPlaying);
+        // the icon swaps in CSS off body.m-playing, the label here.
+        const playBtn = $('dvBarPlay');
+        const syncPlay = () => {
+            const playing = !!(vinyl && vinyl.classList.contains('playing'));
+            if (playBtn) playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+        };
+        if (vinyl) new MutationObserver(syncPlay).observe(vinyl, { attributes: true, attributeFilter: ['class'] });
+
+        // ---- Cover: mirrors the sleeve art, like the phone dock's
+        const art = $('dvBarArt');
+        if (sleeveArt && art) {
+            const syncArt = () => {
+                art.src = sleeveArt.src || '';
+                art.style.display = sleeveArt.style.display === 'none' || !sleeveArt.getAttribute('src') ? 'none' : '';
+            };
+            new MutationObserver(syncArt).observe(sleeveArt, { attributes: true, attributeFilter: ['src', 'style'] });
+        }
+
+        // ---- Seek: click, drag, or the keyboard (arrows ±5s, Page ±30s,
+        // Home/End). dvBarProgress draws it; while dragging it draws the drag.
+        const seek = $('dvBarSeek');
+        const duration = () => {
+            try { return (ytPlayer && ytPlayer.getDuration && ytPlayer.getDuration()) || 0; } catch (e) { return 0; }
+        };
+        const position = () => {
+            try { return (ytPlayer && ytPlayer.getCurrentTime && ytPlayer.getCurrentTime()) || 0; } catch (e) { return 0; }
+        };
+        const seekTo = (t) => {
+            const d = duration();
+            if (!d || !ytPlayer || !ytPlayer.seekTo) return;
+            t = Math.max(0, Math.min(d, t));
+            try { ytPlayer.seekTo(t, true); } catch (e) { return; }
+            updateSleeveProgress();
+            dvBarProgress(t, d);
+        };
+        if (seek) {
+            let dragging = false;
+            const ratioAt = (e) => {
+                const r = seek.getBoundingClientRect();
+                return r.width ? Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) : 0;
+            };
+            const preview = (ratio) => {
+                const d = duration();
+                delete seek.dataset.scrubbing;
+                dvBarProgress(ratio * d, d);
+                seek.dataset.scrubbing = '1';
+            };
+            seek.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0 || !duration()) return;
+                dragging = true;
+                try { seek.setPointerCapture(e.pointerId); } catch (err) {}
+                seek.classList.add('is-dragging');
+                preview(ratioAt(e));
+            });
+            seek.addEventListener('pointermove', (e) => {
+                if (dragging) preview(ratioAt(e));
+            });
+            const finish = (e, commit) => {
+                if (!dragging) return;
+                dragging = false;
+                seek.classList.remove('is-dragging');
+                delete seek.dataset.scrubbing;
+                if (commit) seekTo(ratioAt(e) * duration());
+                else updateSleeveProgress();
+            };
+            seek.addEventListener('pointerup', (e) => finish(e, true));
+            seek.addEventListener('pointercancel', (e) => finish(e, false));
+            seek.addEventListener('lostpointercapture', (e) => finish(e, false));
+            seek.addEventListener('keydown', (e) => {
+                const d = duration();
+                if (!d) return;
+                const t = position();
+                let to = null;
+                switch (e.key) {
+                    case 'ArrowLeft': case 'ArrowDown': to = t - 5; break;
+                    case 'ArrowRight': case 'ArrowUp': to = t + 5; break;
+                    case 'PageDown': to = t - 30; break;
+                    case 'PageUp': to = t + 30; break;
+                    case 'Home': to = 0; break;
+                    // Not the very end: that would finish the song
+                    case 'End': to = Math.max(0, d - 1); break;
+                }
+                if (to === null) return;
+                e.preventDefault();
+                seekTo(Math.min(to, Math.max(0, d - 1)));
+            });
+        }
+
+        // ---- Volume: the slider drives setVolume, which moves the deck's
+        // knob too and writes the slider back (so the knob drives it as well).
+        const volWrap = bar.querySelector('.dv-bar-volume');
+        const volRange = $('dvBarVolume');
+        if (volWrap && isIOS) {
+            volWrap.hidden = true; // hardware-locked there, as on phones
+        } else if (volRange) {
+            volRange.addEventListener('input', () => setVolume(parseInt(volRange.value, 10)));
+            click('dvBarMute', () => setVolume(currentVolume > 0 ? 0 : (lastVolume || 100)));
+            setVolume(currentVolume);
+        }
+
+        // ---- Sleep timer: a small menu over the button
+        const sleepBtn = $('dvBarSleep');
+        const sleepMenu = $('dvBarSleepMenu');
+        const sleepItems = () => [...sleepMenu.querySelectorAll('[data-dv-sleep]')].filter((b) => !b.hidden);
+        function setSleepMenu(open, focusBtn) {
+            if (!sleepMenu || !sleepBtn) return;
+            sleepMenu.hidden = !open;
+            sleepBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) {
+                updateSleepLabel();
+                const first = sleepItems()[0];
+                if (first) first.focus({ preventScroll: true });
+            } else if (focusBtn) {
+                sleepBtn.focus({ preventScroll: true });
+            }
+        }
+        if (sleepBtn && sleepMenu) {
+            sleepBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setSleepMenu(sleepMenu.hidden, false);
+            });
+            sleepMenu.addEventListener('click', (e) => {
+                const opt = e.target.closest('[data-dv-sleep]');
+                if (!opt) return;
+                const v = opt.dataset.dvSleep;
+                setSleepTimer(v === 'end' ? 'end' : parseInt(v, 10));
+                setSleepMenu(false, true);
+                window.mToast(v === '0' ? 'Sleep timer off'
+                    : (v === 'end' ? 'Pausing when this song ends' : `Pausing in ${v === '60' ? '1 hour' : v + ' minutes'}`));
+            });
+            sleepMenu.addEventListener('keydown', (e) => {
+                const items = sleepItems();
+                const i = items.indexOf(document.activeElement);
+                if (e.key === 'Escape') { e.preventDefault(); setSleepMenu(false, true); }
+                else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+                else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+                else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+                else if (e.key === 'Tab') setSleepMenu(false, false);
+            });
+            document.addEventListener('click', (e) => {
+                if (!sleepMenu.hidden && !sleepMenu.contains(e.target) && !sleepBtn.contains(e.target)) setSleepMenu(false, false);
+            });
+        }
+
+        // ---- Lyrics and the turntable: both live in the player view for now
+        // (a side panel and a Now Playing page come in later steps).
+        const playerView = $('musicPlayerView');
+        const viewOpen = () => !!(playerView && playerView.classList.contains('active'));
+        const lyricsBtn = $('dvBarLyrics');
+        const deckBtn = $('dvBarDeck');
+        window.dvSyncLyricsBtn = function () {
+            if (!lyricsBtn) return;
+            const showing = viewOpen() && lyricsEnabled;
+            lyricsBtn.setAttribute('aria-pressed', showing ? 'true' : 'false');
+            lyricsBtn.title = showing ? 'Hide lyrics' : 'Show lyrics';
+        };
+        const syncDeck = () => {
+            if (deckBtn) {
+                deckBtn.setAttribute('aria-pressed', viewOpen() ? 'true' : 'false');
+                deckBtn.title = viewOpen() ? 'Back to your collection' : 'Open the turntable';
+            }
+            window.dvSyncLyricsBtn();
+        };
+        if (playerView) new MutationObserver(syncDeck).observe(playerView, { attributes: true, attributeFilter: ['class'] });
+        if (lyricsBtn) {
+            lyricsBtn.addEventListener('click', () => {
+                // Showing: turn them off (the sleeve's own on/off). Otherwise
+                // open the turntable with them on.
+                if (viewOpen() && lyricsEnabled) { toggleLyrics(); return; }
+                if (!viewOpen()) openPlayerView();
+                if (!lyricsEnabled) toggleLyrics();
+                window.dvSyncLyricsBtn();
+            });
+        }
+        if (deckBtn) {
+            deckBtn.addEventListener('click', () => {
+                if (viewOpen()) showPlaylistPicker(); else openPlayerView();
+            });
+        }
+
+        syncPlay();
+        syncDeck();
+        mSyncModes();
+        syncNpLike();
+        updateSleepLabel();
+        if (typeof updateQueueBadge === 'function') updateQueueBadge();
+    })();
 
     // ---- Leaving phone widths: strip mobile-only state so desktop is clean.
     mq.addEventListener('change', (e) => {

@@ -63,6 +63,12 @@
                 root.classList.add('app-shell');
                 return;
             }
+            // Desktop redesign scope (html.dv2): wider than 600px and not a
+            // short landscape touch phone, i.e. outside both phone shells.
+            // Same query as script.js's shellMq, which keeps it in sync.
+            if (!window.matchMedia('(max-width: 600px), (min-width: 601px) and (max-height: 500px) and (pointer: coarse)').matches) {
+                root.classList.add('dv2');
+            }
             var tab = 'home';
             try {
                 var st = history.state;
@@ -1066,6 +1072,101 @@
             </button>
         </div>
     </div>
+
+    {{-- Desktop player bar: wider than 600px, outside the phone shells and
+         the app (html.dv2; display:none everywhere else). Hidden like the
+         phone dock while nothing is loaded (html.dv2-bar, script.js). The
+         .song-title / .song-artist spans ride setNowPlayingText's fan-out. --}}
+    <div id="dvBar" role="region" aria-label="Player">
+        <div class="dv-bar-now">
+            <span class="dv-bar-disc" aria-hidden="true">
+                @if (!empty($current['cover']))
+                <img id="dvBarArt" src="{{ $current['cover'] }}" alt="">
+                @else
+                <img id="dvBarArt" src="" alt="" style="display:none;">
+                @endif
+                <span class="dv-bar-hole"></span>
+            </span>
+            <span class="dv-bar-meta">
+                <span class="song-title">{{ $current['title'] ?? 'Nothing playing' }}</span>
+                <span class="song-artist">{{ $current['artist'] ?? '' }}</span>
+            </span>
+            <button type="button" class="dv-bar-btn dv-bar-like" id="dvBarLike" aria-pressed="false" aria-label="Favorite">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.8-8.85a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </button>
+        </div>
+        <div class="dv-bar-center">
+            <div class="dv-bar-transport" role="toolbar" aria-label="Playback">
+                <button type="button" class="dv-bar-btn dv-bar-mode" id="dvBarShuffle" data-mode="off" aria-pressed="false" aria-label="Shuffle">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+                    <span class="dv-bar-dot" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="dv-bar-btn" id="dvBarPrev" aria-label="Previous">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="5" y="5.4" width="2.4" height="13.2" rx="1.1"/><path d="M18.6 6.3a1.1 1.1 0 0 0-1.7-.93l-8 5.7a1.1 1.1 0 0 0 0 1.86l8 5.7a1.1 1.1 0 0 0 1.7-.93z"/></svg>
+                </button>
+                <button type="button" class="dv-bar-play" id="dvBarPlay" aria-label="Play">
+                    <span class="dv-ic-play"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></span><span class="dv-ic-pause"><svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg></span>
+                </button>
+                <button type="button" class="dv-bar-btn" id="dvBarNext" aria-label="Next">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M5.4 6.3a1.1 1.1 0 0 1 1.7-.93l8 5.7a1.1 1.1 0 0 1 0 1.86l-8 5.7a1.1 1.1 0 0 1-1.7-.93z"/><rect x="16.6" y="5.4" width="2.4" height="13.2" rx="1.1"/></svg>
+                </button>
+                <button type="button" class="dv-bar-btn dv-bar-mode" id="dvBarLoop" data-mode="off" aria-pressed="false" aria-label="Repeat">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+                    <span class="dv-bar-loop-one" aria-hidden="true">1</span>
+                    <span class="dv-bar-dot" aria-hidden="true"></span>
+                </button>
+            </div>
+            <div class="dv-bar-seek">
+                <span class="dv-bar-time" id="dvBarElapsed">0:00</span>
+                <div class="dv-bar-track" id="dvBarSeek" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00 of 0:00">
+                    <div class="dv-bar-rail"><div class="dv-bar-fill" id="dvBarFill"></div></div>
+                    <div class="dv-bar-knob" id="dvBarKnob"></div>
+                </div>
+                <span class="dv-bar-time" id="dvBarTotal">0:00</span>
+            </div>
+        </div>
+        <div class="dv-bar-extras" role="group" aria-label="More controls">
+            <button type="button" class="dv-bar-btn" id="dvBarLyrics" aria-pressed="false" aria-label="Lyrics">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 17.4V6.2l8-1.7v11.2"/><circle cx="7.2" cy="17.4" r="2.3"/><circle cx="15.2" cy="15.7" r="2.3"/></svg>
+            </button>
+            <button type="button" class="dv-bar-btn" id="dvBarQueue" aria-haspopup="dialog" aria-label="Up next">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/></svg>
+                <span class="dv-bar-badge" id="dvBarQueueCount" hidden>0</span>
+            </button>
+            <div class="dv-bar-sleep-wrap">
+                <button type="button" class="dv-bar-btn" id="dvBarSleep" aria-haspopup="menu" aria-expanded="false" aria-controls="dvBarSleepMenu" aria-label="Sleep timer">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/></svg>
+                    <span class="dv-bar-sleep-label" id="dvBarSleepLabel"></span>
+                </button>
+                <div class="dv-bar-menu" id="dvBarSleepMenu" role="menu" aria-label="Sleep timer" hidden>
+                    <button type="button" role="menuitem" data-dv-sleep="15">15 minutes</button>
+                    <button type="button" role="menuitem" data-dv-sleep="30">30 minutes</button>
+                    <button type="button" role="menuitem" data-dv-sleep="45">45 minutes</button>
+                    <button type="button" role="menuitem" data-dv-sleep="60">1 hour</button>
+                    <button type="button" role="menuitem" data-dv-sleep="end">End of this song</button>
+                    <button type="button" role="menuitem" data-dv-sleep="0" class="dv-bar-menu-off" id="dvBarSleepOff" hidden>Turn off</button>
+                </div>
+            </div>
+            <div class="dv-bar-volume">
+                <button type="button" class="dv-bar-btn" id="dvBarMute" aria-pressed="false" aria-label="Mute">
+                    <svg class="dv-ic-vol" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+                    <svg class="dv-ic-muted" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></svg>
+                </button>
+                <input type="range" class="dv-bar-range" id="dvBarVolume" min="0" max="100" step="1" value="100" aria-label="Volume" aria-valuetext="100%">
+            </div>
+            <button type="button" class="dv-bar-btn" id="dvBarDeck" aria-pressed="false" aria-label="Turntable">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="2.5"/><circle cx="10.5" cy="12" r="5"/><circle cx="10.5" cy="12" r="1.2" fill="currentColor"/><path d="M18.5 7v6.5l-2.5 2"/></svg>
+            </button>
+        </div>
+    </div>
+    {{-- Show the bar from the first paint when the playing list has songs
+         (script.js's dvSyncBarVisibility owns it from then on) --}}
+    <script>
+        (function () {
+            var root = document.documentElement;
+            if (root.classList.contains('dv2') && {{ count($songs) > 0 ? 'true' : 'false' }}) root.classList.add('dv2-bar');
+        })();
+    </script>
 
     <!-- Phone tab bar (portrait phones; wired in script.js's phone shell,
          hidden in the app and during Now Playing / typing) -->

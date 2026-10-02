@@ -16707,3 +16707,458 @@ button.send-menu-cancel {
     #crateEmptyHint .crate-empty-actions { flex-direction: column; }
     #crateEmptyHint .crate-empty-actions button { flex: 0 0 auto; }
 }
+
+/* ==========================================================================
+   DESKTOP V2 — the desktop redesign (steps in the desktop redesign plan).
+   Everything below is scoped to html.dv2, which script.js (and the head
+   script, before first paint) sets only outside both phone shells (wider
+   than 600px, not a short landscape touch phone) and never in the app.
+   Phones and the app shell never match these selectors, so their pixels
+   are untouched. The only unscoped rule is the default hide of #dvBar.
+   New desktop rules go in this block, under html.dv2.
+   ========================================================================== */
+
+/* New desktop-only DOM is hidden everywhere unless the scope shows it. */
+#dvBar { display: none; }
+
+html.dv2 {
+    --dv-bar-h: 84px;
+    --dv-bar-bg: color-mix(in srgb, var(--ink) 82%, #000);
+    --dv-hover: color-mix(in srgb, var(--cream) 8%, transparent);
+    --dv-rail: color-mix(in srgb, var(--cream) 18%, transparent);
+}
+
+/* ---------- Step 2: the persistent bottom player bar ---------- */
+
+/* The page ends above the bar, so nothing (the crate's last card, the
+   song list's last row) can scroll under it. */
+html.dv2.dv2-bar #music-section { bottom: var(--dv-bar-h); }
+
+/* Toasts float above the bar instead of over it */
+html.dv2.dv2-bar .m-toast,
+html.dv2.dv2-bar .bulk-toast,
+html.dv2.dv2-bar .import-toast { bottom: calc(var(--dv-bar-h) + 16px); }
+
+html.dv2.dv2-bar #dvBar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 300; /* over #music-section (200), under every modal (9000+) */
+    height: var(--dv-bar-h);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 1.25fr) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 20px;
+    padding: 0 20px;
+    background: var(--dv-bar-bg);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25);
+    color: var(--cream);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html.dv2 #dvBar [hidden] { display: none !important; }
+
+/* ---- Left: spinning record, title, artist, heart ---- */
+html.dv2 #dvBar .dv-bar-now {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+html.dv2 #dvBar .dv-bar-disc {
+    position: relative;
+    flex: 0 0 auto;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    overflow: hidden;
+    background:
+        repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 3px),
+        radial-gradient(circle at 50% 50%, rgba(var(--amber-rgb), 0.9) 0 24%, #141210 25%);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    animation: dvSpin 4.8s linear infinite;
+    animation-play-state: paused;
+}
+html.dv2 body.m-playing #dvBar .dv-bar-disc { animation-play-state: running; }
+
+html.dv2 #dvBar .dv-bar-disc img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+/* Grooves over the cover, then the spindle hole */
+html.dv2 #dvBar .dv-bar-disc::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 50% 50%, transparent 0 30%, rgba(0, 0, 0, 0.28) 31% 33%, transparent 34%),
+        radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.16), transparent 45%);
+    pointer-events: none;
+}
+html.dv2 #dvBar .dv-bar-hole {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    margin: -4px 0 0 -4px;
+    border-radius: 50%;
+    background: var(--dv-bar-bg);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+    z-index: 1;
+}
+
+@keyframes dvSpin { to { transform: rotate(360deg); } }
+
+html.dv2 #dvBar .dv-bar-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+html.dv2 #dvBar .dv-bar-meta .song-title,
+html.dv2 #dvBar .dv-bar-meta .song-artist {
+    /* (undo the deck's global .song-title / .song-artist look) */
+    display: block;
+    -webkit-line-clamp: unset;
+    margin: 0;
+    line-height: 1.3;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+html.dv2 #dvBar .dv-bar-meta .song-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cream);
+}
+html.dv2 #dvBar .dv-bar-meta .song-artist {
+    font-size: 0.78rem;
+    color: var(--cream-60);
+}
+
+/* ---- Shared buttons ---- */
+html.dv2 #dvBar button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+html.dv2 #dvBar .dv-bar-btn {
+    position: relative;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 8px;
+    border-radius: 999px;
+    color: var(--cream-60);
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+html.dv2 #dvBar .dv-bar-btn:hover:not(:disabled) {
+    color: var(--cream);
+    background: var(--dv-hover);
+}
+html.dv2 #dvBar .dv-bar-btn:disabled { opacity: 0.4; cursor: default; }
+html.dv2 #dvBar .dv-bar-btn svg { display: block; flex: 0 0 auto; }
+
+html.dv2 #dvBar button:focus-visible,
+html.dv2 #dvBar .dv-bar-track:focus-visible,
+html.dv2 #dvBar .dv-bar-range:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+}
+
+/* Toggles that are on: amber, with a dot under them */
+html.dv2 #dvBar .dv-bar-btn[aria-pressed="true"] { color: var(--amber); }
+html.dv2 #dvBar .dv-bar-btn[aria-pressed="true"]:hover { color: var(--amber-hi); }
+html.dv2 #dvBar .dv-bar-dot {
+    position: absolute;
+    left: 50%;
+    bottom: 1px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0;
+}
+html.dv2 #dvBar .dv-bar-mode[aria-pressed="true"] .dv-bar-dot { opacity: 1; }
+
+/* Smart shuffle: the dot glows */
+html.dv2 #dvBar #dvBarShuffle[data-mode="smart"] .dv-bar-dot {
+    box-shadow: 0 0 6px 1px rgba(var(--amber-rgb), 0.8);
+}
+
+/* Repeat one: a small "1" on the icon */
+html.dv2 #dvBar .dv-bar-loop-one {
+    display: none;
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    min-width: 12px;
+    height: 12px;
+    padding: 0 2px;
+    border-radius: 6px;
+    background: var(--amber);
+    color: var(--on-amber);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 12px;
+    text-align: center;
+}
+html.dv2 #dvBar #dvBarLoop[data-mode="single"] .dv-bar-loop-one { display: block; }
+
+/* Heart */
+html.dv2 #dvBar .dv-bar-like.is-on { color: var(--amber); }
+html.dv2 #dvBar .dv-bar-like.is-on svg path { fill: currentColor; }
+html.dv2 #dvBar .dv-bar-like[aria-disabled="true"] { cursor: default; }
+
+/* ---- Centre: transport and seek ---- */
+html.dv2 #dvBar .dv-bar-center {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    min-width: 0;
+}
+html.dv2 #dvBar .dv-bar-transport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+html.dv2 #dvBar .dv-bar-play {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--cream);
+    color: var(--ink);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    transition: transform 0.15s ease, background-color 0.15s ease;
+}
+html.dv2 #dvBar .dv-bar-play:hover { transform: scale(1.05); background: #fff; }
+html.dv2 #dvBar .dv-bar-play:active { transform: scale(0.97); }
+html.dv2 #dvBar .dv-bar-play span { display: inline-flex; }
+html.dv2 #dvBar .dv-ic-pause { display: none !important; }
+html.dv2 body.m-playing #dvBar .dv-ic-play { display: none !important; }
+html.dv2 body.m-playing #dvBar .dv-ic-pause { display: inline-flex !important; }
+
+html.dv2 #dvBar .dv-bar-seek {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+html.dv2 #dvBar .dv-bar-time {
+    flex: 0 0 auto;
+    min-width: 36px;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--cream-60);
+}
+html.dv2 #dvBar #dvBarElapsed { text-align: right; }
+html.dv2 #dvBar .dv-bar-track {
+    position: relative;
+    flex: 1 1 auto;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    touch-action: none;
+    border-radius: 4px;
+}
+html.dv2 #dvBar .dv-bar-rail {
+    position: relative;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--dv-rail);
+    overflow: hidden;
+}
+html.dv2 #dvBar .dv-bar-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 2px;
+    background: var(--cream);
+}
+html.dv2 #dvBar .dv-bar-track:hover .dv-bar-fill,
+html.dv2 #dvBar .dv-bar-track:focus-visible .dv-bar-fill,
+html.dv2 #dvBar .dv-bar-track.is-dragging .dv-bar-fill { background: var(--amber); }
+html.dv2 #dvBar .dv-bar-knob {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 12px;
+    height: 12px;
+    margin: -6px 0 0 -6px;
+    border-radius: 50%;
+    background: var(--cream);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+}
+html.dv2 #dvBar .dv-bar-track:hover .dv-bar-knob,
+html.dv2 #dvBar .dv-bar-track:focus-visible .dv-bar-knob,
+html.dv2 #dvBar .dv-bar-track.is-dragging .dv-bar-knob { opacity: 1; }
+
+/* ---- Right: lyrics, queue, sleep, volume, turntable ---- */
+html.dv2 #dvBar .dv-bar-extras {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    min-width: 0;
+}
+html.dv2 #dvBar .dv-bar-badge {
+    position: absolute;
+    top: 1px;
+    right: 0;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--amber);
+    color: var(--on-amber);
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
+}
+html.dv2 #dvBar #dvBarSleep.is-on { color: var(--amber); }
+html.dv2 #dvBar .dv-bar-sleep-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+html.dv2 #dvBar .dv-bar-sleep-label:empty { display: none; }
+
+html.dv2 #dvBar .dv-bar-sleep-wrap { position: relative; }
+html.dv2 #dvBar .dv-bar-menu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 12px);
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    border-radius: 12px;
+    background: var(--sleeve);
+    border: 1px solid var(--line);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+html.dv2 #dvBar .dv-bar-menu button {
+    padding: 9px 12px;
+    border-radius: 8px;
+    text-align: left;
+    font-size: 0.85rem;
+    color: var(--cream);
+    white-space: nowrap;
+}
+html.dv2 #dvBar .dv-bar-menu button:hover,
+html.dv2 #dvBar .dv-bar-menu button:focus-visible { background: var(--dv-hover); }
+html.dv2 #dvBar .dv-bar-menu .dv-bar-menu-off {
+    margin-top: 4px;
+    border-top: 1px solid var(--line);
+    border-radius: 0 0 8px 8px;
+    color: var(--amber);
+}
+
+html.dv2 #dvBar .dv-bar-volume {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+}
+html.dv2 #dvBar #dvBarMute .dv-ic-muted { display: none; }
+html.dv2 #dvBar #dvBarMute.is-muted .dv-ic-vol { display: none; }
+html.dv2 #dvBar #dvBarMute.is-muted .dv-ic-muted { display: block; }
+/* Muted is a state, not a highlight: no amber for this toggle */
+html.dv2 #dvBar #dvBarMute[aria-pressed="true"] { color: var(--cream-60); }
+
+html.dv2 #dvBar .dv-bar-range {
+    --dv-vol: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    width: clamp(72px, 8vw, 120px);
+    height: 16px;
+    margin: 0 6px 0 0;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+}
+html.dv2 #dvBar .dv-bar-range::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--cream) 0 var(--dv-vol), var(--dv-rail) var(--dv-vol) 100%);
+}
+html.dv2 #dvBar .dv-bar-range:hover::-webkit-slider-runnable-track,
+html.dv2 #dvBar .dv-bar-range:focus-visible::-webkit-slider-runnable-track {
+    background: linear-gradient(90deg, var(--amber) 0 var(--dv-vol), var(--dv-rail) var(--dv-vol) 100%);
+}
+html.dv2 #dvBar .dv-bar-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -4px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--cream);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+html.dv2 #dvBar .dv-bar-range::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--dv-rail);
+}
+html.dv2 #dvBar .dv-bar-range::-moz-range-progress {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--cream);
+}
+html.dv2 #dvBar .dv-bar-range::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--cream);
+}
+
+/* Narrow desktop windows and tablets (601-900px): the volume slider gives
+   way (mute stays; the deck's knob still works), the sides tighten. */
+@media (max-width: 900px) {
+    html.dv2.dv2-bar #dvBar {
+        grid-template-columns: minmax(0, 1fr) minmax(260px, 1.4fr) auto;
+        column-gap: 14px;
+        padding: 0 14px;
+    }
+    html.dv2 #dvBar .dv-bar-range { display: none; }
+    html.dv2 #dvBar .dv-bar-disc { width: 46px; height: 46px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html.dv2 #dvBar .dv-bar-disc { animation: none; }
+    html.dv2 #dvBar .dv-bar-play,
+    html.dv2 #dvBar .dv-bar-btn,
+    html.dv2 #dvBar .dv-bar-knob { transition: none; }
+}
