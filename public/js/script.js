@@ -354,7 +354,18 @@ function adoptViewedList(index) {
 // the Search "Open in" chip). The latest tap wins; one made during a track
 // change waits for it (up to 5 s), and is dropped if the view moved on.
 let pendingStart = null;
+
+// Bumped only when the user asks for a song (a row, Play, Next/Previous on
+// the dock, Now Playing or a media key, Jump back in, a search hit, a queue
+// or Discover tap), never when the player moves on by itself (a track
+// ending, an unplayable song skipped, a cue). A search hit waiting for its
+// playlist to load yields to newer asks only (see playSearchHit):
+// songRequestSeq also counts the automatic ones.
+let userSongAskSeq = 0;
+function noteUserSongAsk() { userSongAskSeq++; }
+
 function startInViewedList(index) {
+    noteUserSongAsk();
     if (viewedId === null || !viewedSongs || !viewedSongs[index]) return Promise.resolve(false);
     if (songOpBusy()) return Promise.resolve(false);
     const req = { gen: viewGen, id: viewedId, song: viewedSongs[index] };
@@ -380,6 +391,7 @@ function startInViewedList(index) {
 // A row tap: a row of the playing list plays; a viewed list becomes the
 // playing one first.
 function playListRow(index) {
+    noteUserSongAsk();
     if (listIsPlaying()) {
         switchSong(index);
         return;
@@ -389,7 +401,9 @@ function playListRow(index) {
 
 // The server appended `song` to playlist `id`: each loaded copy of that list
 // takes it too. Returns false when none did (the caller counts the song
-// itself). opts.genAt: viewGen when the add was asked for (a view opened
+// itself), 'loading' (truthy) when that playlist's view is still loading: its
+// answer recounts it, so the caller writes no count (D6).
+// opts.genAt: viewGen when the add was asked for (a view opened
 // since then may or may not have fetched it).
 function joinList(id, song, opts = {}) {
     id = String(id);
@@ -397,7 +411,7 @@ function joinList(id, song, opts = {}) {
     if (viewedId !== null && id === String(viewedId)) {
         if (!viewedSongs) { // still loading: load it again once this lands
             viewDirty = true;
-            return false;
+            return 'loading';
         }
         // Opened again since the add was asked for: its load may or may not
         // have the song, so reload it quietly (a push could double it)
@@ -456,11 +470,15 @@ function songCtx(key) {
 // The server took `key` out of Favorites (its FIRST match): the loaded
 // Favorites list follows, and its saved position moves the server's way.
 // The song playing plays on, and Next carries on from where it was.
-// Returns false when no loaded list is Favorites.
+// Returns false when no loaded list is Favorites, 'loading' (truthy: the
+// caller writes no count) while its view loads (see joinList).
 function dropFavorite(key) {
     let arr = null;
     if (viewedId === 'favorites') {
-        if (!viewedSongs) return false; // loading: its answer brings the new list
+        if (!viewedSongs) { // loading: its answer brings the new list
+            viewDirty = true;
+            return 'loading';
+        }
         arr = viewedSongs;
     } else if (String(activePlaylistId) === 'favorites') {
         arr = songsData;
@@ -546,6 +564,7 @@ async function resyncList(id, arr, opts = {}) {
 
 function nextSong() {
     if (isChangingSong) return;
+    noteUserSongAsk(); // only ever the user's Next (auto-advance is playNextByLoop)
     // The queue always wins over the normal playlist/shuffle progression.
     if (playQueue.length > 0) { advanceFromQueue(); return; }
     if (songsData.length === 0) return;
@@ -576,6 +595,7 @@ function nextSong() {
 
 function prevSong() {
     if (isChangingSong || songsData.length === 0) return;
+    noteUserSongAsk();
     if (shuffleMode !== 'off' && songHistory.length > 0) {
         // Go back to the actual previous song that played
         const prev = songHistory.pop();
@@ -978,7 +998,7 @@ function resetRadio() {
     try { if (radioProbePlayer) radioProbePlayer.destroy(); } catch (e) {}
     radioProbePlayer = null;
     isFetchingRadio = false;
-    showRadioLoading(false);
+    syncRadioLoading();
 }
 
 function toggleShuffle() {
@@ -1052,7 +1072,7 @@ function fetchRadioRecommendations(videoId) {
     if (isFetchingRadio || !videoId) return;
     pdbg('radio probe player created (smart shuffle)', videoId);
     isFetchingRadio = true;
-    showRadioLoading(true);
+    syncRadioLoading();
     // A reset since (another playlist started, shuffle went off) makes this
     // probe stale: it then only clears its own timer and player.
     const gen = radioGen;
@@ -1096,7 +1116,7 @@ function fetchRadioRecommendations(videoId) {
                             event.target.destroy();
                             radioProbePlayer = null;
                             isFetchingRadio = false;
-                            showRadioLoading(false);
+                            syncRadioLoading();
                         }
                     } catch(e) {
                         clearInterval(poll);
@@ -1104,7 +1124,7 @@ function fetchRadioRecommendations(videoId) {
                         if (gen === radioGen) {
                             radioProbePlayer = null;
                             isFetchingRadio = false;
-                            showRadioLoading(false);
+                            syncRadioLoading();
                         }
                     }
                 }, 500);
@@ -1115,7 +1135,7 @@ function fetchRadioRecommendations(videoId) {
                     return;
                 }
                 isFetchingRadio = false;
-                showRadioLoading(false);
+                syncRadioLoading();
                 try { if (radioProbePlayer) { radioProbePlayer.destroy(); } } catch(e) {}
                 radioProbePlayer = null;
             }
@@ -1134,7 +1154,7 @@ function processRadioPlaylist(videoIds, sourceVideoId, gen = radioGen) {
     const toFetch = newIds.slice(0, 8);
     if (toFetch.length === 0) {
         isFetchingRadio = false;
-        showRadioLoading(false);
+        syncRadioLoading();
         return;
     }
 
@@ -1179,7 +1199,7 @@ async function fetchRadioMetadata(videoIds, gen = radioGen) {
         if (song) radioPool.push(song);
     }
     isFetchingRadio = false;
-    showRadioLoading(false);
+    syncRadioLoading();
 }
 
 // The "finding songs…" row above the list follows the state (callers set
@@ -1199,9 +1219,6 @@ function syncRadioLoading() {
         songList.parentElement.insertBefore(indicator, songList);
     }
     indicator.style.display = want ? '' : 'none';
-}
-function showRadioLoading() {
-    syncRadioLoading();
 }
 
 async function playRadioSong(song) {
@@ -1549,6 +1566,7 @@ function currentDiscoverList() {
 window.discoverPlay = async function (i) {
     const item = currentDiscoverList()[i];
     if (!item) return;
+    noteUserSongAsk();
     if (!(await resolveDiscoverItem(item))) return;
     playRadioSong({ title: item.title, artist: item.artist, cover: item.cover || '', youtube_id: item.youtube_id });
 };
@@ -2030,6 +2048,7 @@ function removeFromQueue(i) {
 // Tap a queued song to jump to it now — drops the ones before it.
 function playQueueItem(i) {
     if (i < 0 || i >= playQueue.length) return;
+    noteUserSongAsk();
     const item = playQueue[i];
     playQueue.splice(0, i + 1);
     afterQueueChange();
@@ -2827,6 +2846,7 @@ function toggleMusic() {
 
     // If player isn't ready yet, queue the play
     if (!ytPlayer || !isPlayerReady()) {
+        noteUserSongAsk();
         pendingPlay = true;
         // Load lyrics immediately even if player isn't ready
         if (song && !currentLyrics && activeLyricIndex === -1) {
@@ -2836,6 +2856,7 @@ function toggleMusic() {
     }
 
     const state = ytPlayer.getPlayerState();
+    if (state !== YT.PlayerState.PLAYING) noteUserSongAsk(); // Play, not Pause
     if (state === YT.PlayerState.PLAYING) {
         ytPlayer.pauseVideo();
     } else if (!currentRowStarted() && songsData[currentSongIndex]) {
@@ -3685,6 +3706,9 @@ function startSongDrag(e) {
 
     li.classList.add('dragging');
     document.body.classList.add('song-dragging');
+    // The list being dragged: the drop applies to it only (see finishSongDrag)
+    const dragId = String(listId());
+    const dragArr = listSongs();
 
     const place = (y) => {
         const others = [...list.querySelectorAll('.song-list-item:not(.discover-item):not(.radio-song-item)')]
@@ -3739,7 +3763,7 @@ function startSongDrag(e) {
         edgeFrame = 0;
         li.classList.remove('dragging');
         document.body.classList.remove('song-dragging');
-        finishSongDrag();
+        finishSongDrag(dragId, dragArr);
         // A rebuild asked for mid-drag (a Discover fetch landing) runs now.
         if (songListRebuildDeferred) rebuildSongList();
     };
@@ -3748,15 +3772,18 @@ function startSongDrag(e) {
     document.addEventListener('pointercancel', end);
 }
 
-function finishSongDrag() {
+// dragId / dragArr: the list on screen when the drag started (it may be one
+// that's only being viewed). Another one on screen by the drop (the view
+// moved on or reloaded mid-drag): the rows are redrawn, nothing is saved.
+function finishSongDrag(dragId, dragArr) {
     const list = document.getElementById('songList');
     if (!list) return;
+    const id = String(listId());
+    const arr = listSongs();
+    if (id !== dragId || arr !== dragArr) { rebuildSongList(); return; }
     const rows = [...list.querySelectorAll('.song-list-item:not(.discover-item):not(.radio-song-item)')];
     const order = rows.map(r => parseInt(r.getAttribute('data-index'), 10));
 
-    // The list on screen, which may be one that's only being viewed
-    const id = String(listId());
-    const arr = listSongs();
     if (order.length !== arr.length || order.some(isNaN)) { rebuildSongList(); return; }
     if (order.every((v, i) => v === i)) return; // no change — DOM already correct
 
@@ -3924,18 +3951,28 @@ async function saveAndPlaySong(song) {
         if (window.mToast) window.mToast(msg); else showToast(msg);
         return true;
     }
+    // Named, not "the server's active one": that can lag behind the playing
+    // list (a failed save when a viewed list started playing).
+    const pid = String(activePlaylistId);
     let result;
     try {
         const response = await fetch('/save-music', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'add', song })
+            body: JSON.stringify({ action: 'add', song, playlist: pid })
         });
         result = await response.json();
     } catch (e) {
         return false;
     }
     if (!result.success) return false;
+    // A named add leaves the playlist's saved song alone (a plain one moved
+    // it): the song about to play is saved as current, as switchSong would.
+    fetch('/save-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'switch', index: result.index, playlist: pid })
+    }).catch(() => { /* the next track change saves the position again */ });
 
     songsData.push(song);
     currentSongIndex = songsData.length - 1;
@@ -4150,8 +4187,20 @@ function showPlaylistCreateModal() {
     document.getElementById('playlistEditName').focus();
 }
 
+// A playlist that's gone (deleted here or elsewhere) leaves the page without
+// a reload: its meta, its Library card, and the recents (the crate's
+// records, Home's and Search's tiles repaint through updateCrateRecords).
+function forgetPlaylist(id) {
+    id = String(id);
+    if (typeof playlistsMeta === 'object' && playlistsMeta) delete playlistsMeta[id];
+    document.querySelectorAll(`.record-card[data-playlist="${id}"]`).forEach((c) => c.remove());
+    if (Array.isArray(recentlyPlayed)) recentlyPlayed = recentlyPlayed.filter((x) => String(x) !== id);
+    updateCrateRecords();
+}
+
 // opts.confirmed: the caller already asked (the phone playlist menu's
-// two-tap row), so skip the browser dialog.
+// two-tap row), so skip the browser dialog. opts.inPlace: asked once it's
+// deleted; returning true means the caller removed it without a reload.
 async function deleteCurrentPlaylist(playlistId, opts = {}) {
     const id = typeof playlistId === 'string' && playlistId ? playlistId : editingPlaylistId;
     const meta = playlistsMeta[id];
@@ -4174,6 +4223,7 @@ async function deleteCurrentPlaylist(playlistId, opts = {}) {
         return;
     }
     if (result.success) {
+        if (opts.inPlace && opts.inPlace()) return;
         // Crate cards, conveyor rows, and recents all shift — let the server re-render.
         toastAfterReload(`Deleted “${meta.name}”`);
         location.reload();
@@ -5022,6 +5072,7 @@ function openPlayerView() {
 async function playRecentSong(i, opts = {}) {
     const song = Array.isArray(recentSongs) ? recentSongs[i] : null;
     if (!song) return;
+    noteUserSongAsk();
     if (!opts.stay) openPlayerView();
     const key = songPlayKey(song);
     const hasId = !!(song.youtube_id || song.spotify_id || song.mp3_url);
@@ -5192,9 +5243,11 @@ async function playSearchResult(i) {
 // Open a search hit's playlist and play the hit.
 async function playSearchHit(r) {
     const slug = String(r.playlistSlug);
-    // A song asked of the player while the playlist loads (Next, another
-    // song) is newer than this tap: then the hit is only pointed out.
-    const seqAt = songRequestSeq;
+    // A song the user asks for while the playlist loads (Next, another
+    // song) is newer than this tap: then the hit is only pointed out. The
+    // player moving on by itself meanwhile (a track ending) doesn't count.
+    noteUserSongAsk();
+    const askAt = userSongAskSeq;
     // The phone opens the playlist without playing it (resolving false if it
     // didn't load or the user left it meanwhile); elsewhere it switches to it.
     const ok = await selectPlaylistFromCrate(slug);
@@ -5216,7 +5269,7 @@ async function playSearchHit(r) {
     if (!listIsPlaying()) {
         // Shown, not playing yet: playing the hit makes it the playing list,
         // like a tap on its row
-        if (songRequestSeq !== seqAt) {
+        if (userSongAskSeq !== askAt) {
             if (typeof window.mFlashRow === 'function') window.mFlashRow(position);
             return;
         }
@@ -5731,9 +5784,9 @@ let unplayableStreak = 0;
 // Bumped on every load/cue request, so a slow lookup can tell it's stale.
 let songRequestSeq = 0;
 
-// Set only by joinOnScreenList: switching into an empty playlist leaves the
-// old track playing, and a song added to it then is the current row without
-// being loaded. Until something is loaded, that row hasn't started: tapping
+// Set by joinList (and by adopting a viewed list): switching into an empty
+// playlist leaves the old track playing, and a song added to it then is the
+// current row without being loaded. Until something is loaded, that row hasn't started: tapping
 // it, Play, Next or the old track ending start it (see currentRowStarted).
 let currentRowUnloaded = false;
 
@@ -7503,14 +7556,7 @@ async function scanAddSelected() {
     // playlist the phone only shows gets them without them playing
     const target = typeof window.mScanTarget === 'string' ? window.mScanTarget
         : (!listIsPlaying() ? String(listId()) : null);
-    const writeId = target !== null ? target : String(activePlaylistId);
     let added = 0;
-    const countElsewhere = () => { // as each lands (see importAudioFiles)
-        const m = playlistsMeta[target];
-        if (!m) return;
-        m.songCount = (m.songCount || 0) + 1;
-        setCrateCardCount(target, m.songCount);
-    };
     for (const i of indices) {
         const r = scanResults[i];
         if (!r.youtube) continue;
@@ -7523,12 +7569,16 @@ async function scanAddSelected() {
             youtube_id: r.youtube.videoId
         };
 
+        // No target: the playing list, named (the server's active playlist
+        // can lag behind it). A named add leaves its saved song alone, as
+        // this list's current song stays put too.
+        const writeId = target !== null ? target : String(activePlaylistId);
         writeBegin(writeId);
         try {
             const resp = await fetch('/save-music', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(Object.assign({ action: 'add', song }, target !== null ? { playlist: target } : {}))
+                body: JSON.stringify({ action: 'add', song, playlist: writeId })
             });
             const result = await resp.json();
 
@@ -7536,7 +7586,7 @@ async function scanAddSelected() {
                 added++;
                 if (target === null) songsData.push(song);
                 // Each loaded copy of the target list takes it (as it lands)
-                else if (!joinList(target, song)) countElsewhere();
+                else if (!joinList(target, song)) bumpSongCount(target);
                 if (target === 'favorites') favoriteKeys.add(songPlayKey(song));
             }
         } catch (e) {
@@ -7548,9 +7598,10 @@ async function scanAddSelected() {
 
     // Update UI
     if (target === null) {
+        // The playing list took them, which may not be the one on screen
         if (shuffleMode !== 'off') buildShuffleQueue();
-        rebuildSongList();
-        updateTrackCount();
+        if (songsData === listSongs()) rebuildSongList();
+        updateTrackCount(String(activePlaylistId), songsData);
     } else {
         const meta = playlistsMeta[target];
         if (target === 'favorites') updateFavoriteHearts();
@@ -8711,14 +8762,6 @@ async function importAudioFiles(files, opts = {}) {
     const target = opts.playlist !== undefined && opts.playlist !== null ? String(opts.playlist) : null;
     const addedSongs = [];
     let linkedOpen = 0;
-    // A song not joined to the list on screen (which counts itself) counts
-    // here, as it lands: opening that playlist mid-run recounts it from then
-    const countElsewhere = () => {
-        const meta = playlistsMeta[target];
-        if (!meta) return;
-        meta.songCount = (meta.songCount || 0) + 1;
-        setCrateCardCount(target, meta.songCount);
-    };
     const audio = [...files].filter(isAudioFile);
     if (audio.length === 0) {
         showImportToast('No audio files found — supported: mp3, m4a, aac, ogg, opus, wav, flac', true);
@@ -8753,7 +8796,9 @@ async function importAudioFiles(files, opts = {}) {
                 spotify_id: ''
             };
             // link: an upload matching a song already in this playlist
-            // attaches as its offline copy instead of duplicating it.
+            // attaches as its offline copy instead of duplicating it. No
+            // target: the playing list, named (the server's active playlist
+            // can lag behind it); its saved song is set once the run ends.
             const writeId = target !== null ? target : String(activePlaylistId);
             let result;
             writeBegin(writeId);
@@ -8761,7 +8806,7 @@ async function importAudioFiles(files, opts = {}) {
                 const res = await fetch('/save-music', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(Object.assign({ action: 'add', song, link: true }, target !== null ? { playlist: target } : {}))
+                    body: JSON.stringify({ action: 'add', song, link: true, playlist: writeId })
                 });
                 result = await res.json();
             } finally {
@@ -8785,7 +8830,7 @@ async function importAudioFiles(files, opts = {}) {
                     songsData.push(song);
                     currentSongIndex = result.index;
                 } else if (!joinList(target, song)) {
-                    countElsewhere(); // no loaded copy of it took the song
+                    bumpSongCount(target); // no loaded copy of it took the song
                 }
                 addedSongs.push(song);
                 added++;
@@ -8799,10 +8844,18 @@ async function importAudioFiles(files, opts = {}) {
 
     importInProgress = false;
     if (target === null) {
+        // The playing list took them, which may not be the one on screen
         if (shuffleMode !== 'off') buildShuffleQueue();
-        rebuildSongList();
-        updateTrackCount();
+        if (songsData === listSongs()) rebuildSongList();
+        updateTrackCount(String(activePlaylistId), songsData);
         if (added > 0) {
+            // The last song added is cued as current, and saved as such (a
+            // named add doesn't move the saved song as a plain one did)
+            fetch('/save-music', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'switch', index: currentSongIndex, playlist: String(activePlaylistId) })
+            }).catch(() => { /* the next track change saves the position again */ });
             const current = songsData[currentSongIndex];
             updateSongDisplay(current);
             playSongSource(current, true); // cue, don't blast the speakers
@@ -9739,6 +9792,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // A write landed while it loaded: once more, so it's included
             if (!res || !res.success || !res.playlist || !viewDirty || again >= 2) break;
         }
+        if (res && !res.success && res.error === 'Invalid playlist') {
+            // Deleted (elsewhere) or unknown: nothing to retry. The page
+            // forgets it and the screen closes.
+            forgetPlaylist(id);
+            leaveViewedPlaylist(id);
+            window.mToast('This playlist no longer exists.');
+            return false;
+        }
         if (!res || !res.success || !res.playlist) {
             // Stays put with a Retry (whatever is on top of it, or a back in flight)
             viewFailed = true;
@@ -9767,6 +9828,25 @@ document.addEventListener('DOMContentLoaded', () => {
         updateTrackCount(id, viewedSongs);
         viewChanged();
         return playerViewActive();
+    }
+
+    // Close the playlist screen showing a viewed playlist that's gone, and
+    // whatever is over it (its ⋯ sheet): the view collapses with it. A no-op
+    // once another list is on screen (a back in flight may land elsewhere).
+    function leaveViewedPlaylist(id) {
+        if (viewedId === null || String(viewedId) !== id) return;
+        if (pendingBack) {
+            afterBack.push(() => leaveViewedPlaylist(id));
+            return;
+        }
+        const pi = layerStack.findIndex((l) => l.name === 'playlist');
+        if (pi >= 0) {
+            popToDepth(pi); // its closeFn collapses the view
+            return;
+        }
+        if (window.mHidePlaylistSheet) window.mHidePlaylistSheet();
+        if (playerViewActive()) origShowPicker();
+        collapseView();
     }
 
     // The failed view's Retry
@@ -10875,6 +10955,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // (so it's never a preview whose + would save a second copy), otherwise
     // on its own (like Jump back in).
     function playInPlace(song) {
+        noteUserSongAsk();
         const key = songPlayKey(song);
         const idx = songsData.findIndex((s) => songPlayKey(s) === key);
         if (idx < 0) playRadioSong(song);
@@ -11057,11 +11138,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'added';
     }
 
-    // Kept for older callers: the list on screen takes the song (see joinList).
-    function joinOnScreenList(song) {
-        return joinList(listId(), song);
-    }
-
     if (addToSheet) {
         addToSheet.addEventListener('click', (e) => {
             if (e.target.closest('[data-m-addto-close]')) {
@@ -11084,11 +11160,6 @@ document.addEventListener('DOMContentLoaded', () => {
             addFoundSong(row.dataset.addto, song);
         });
     }
-
-    // The batch file import and the Song Scanner (outside this shell) hand
-    // songs for a playlist to the same rules: window.mJoinList(id, song).
-    window.mJoinOnScreenList = joinOnScreenList;
-    window.mJoinList = joinList;
 
     // ---- Add songs (portrait phones): a "To" line naming the playlist the
     // songs go to (the open one to start with; a picker changes it without
@@ -11570,9 +11641,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearTimeout(plDeleteTimer);
                 row.disabled = true;
                 row.querySelector('b').textContent = 'Deleting…';
-                // It reloads on success (the sheet's history entry is dropped
-                // by adoptHistory); on failure it says why.
-                Promise.resolve(deleteCurrentPlaylist(id, { confirmed: true })).finally(() => {
+                // The playing playlist reloads on success (the sheet's history
+                // entry is dropped by adoptHistory); one that's only shown goes
+                // in place, so what plays plays on. On failure it says why.
+                const inPlace = () => {
+                    if (id === String(activePlaylistId)) return false;
+                    const meta = playlistsMeta[id];
+                    const name = meta ? meta.name : 'the playlist';
+                    forgetPlaylist(id);
+                    leaveViewedPlaylist(id);
+                    window.mToast(`Deleted “${name}”`);
+                    return true;
+                };
+                Promise.resolve(deleteCurrentPlaylist(id, { confirmed: true, inPlace })).finally(() => {
                     if (row.isConnected) disarmPlDelete();
                 });
                 return;
