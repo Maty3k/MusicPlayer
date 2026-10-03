@@ -3631,8 +3631,20 @@ function onPhonePlaylistScreen() {
     return !!document.documentElement.dataset.mTab && window.matchMedia('(max-width: 600px)').matches;
 }
 
+// A song's length in seconds when the library knows it (a numeric
+// `duration` in seconds, or Spotify's `duration_ms`), else 0. The desktop
+// playlist page shows it per row and totals it in the header.
+function songDuration(song) {
+    if (!song) return 0;
+    const sec = Number(song.duration);
+    if (isFinite(sec) && sec > 0) return sec;
+    const ms = Number(song.duration_ms);
+    return isFinite(ms) && ms > 0 ? ms / 1000 : 0;
+}
+
 // A row of the list on screen (the playing list, or one that's only being
 // viewed: then no row is the playing one, and a tap starts that list).
+// Its album and length cells show only on the desktop playlist page.
 function buildSongListItem(song, index) {
     const itemCover = safeUrl(song.cover);
     const playingRow = listIsPlaying() && index === currentSongIndex;
@@ -3663,6 +3675,8 @@ function buildSongListItem(song, index) {
             ${String(listId()) === 'favorites' ? '' : `<button class="song-fav-btn ${favoriteKeys.has(songPlayKey(song)) ? 'is-fav' : ''}" data-index="${index}" onclick="event.stopPropagation(); toggleFavorite(${index})" title="Favorite" aria-label="Favorite">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.8-8.85a5.5 5.5 0 0 0 0-7.78z"/></svg>
             </button>`}
+            <span class="song-list-album">${escapeHtml(song.album || '')}</span>
+            <span class="song-list-dur">${songDuration(song) ? formatTime(songDuration(song)) : ''}</span>
             <span class="song-list-num">${String(index + 1).padStart(2, '0')}</span>
             <div class="song-actions">
                 <button class="song-send-btn" onclick="event.stopPropagation(); showSendMenu(this, ${index})" title="Send to playlist" aria-label="More options for ${escapeHtml(song.title)}">
@@ -9395,6 +9409,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // unfolds and split-screen. All desktop-redesign CSS hangs off it.
     const syncDv2 = () => {
         document.documentElement.classList.toggle('dv2', !shellMq.matches);
+        if (shellMq.matches) dvLeaveDeck();
         dvSyncBarVisibility();
     };
     shellMq.addEventListener('change', syncDv2);
@@ -9457,6 +9472,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // The desktop player bar follows the dock's rule (no keyboard case: a
     // desktop has none to make room for). html.dv2-bar shows it and pads
     // the page above it. Hoisted and DOM-only: syncDv2 calls it early.
+    // The desktop player view's deck mode (#musicPlayerView.dv-deck, desktop
+    // step 5): the turntable shows instead of the playlist page. The bar's
+    // turntable and lyrics buttons start it; opening a playlist (or the
+    // playlist screen), Home, and leaving the desktop layout end it.
+    // Hoisted and DOM-only, like the next one.
+    function dvLeaveDeck() {
+        const v = document.getElementById('musicPlayerView');
+        if (v && v.classList.contains('dv-deck')) v.classList.remove('dv-deck');
+    }
     function dvSyncBarVisibility() {
         const root = document.documentElement;
         const empty = (typeof songsData === 'undefined' || songsData.length === 0)
@@ -9559,6 +9583,14 @@ document.addEventListener('DOMContentLoaded', () => {
             barShuffle.setAttribute('aria-pressed', shuffleMode !== 'off' ? 'true' : 'false');
             barShuffle.setAttribute('aria-label', label);
             barShuffle.title = shuffleMode === 'smart' ? 'Smart shuffle' : (shuffleMode === 'shuffle' ? 'Shuffle on' : 'Shuffle off');
+        }
+        // The desktop playlist page's shuffle (the same global mode)
+        const plShuffle = document.getElementById('dvPlShuffle');
+        if (plShuffle) {
+            plShuffle.dataset.mode = shuffleMode;
+            plShuffle.setAttribute('aria-pressed', shuffleMode !== 'off' ? 'true' : 'false');
+            plShuffle.setAttribute('aria-label', shuffleMode === 'smart' ? 'Smart shuffle' : 'Shuffle');
+            plShuffle.title = shuffleMode === 'smart' ? 'Smart shuffle' : (shuffleMode === 'shuffle' ? 'Shuffle on' : 'Shuffle off');
         }
         const barLoop = document.getElementById('dvBarLoop');
         if (barLoop) {
@@ -9995,6 +10027,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // it didn't load or the user left it meanwhile.
     let viewOpening = null; // the open still loading: { id, gen, promise }
     function openPlaylistView(playlistId) {
+        dvLeaveDeck(); // (desktop) the playlist page, not the turntable
         const id = String(playlistId);
         const wasRoot = !playerViewActive();
         const genAt = openGen;
@@ -10152,6 +10185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // landscape Jump back in): it shows the playing list.
     const origOpenPlayerView = window.openPlayerView;
     window.openPlayerView = function () {
+        dvLeaveDeck(); // the playing list's page (the bar's turntable adds the deck after)
         const wasRoot = !playerViewActive();
         if (!inShell() || wasRoot) collapseView();
         const out = origOpenPlayerView.apply(this, arguments);
@@ -12901,39 +12935,64 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // ---- Lyrics and the turntable: both live in the player view for now
-        // (a side panel and a Now Playing page come in later steps).
+        // ---- Lyrics and the turntable: both live on the deck, which the
+        // desktop player view shows instead of a playlist page while
+        // #musicPlayerView has .dv-deck (desktop step 5; it becomes the Now
+        // Playing page later). The deck's clock (sleeve progress, lyrics)
+        // runs whether it shows or not: the bar's seek rides it.
         const playerView = $('musicPlayerView');
-        const viewOpen = () => !!(playerView && playerView.classList.contains('active'));
+        const deckOpen = () => !!(playerView && playerView.classList.contains('active') && playerView.classList.contains('dv-deck'));
         const lyricsBtn = $('dvBarLyrics');
         const deckBtn = $('dvBarDeck');
         window.dvSyncLyricsBtn = function () {
             if (!lyricsBtn) return;
-            const showing = viewOpen() && lyricsEnabled;
+            const showing = deckOpen() && lyricsEnabled;
             lyricsBtn.setAttribute('aria-pressed', showing ? 'true' : 'false');
             lyricsBtn.title = showing ? 'Hide lyrics' : 'Show lyrics';
         };
         const syncDeck = () => {
             if (deckBtn) {
-                deckBtn.setAttribute('aria-pressed', viewOpen() ? 'true' : 'false');
-                deckBtn.title = viewOpen() ? 'Back to your collection' : 'Open the turntable';
+                deckBtn.setAttribute('aria-pressed', deckOpen() ? 'true' : 'false');
+                deckBtn.title = deckOpen() ? 'Close the turntable' : 'Open the turntable';
             }
             window.dvSyncLyricsBtn();
         };
-        if (playerView) new MutationObserver(syncDeck).observe(playerView, { attributes: true, attributeFilter: ['class'] });
+        // Where the turntable button goes back to: the playlist page it was
+        // opened from (the playing list, or one that was only shown), else Home.
+        let deckReturn = null;
+        function openDeck() {
+            deckReturn = playerViewActive() && !deckOpen() ? String(listId()) : (deckOpen() ? deckReturn : null);
+            window.openPlayerView(); // the playing list behind it (the browse model's invariant)
+            if (playerView) playerView.classList.add('dv-deck');
+        }
+        function closeDeck() {
+            const back = deckReturn;
+            deckReturn = null;
+            if (back !== null && playlistsMeta && Object.prototype.hasOwnProperty.call(playlistsMeta, back)) {
+                if (back === String(activePlaylistId)) dvLeaveDeck();
+                else window.selectPlaylistFromCrate(back); // shows it again (and leaves the deck)
+                return;
+            }
+            window.showPlaylistPicker();
+        }
+        if (playerView) new MutationObserver(() => {
+            // Home (the view closing) also leaves the deck
+            if (!playerView.classList.contains('active') && playerView.classList.contains('dv-deck')) dvLeaveDeck();
+            syncDeck();
+        }).observe(playerView, { attributes: true, attributeFilter: ['class'] });
         if (lyricsBtn) {
             lyricsBtn.addEventListener('click', () => {
                 // Showing: turn them off (the sleeve's own on/off). Otherwise
                 // open the turntable with them on.
-                if (viewOpen() && lyricsEnabled) { toggleLyrics(); return; }
-                if (!viewOpen()) openPlayerView();
+                if (deckOpen() && lyricsEnabled) { toggleLyrics(); return; }
+                if (!deckOpen()) openDeck();
                 if (!lyricsEnabled) toggleLyrics();
                 window.dvSyncLyricsBtn();
             });
         }
         if (deckBtn) {
             deckBtn.addEventListener('click', () => {
-                if (viewOpen()) showPlaylistPicker(); else openPlayerView();
+                if (deckOpen()) closeDeck(); else openDeck();
             });
         }
 
@@ -13025,7 +13084,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const searchOpen = !!(searchModal && searchModal.classList.contains('active'));
             setCurrent(homeBtn, !playerOpen && !searchOpen);
             setCurrent(searchBtn, searchOpen);
-            const onScreen = playerOpen ? String(listId()) : null;
+            // The turntable (the player view's deck mode) is no playlist's page
+            const deck = playerOpen && playerView.classList.contains('dv-deck');
+            const onScreen = playerOpen && !deck ? String(listId()) : null;
             const playingId = String(activePlaylistId);
             const rows = rowButtons();
             rows.forEach((btn) => {
@@ -13210,6 +13271,446 @@ document.addEventListener('DOMContentLoaded', () => {
 
         syncCrackle();
         render();
+    })();
+
+    // ============================================================
+    // DESKTOP PLAYLIST PAGE (html.dv2, desktop step 5): the player view
+    // shows the list on screen as a full-width page: a header (cover,
+    // "Playlist", the name, its count and length; Play, shuffle, a ⋯ menu
+    // and "Find in these songs") over a song table (#, cover, title and
+    // artist, album and length when the library has them, ♥ and ⋯ on hover).
+    // The turntable (.music-main) shows instead only in deck mode
+    // (#musicPlayerView.dv-deck: the bar's turntable and lyrics buttons).
+    // Same DOM as the phone's playlist screen: the header's new pieces are
+    // display:none off the desktop, and the rows get their keyboard model
+    // (one in the Tab order, arrows, Enter plays, Alt+arrows move) only
+    // under html.dv2. Play is desktopSidebar's #dvPlPlay; the menu's actions
+    // are the phone ⋯ sheet's (same functions).
+    // ============================================================
+    (function desktopPlaylist() {
+        const $ = (id) => document.getElementById(id);
+        const head = $('dvPlHead');
+        const page = $('musicSidebar');
+        const list = $('songList');
+        if (!head || !page || !list || !playerView) return;
+        const isDesk = () => htmlEl.classList.contains('dv2');
+        const nameEl = $('dvPlName');
+        const metaEl = $('dvPlMeta');
+        const coverEl = $('dvPlCover');
+        const titleEl = $('playlistTitle');
+        const ROWS = '.song-list-item:not(.discover-item):not(.radio-song-item)';
+        const songRows = () => [...list.querySelectorAll(ROWS)];
+        const shownRows = () => songRows().filter((r) => !r.classList.contains('m-filtered-out'));
+
+        // ---- The header: name, count (+ length), cover, colour
+        const totalText = (sec) => {
+            const m = Math.max(1, Math.round(sec / 60));
+            if (m < 60) return m + ' min';
+            const h = Math.floor(m / 60);
+            return h + ' hr' + (m % 60 ? ' ' + (m % 60) + ' min' : '');
+        };
+        let coverKey = null;
+        let shownId = null;
+        function syncHead() {
+            const id = String(listId());
+            const meta = typeof playlistsMeta === 'object' && playlistsMeta ? playlistsMeta[id] : null;
+            const name = (titleEl && titleEl.textContent.trim()) || (meta && meta.name) || 'Playlist';
+            if (nameEl && nameEl.textContent !== name) nameEl.textContent = name;
+            const songs = listLoading() ? null : listSongs();
+            const n = songs ? songs.length : (meta ? meta.songCount || 0 : 0);
+            let text = n + (n === 1 ? ' song' : ' songs');
+            if (songs && n) {
+                const lengths = songs.map(songDuration);
+                // A total only when every song's length is known
+                if (lengths.every((d) => d > 0)) text += ', ' + totalText(lengths.reduce((a, d) => a + d, 0));
+            }
+            if (metaEl && metaEl.textContent !== text) metaEl.textContent = text;
+            const color = meta && /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#d4a574';
+            page.style.setProperty('--dv-pl-color', color);
+            const url = safeUrl(playlistCover(id));
+            if (coverEl && coverKey !== id + '|' + url) {
+                coverKey = id + '|' + url;
+                coverEl.innerHTML = url
+                    ? `<img src="${escapeHtml(url)}" alt="">`
+                    : `<span class="dv-pl-cover-empty">${NOTE_ICON}</span>`;
+                coverEl.classList.toggle('is-empty', !url);
+            }
+            if (songs) {
+                page.classList.toggle('dv-has-album', songs.some((s) => !!s && typeof s.album === 'string' && s.album.trim() !== ''));
+                page.classList.toggle('dv-has-dur', songs.some((s) => songDuration(s) > 0));
+            }
+            // Another playlist on screen: its find starts empty, reorder ends
+            if (id !== shownId) {
+                const first = shownId === null;
+                shownId = id;
+                if (!first) {
+                    if (filterInput && filterInput.value) {
+                        filterInput.value = '';
+                        applyRowFilter();
+                    }
+                    setReorder(false);
+                    setMenu(false, false);
+                }
+            }
+            syncMenu();
+        }
+
+        // ---- Rows: one in the Tab order (a roving tabindex), its buttons
+        // too; the playing one is aria-current. Desktop only.
+        let currentRow = null; // data-index of the row in the Tab order
+        function syncRows() {
+            if (!isDesk()) return;
+            const rows = songRows();
+            const shown = rows.filter((r) => !r.classList.contains('m-filtered-out'));
+            const keep = shown.find((r) => r.dataset.index === currentRow)
+                || shown.find((r) => r.classList.contains('active')) || shown[0] || null;
+            rows.forEach((r) => {
+                const on = r === keep;
+                r.tabIndex = on ? 0 : -1;
+                r.querySelectorAll('button').forEach((b) => { b.tabIndex = on ? 0 : -1; });
+                if (r.classList.contains('active')) r.setAttribute('aria-current', 'true');
+                else r.removeAttribute('aria-current');
+            });
+            list.setAttribute('aria-label', 'Songs');
+        }
+        // The playing row moves without a redraw (setActiveSongRow): follow it
+        let rowsQueued = false;
+        new MutationObserver((records) => {
+            if (rowsQueued || !isDesk() || !records.some((r) => r.target.matches && r.target.matches(ROWS))) return;
+            rowsQueued = true;
+            queueMicrotask(() => { rowsQueued = false; syncRows(); });
+        }).observe(list, { attributes: true, attributeFilter: ['class'], subtree: true });
+        list.addEventListener('focusin', (e) => {
+            if (!isDesk()) return;
+            const row = e.target.closest(ROWS);
+            if (!row || !list.contains(row) || (row.dataset.index === currentRow && row.tabIndex === 0)) return;
+            currentRow = row.dataset.index;
+            syncRows();
+        });
+        // A find query can hide the row in the Tab order: another takes it
+        if (filterInput) filterInput.addEventListener('input', () => syncRows());
+        function focusRow(row) {
+            if (!row) return;
+            currentRow = row.dataset.index;
+            syncRows();
+            row.focus();
+        }
+
+        // ---- Keyboard on a row: arrows/Home/End move, Enter or Space
+        // plays it (a shown-only list becomes the playing one), the context
+        // menu key opens its ⋯, Alt+↑/↓ moves the song (saved like a drag).
+        function moveRow(row, dir) {
+            if (listLoading()) return;
+            if (songOpInFlight) { songOpBusy(); return; }
+            const shown = shownRows();
+            const to = shown[shown.indexOf(row) + dir];
+            if (!to) return;
+            if (dir < 0) to.before(row); else to.after(row);
+            const at = songRows().indexOf(row);
+            // Rewrites the list in place, redraws it and saves the new order
+            finishSongDrag(String(listId()), listSongs());
+            const again = songRows()[at];
+            if (again) focusRow(again);
+        }
+        list.addEventListener('keydown', (e) => {
+            if (!isDesk()) return;
+            const row = e.target.closest(ROWS);
+            if (!row || !list.contains(row)) return;
+            const onRow = e.target === row;
+            const shown = shownRows();
+            const i = shown.indexOf(row);
+            if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault();
+                moveRow(row, e.key === 'ArrowUp' ? -1 : 1);
+                return;
+            }
+            let to = null;
+            if (e.key === 'ArrowDown') to = shown[i + 1] || false;
+            else if (e.key === 'ArrowUp') to = shown[i - 1] || false;
+            else if (e.key === 'Home' && onRow) to = shown[0] || false;
+            else if (e.key === 'End' && onRow) to = shown[shown.length - 1] || false;
+            if (to !== null) {
+                e.preventDefault();
+                if (to) focusRow(to);
+                return;
+            }
+            if (!onRow) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (!reordering) playListRow(parseInt(row.dataset.index, 10));
+            } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+                const more = row.querySelector('.song-send-btn');
+                if (more) { e.preventDefault(); more.click(); }
+            }
+        });
+
+        // ---- Reorder mode (the ⋯ menu): handles on every row, a click on
+        // a row doesn't play it, Done (or Esc) ends it.
+        const doneBtn = $('dvPlDone');
+        let reordering = false;
+        function setReorder(on) {
+            on = !!on && !listLoading() && listSongs().length > 1;
+            if (on === reordering) return;
+            reordering = on;
+            page.classList.toggle('dv-reordering', on);
+            if (doneBtn) doneBtn.hidden = !on;
+            if (on) {
+                if (doneBtn) doneBtn.focus({ preventScroll: true });
+            } else if (doneBtn && document.activeElement === doneBtn) {
+                const more = $('dvPlMore');
+                if (more) more.focus({ preventScroll: true });
+            }
+        }
+        if (doneBtn) doneBtn.addEventListener('click', () => setReorder(false));
+        list.addEventListener('click', (e) => {
+            if (!reordering || !isDesk() || e.target.closest('.song-drag-handle')) return;
+            if (!e.target.closest(ROWS)) return;
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+        page.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && reordering && isDesk() && !e.target.closest('#dvPlMenu')) setReorder(false);
+        });
+
+        // ---- Shuffle: the global mode (mSyncModes draws it)
+        const shuffleBtn = $('dvPlShuffle');
+        if (shuffleBtn) shuffleBtn.addEventListener('click', () => { toggleShuffle(); mSyncModes(); });
+
+        // ---- The ⋯ menu: the phone sheet's actions, as a popover
+        const moreBtn = $('dvPlMore');
+        const menu = $('dvPlMenu');
+        const item = (key) => (menu ? menu.querySelector(`[data-dv-pl="${key}"]`) : null);
+        const menuItems = () => (menu ? [...menu.querySelectorAll('[role="menuitem"]')].filter((b) => !b.hidden && !b.disabled) : []);
+        let deleteTimer = 0;
+        function disarmDelete() {
+            clearTimeout(deleteTimer);
+            const del = item('delete');
+            if (!del) return;
+            del.classList.remove('is-armed');
+            del.disabled = false;
+            del.textContent = 'Delete playlist';
+        }
+        function syncMenu() {
+            if (!menu) return;
+            const songs = listSongs();
+            const count = listLoading() ? 0 : songs.length;
+            const reorder = item('reorder');
+            if (reorder) reorder.hidden = count < 2;
+            // Offline only works for uploaded songs (YouTube and Spotify stream)
+            const offline = item('offline');
+            if (offline) {
+                const saved = getOfflinePlaylists().includes(listId());
+                const offlinable = count > 0 && songs.some((s) => s.mp3_url && s.mp3_url.startsWith('/media/'));
+                const saving = typeof offlineSaving !== 'undefined' && offlineSaving;
+                offline.hidden = !('caches' in window) || !(saved || offlinable || saving);
+                offline.disabled = saving;
+                offline.textContent = saving ? 'Saving for offline…' : (saved ? 'Remove download' : 'Save for offline');
+            }
+            const queue = item('queue');
+            if (queue) {
+                const queued = Array.isArray(playQueue) ? playQueue.length : 0;
+                queue.textContent = queued ? `Up next (${queued})` : 'Up next';
+            }
+            const name = nameEl ? nameEl.textContent : '';
+            if (moreBtn) moreBtn.setAttribute('aria-label', name ? `More options for ${name}` : 'More options for this playlist');
+        }
+        function setMenu(open, focusBtn) {
+            if (!menu || !moreBtn) return;
+            if (open === !menu.hidden) {
+                if (!open && focusBtn) moreBtn.focus({ preventScroll: true });
+                return;
+            }
+            if (open) syncMenu();
+            disarmDelete();
+            menu.hidden = !open;
+            moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) {
+                const first = menuItems()[0];
+                if (first) first.focus({ preventScroll: true });
+            } else if (focusBtn) {
+                moreBtn.focus({ preventScroll: true });
+            }
+        }
+        if (moreBtn && menu) {
+            moreBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setMenu(menu.hidden, false);
+            });
+            menu.addEventListener('click', (e) => {
+                const row = e.target.closest('[data-dv-pl]');
+                if (!row || row.disabled) return;
+                const id = String(listId()); // the playlist on screen
+                const action = row.dataset.dvPl;
+                if (action === 'delete') {
+                    // Two clicks: the first arms it for a few seconds
+                    if (!row.classList.contains('is-armed')) {
+                        row.classList.add('is-armed');
+                        row.textContent = 'Click again to delete';
+                        clearTimeout(deleteTimer);
+                        deleteTimer = setTimeout(disarmDelete, 3500);
+                        return;
+                    }
+                    clearTimeout(deleteTimer);
+                    row.disabled = true;
+                    row.textContent = 'Deleting…';
+                    // As the phone sheet: the playing playlist reloads the page;
+                    // one that's only shown goes in place (what plays plays on)
+                    const inPlace = () => {
+                        if (id === String(activePlaylistId)) return false;
+                        const meta = playlistsMeta[id];
+                        const name = meta ? meta.name : 'the playlist';
+                        setMenu(false, false);
+                        forgetPlaylist(id);
+                        leaveViewedPlaylist(id);
+                        window.mToast(`Deleted “${name}”`);
+                        return true;
+                    };
+                    Promise.resolve(deleteCurrentPlaylist(id, { confirmed: true, inPlace })).finally(() => {
+                        if (row.isConnected && !menu.hidden) disarmDelete();
+                    });
+                    return;
+                }
+                // Focus back on ⋯ first: the window that opens returns there
+                setMenu(false, true);
+                if (action === 'add') window.showAddSongModal();
+                else if (action === 'import') window.showSpotifyImportModal({ into: 'current', playlist: id });
+                else if (action === 'reorder') setReorder(true);
+                else if (action === 'edit') window.showPlaylistEditModal(id);
+                else if (action === 'share') sharePlaylistLink(id);
+                else if (action === 'queue') window.openQueueModal();
+                else if (action === 'offline') offlineFromMenu();
+            });
+            menu.addEventListener('keydown', (e) => {
+                const items = menuItems();
+                const i = items.indexOf(document.activeElement);
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setMenu(false, true); }
+                else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+                else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+                else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+                else if (e.key === 'Tab') setMenu(false, false);
+            });
+            document.addEventListener('click', (e) => {
+                if (!menu.hidden && !menu.contains(e.target) && !moreBtn.contains(e.target)) setMenu(false, false);
+            });
+        }
+
+        // ---- A row's ⋯ on the desktop: the anchored popover becomes a
+        // keyboard menu (focus in, arrows, Esc back to the ⋯)
+        const prevShowSendMenu = window.showSendMenu;
+        window.showSendMenu = function (btn) {
+            const out = prevShowSendMenu.apply(this, arguments);
+            const pop = activeSendMenu;
+            if (!isDesk() || !pop || pop.classList.contains('send-menu-sheet')) return out;
+            const row = btn && btn.closest ? btn.closest(ROWS) : null;
+            const titleNode = row ? row.querySelector('.song-list-title') : null;
+            const title = titleNode ? titleNode.textContent : '';
+            pop.setAttribute('role', 'menu');
+            pop.setAttribute('aria-label', title ? `${title}: song options` : 'Song options');
+            pop.querySelectorAll('.send-menu-divider').forEach((d) => d.setAttribute('role', 'separator'));
+            pop.querySelectorAll('.send-menu-title').forEach((t) => t.setAttribute('aria-hidden', 'true'));
+            const items = [...pop.querySelectorAll('.send-menu-item')];
+            items.forEach((it) => {
+                it.setAttribute('role', 'menuitem');
+                it.tabIndex = -1;
+                if (it.tagName !== 'BUTTON') {
+                    const n = it.querySelector('.send-menu-name');
+                    if (n) it.setAttribute('aria-label', 'Send to ' + n.textContent.trim());
+                }
+            });
+            // Into the page's main landmark (a fixed child of #music-section,
+            // which has no transform: still placed against the window), kept
+            // clear of the sidebar and the bar
+            const host = $('music-section');
+            if (host && btn && btn.getBoundingClientRect) {
+                host.appendChild(pop);
+                const area = host.getBoundingClientRect();
+                const at = btn.getBoundingClientRect();
+                let r = pop.getBoundingClientRect();
+                if (r.bottom > area.bottom - 8) {
+                    pop.style.maxHeight = Math.max(120, area.height - 16) + 'px';
+                    pop.style.overflowY = 'auto';
+                    r = pop.getBoundingClientRect();
+                    pop.style.top = Math.max(area.top + 8, Math.min(at.top - r.height - 4, area.bottom - r.height - 8)) + 'px';
+                }
+                r = pop.getBoundingClientRect();
+                if (r.left < area.left + 8) pop.style.left = (area.left + 8) + 'px';
+                else if (r.right > area.right - 8) pop.style.left = Math.max(area.left + 8, area.right - r.width - 8) + 'px';
+            }
+            const back = () => { if (btn && btn.isConnected) btn.focus({ preventScroll: true }); };
+            pop.addEventListener('keydown', (e) => {
+                const i = items.indexOf(document.activeElement);
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); window.closeSendMenu(); back(); }
+                else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+                else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+                else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+                else if ((e.key === 'Enter' || e.key === ' ') && i >= 0 && items[i].tagName !== 'BUTTON') { e.preventDefault(); items[i].click(); }
+                else if (e.key === 'Tab') window.closeSendMenu();
+            });
+            // A pick closes it: focus goes back to the row's ⋯
+            pop.addEventListener('click', () => setTimeout(() => {
+                const a = document.activeElement;
+                if (!pop.isConnected && (!a || a === document.body || !a.isConnected)) back();
+            }, 0));
+            if (items[0]) items[0].focus({ preventScroll: true });
+            return out;
+        };
+
+        // ---- Follow the page's update paths
+        const prevRebuild = window.rebuildSongList;
+        window.rebuildSongList = function () {
+            // A redraw replaces the rows: keyboard focus stays on the same one
+            const a = document.activeElement;
+            const row = a && list.contains(a) ? a.closest(ROWS) : null;
+            const at = row ? row.dataset.index : null;
+            const cls = row && a !== row ? (a.classList[0] || null) : null;
+            const out = prevRebuild.apply(this, arguments);
+            if (reordering && (listLoading() || listSongs().length < 2)) setReorder(false);
+            syncHead();
+            syncRows();
+            if (at !== null && isDesk() && !list.contains(document.activeElement)) {
+                const again = list.querySelector(`${ROWS}[data-index="${at}"]`);
+                const target = again && cls ? again.querySelector('.' + cls) : again;
+                if (target) target.focus({ preventScroll: true });
+            }
+            return out;
+        };
+        const prevCrate = window.updateCrateRecords;
+        if (typeof prevCrate === 'function') {
+            window.updateCrateRecords = function () {
+                const out = prevCrate.apply(this, arguments);
+                syncHead();
+                return out;
+            };
+        }
+        const prevViewHook = viewChangedHook;
+        viewChangedHook = function (opts) {
+            if (prevViewHook) prevViewHook(opts);
+            syncHead();
+        };
+        if (titleEl) new MutationObserver(syncHead).observe(titleEl, { childList: true, characterData: true, subtree: true });
+        const countEl = document.querySelector('.sidebar-track-count');
+        if (countEl) new MutationObserver(syncHead).observe(countEl, { childList: true, characterData: true, subtree: true });
+        new MutationObserver(() => {
+            if (!playerViewActive()) { setMenu(false, false); setReorder(false); }
+            syncHead();
+        }).observe(playerView, { attributes: true, attributeFilter: ['class'] });
+        // Leaving the desktop layout: the rows lose their desktop keyboard model
+        shellMq.addEventListener('change', () => {
+            setMenu(false, false);
+            setReorder(false);
+            if (isDesk()) { syncRows(); return; }
+            songRows().forEach((r) => {
+                r.removeAttribute('tabindex');
+                r.removeAttribute('aria-current');
+                r.querySelectorAll('button[tabindex]').forEach((b) => b.removeAttribute('tabindex'));
+            });
+            list.removeAttribute('aria-label');
+        });
+
+        syncHead();
+        syncRows();
     })();
 
     // ---- Leaving phone widths: strip mobile-only state so desktop is clean.

@@ -2,8 +2,9 @@
 
 `tests/browser/suites/desktop-bar-check.js` covers the player bar in Chrome at
 1440×900 and 1024×768, `desktop-sidebar-check.js` covers the sidebar at
-1440×900, 1024×768 and 800×600, and `desktop-home-check.js` covers Home at
-the same three sizes (plus an axe scan). All three check that phones
+1440×900, 1024×768 and 800×600, `desktop-home-check.js` covers Home and
+`desktop-playlist-check.js` the playlist page at the same three sizes (both
+with axe scans). All four check that phones
 (390×844, 844×390) and the app (`?app=1`) don't get them. The items below need a person at a
 real desktop browser. Run them in Chrome and in Firefox or Safari.
 
@@ -46,8 +47,9 @@ real desktop browser. Run them in Chrome and in Firefox or Safari.
   ↑/↓ move, Esc closes and returns focus to the button, and clicking
   outside closes it. A timer shows its minutes on the button, and "Turn off"
   clears it.
-- [ ] Turntable opens the player view. Pressed again, it goes back to the
-  crate.
+- [ ] Turntable opens the turntable (since step 5 it replaces the playlist
+  page). Pressed again, it goes back to where you were: Home, or the
+  playlist page you opened it from.
 - [ ] Tab through the bar: every control shows an amber focus ring, and a
   screen reader announces names and on/off states (e.g. "Shuffle,
   toggle button, pressed").
@@ -77,8 +79,8 @@ changes only when you press Play or click a song.
 - [ ] Click a song in that playlist. It starts, and the sidebar now marks
   that playlist as playing. Do the same with the Play button under the
   playlist's name; with shuffle on, it starts a random song.
-- [ ] After Home, the turntable button in the bar opens the playing list,
-  not the one you looked at before.
+- [ ] After Home, the turntable button in the bar opens the turntable with
+  the playing song, and no playlist is highlighted in the sidebar.
 - [ ] The "← Crate" button and the old console on the left of the
   collection are gone. Crackle and Make GIF are at the bottom of the
   sidebar, and pitch is still on the turntable.
@@ -153,3 +155,64 @@ bar shows the song. (It used to open the turntable.)
   stand still.
 - [ ] A phone, and the app (`?app=1`), show their own Home exactly as
   before.
+
+## Playlist page (step 5)
+
+Opening a playlist now shows a full-width page beside the sidebar instead
+of the narrow song list and the turntable. The turntable shows only from
+the bar's turntable (or lyrics) button.
+
+- [ ] The header: a big cover (a music note on the playlist's colour when
+  it has no covers), "Playlist", the name in large type (long names wrap to
+  two lines and end in "…"), and the song count. The top of the page takes
+  on the playlist's colour.
+- [ ] The round Play: on a playlist that isn't playing it starts it at its
+  saved song (a random one with shuffle on), and the sidebar marks it as
+  playing. On the playing list it plays and pauses, and shows a pause icon
+  only while that list plays (screen reader: "Play" / "Pause").
+- [ ] Shuffle next to Play turns on (amber, a dot), smart (the dot glows),
+  then off. The bar's shuffle follows, and the other way round.
+- [ ] ⋯ opens a menu under it: Add songs, Import into this playlist,
+  Reorder songs (2+ songs), Edit details, Share, Up next (with the queued
+  count), Save for offline (only with uploaded songs) and Delete playlist.
+  Each opens its window for this playlist or does its job. ↑/↓/Home/End
+  move, Esc closes it and returns focus to ⋯, clicking outside closes it.
+- [ ] Delete playlist: the first click changes it to "Click again to
+  delete"; the second deletes. A playlist that isn't playing goes at once
+  (Home, gone from the sidebar, the music plays on); the playing one
+  reloads the page.
+- [ ] Find in these songs (right of the buttons) hides the songs that don't
+  match, says "No songs here match …" when none do, and is empty again when
+  you open another playlist.
+- [ ] The songs are a table: #, cover, title and artist; Album and a length
+  column only appear when some songs have them. A long title ends in "…".
+- [ ] Hovering a row: its number turns into a play triangle, and ♥, ⋯ and ×
+  appear (a liked ♥ stays). Clicking a row plays it (a playlist that isn't
+  playing becomes the playing one). The playing song is amber with moving
+  bars in place of its number, only on the playing list and only while
+  music plays.
+- [ ] A row's ⋯ opens Play next / Add to queue / Send to … beside it, never
+  under the sidebar or the bar. ↑/↓ move, Enter picks, Esc closes back onto
+  the ⋯.
+- [ ] Reorder: drag a row by its handle (shown on hover). The new order
+  stays after a reload, for the playlist on screen, even when another one
+  is playing. ⋯ → Reorder songs shows every handle, clicks don't play,
+  Done (or Esc) ends it.
+- [ ] Keyboard: Tab reaches one song row (amber ring), then its buttons.
+  ↑/↓/Home/End move between rows, Enter or Space plays, Alt+↑/↓ moves the
+  song (saved), the context-menu key (or Shift+F10) opens its ⋯.
+- [ ] An empty playlist: "This playlist is empty" with Add songs and Import;
+  Play is dimmed; no find field and no column labels.
+- [ ] Open a playlist on a slow connection (DevTools throttling): the name
+  and count show at once with "Loading songs…". Offline: "Couldn't load
+  this playlist" with Retry, which loads it once you're back online.
+- [ ] Discover still shows under the songs and its suggestions play.
+- [ ] With the turntable showing, the bar's seek, the lyrics and the song
+  changes keep working; back on the playlist page the bar's time keeps
+  moving.
+- [ ] 601–900px window (icon rail): a smaller cover and title, no × column,
+  nothing overflows.
+- [ ] Each room theme (Settings → Appearance): the page and its text follow
+  the theme.
+- [ ] A phone, and the app (`?app=1`), show their own playlist screen
+  exactly as before.

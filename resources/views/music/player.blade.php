@@ -807,6 +807,17 @@
             </button>
 
             <div class="sidebar-header-area">
+                {{-- Desktop (html.dv2) playlist page header: cover, name, count
+                     (display:none everywhere else; script.js desktopPlaylist
+                     fills it from #playlistTitle and the list on screen) --}}
+                <div class="dv-pl-head" id="dvPlHead">
+                    <div class="dv-pl-cover" id="dvPlCover" aria-hidden="true"></div>
+                    <div class="dv-pl-info">
+                        <p class="dv-pl-kicker">Playlist</p>
+                        <h1 class="dv-pl-name" id="dvPlName">{{ $activePlaylist['name'] ?? 'My Records' }}</h1>
+                        <p class="dv-pl-meta" id="dvPlMeta"></p>
+                    </div>
+                </div>
                 <div class="sidebar-header-row">
                     <div class="music-sidebar-title" id="playlistTitle">{{ $activePlaylist['name'] ?? 'My Records' }}</div>
                     <button class="add-song-btn queue-btn" onclick="openQueueModal()" title="Up next queue">
@@ -836,6 +847,29 @@
                     <svg class="dv-pl-ic-pause" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg>
                     <span class="dv-pl-play-label">Play</span>
                 </button>
+                {{-- Desktop (html.dv2) only, beside Play: shuffle (the global
+                     mode), the playlist's ⋯ menu, and Done for reorder mode --}}
+                <button type="button" class="dv-pl-tool" id="dvPlShuffle" aria-pressed="false" aria-label="Shuffle" title="Shuffle">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h4v4"/><path d="M4 20 20 4"/><path d="M20 16v4h-4"/><path d="m15 15 5 5"/><path d="m4 4 5 5"/></svg>
+                    <span class="dv-pl-dot" aria-hidden="true"></span>
+                </button>
+                <div class="dv-pl-more-wrap" id="dvPlMoreWrap">
+                    <button type="button" class="dv-pl-tool" id="dvPlMore" aria-haspopup="menu" aria-expanded="false" aria-controls="dvPlMenu" aria-label="More options for this playlist" title="More options">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>
+                    </button>
+                    <div class="dv-pl-menu" id="dvPlMenu" role="menu" aria-label="Playlist options" hidden>
+                        <button type="button" role="menuitem" data-dv-pl="add" aria-haspopup="dialog">Add songs</button>
+                        <button type="button" role="menuitem" data-dv-pl="import" aria-haspopup="dialog">Import into this playlist</button>
+                        <button type="button" role="menuitem" data-dv-pl="reorder">Reorder songs</button>
+                        <button type="button" role="menuitem" data-dv-pl="edit" aria-haspopup="dialog">Edit details</button>
+                        <button type="button" role="menuitem" data-dv-pl="share">Share</button>
+                        <button type="button" role="menuitem" data-dv-pl="queue" aria-haspopup="dialog">Up next</button>
+                        <button type="button" role="menuitem" data-dv-pl="offline">Save for offline</button>
+                        <div class="dv-pl-menu-sep" role="separator"></div>
+                        <button type="button" role="menuitem" data-dv-pl="delete" class="dv-pl-menu-danger">Delete playlist</button>
+                    </div>
+                </div>
+                <button type="button" class="dv-pl-done" id="dvPlDone" hidden>Done</button>
                 {{-- Phone-only hero actions + find-in-playlist (hidden by .m-only off-phone) --}}
                 <div class="m-hero-actions m-only">
                     <button type="button" class="m-pl-add" id="mPlAdd">
@@ -853,6 +887,13 @@
                 </div>
                 <input class="crate-filter" type="search" id="mFilterInput" placeholder="Find in these songs" autocomplete="off" aria-label="Find in these songs">
                 <div class="m-filter-empty m-only" id="mFilterEmpty" role="status"></div>
+            </div>
+            {{-- Desktop (html.dv2) only: the song table's column labels --}}
+            <div class="dv-pl-cols" id="dvPlCols" aria-hidden="true">
+                <span class="dv-col-num">#</span>
+                <span class="dv-col-title">Title</span>
+                <span class="dv-col-album">Album</span>
+                <span class="dv-col-dur"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span>
             </div>
             <ul class="song-list" id="songList">
                 @if (count($songs) === 0)

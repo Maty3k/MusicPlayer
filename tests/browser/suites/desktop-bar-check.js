@@ -267,11 +267,12 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             await p.evaluate(() => { lyricsEnabled = false; updateLyricsControls(); });
             await clearCalls(p);
             await p.click('#dvBarLyrics');
-            const l1 = await p.evaluate(() => ({ calls: window.__calls.slice(), on: lyricsEnabled, player: document.getElementById('musicPlayerView').classList.contains('active'), pressed: document.getElementById('dvBarLyrics').getAttribute('aria-pressed') }));
+            const l1 = await p.evaluate(() => ({ calls: window.__calls.slice(), on: lyricsEnabled, player: document.getElementById('musicPlayerView').classList.contains('active'), deck: document.getElementById('musicPlayerView').classList.contains('dv-deck'), pressed: document.getElementById('dvBarLyrics').getAttribute('aria-pressed') }));
             await p.click('#dvBarLyrics');
             const l2 = await p.evaluate(() => ({ on: lyricsEnabled, player: document.getElementById('musicPlayerView').classList.contains('active'), pressed: document.getElementById('dvBarLyrics').getAttribute('aria-pressed'), sleeveOff: document.getElementById('lyricsToggleBtn').classList.contains('off') }));
-            check(`${tag} E lyrics: opens the player view with lyrics on (openPlayerView + toggleLyrics), again turns them off`,
-                l1.calls.includes('openPlayerView') && l1.calls.includes('toggleLyrics') && l1.on && l1.player && l1.pressed === 'true'
+            // (Desktop step 5: the lyrics live on the deck, .dv-deck)
+            check(`${tag} E lyrics: opens the player view's deck with lyrics on (openPlayerView + toggleLyrics), again turns them off`,
+                l1.calls.includes('openPlayerView') && l1.calls.includes('toggleLyrics') && l1.on && l1.player && l1.deck && l1.pressed === 'true'
                 && !l2.on && l2.player && l2.pressed === 'false' && l2.sleeveOff, { l1, l2 });
 
             // Turntable: toggles the player view
@@ -281,11 +282,12 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             await clearCalls(p);
             await p.click('#dvBarDeck');
             await p.waitForTimeout(100);
-            const d1 = await p.evaluate(() => ({ calls: window.__calls.slice(), player: document.getElementById('musicPlayerView').classList.contains('active'), pressed: document.getElementById('dvBarDeck').getAttribute('aria-pressed') }));
+            // (Desktop step 5: the turntable is the player view's deck mode, .dv-deck)
+            const d1 = await p.evaluate(() => ({ calls: window.__calls.slice(), player: document.getElementById('musicPlayerView').classList.contains('active'), deck: document.getElementById('musicPlayerView').classList.contains('dv-deck'), pressed: document.getElementById('dvBarDeck').getAttribute('aria-pressed') }));
             await p.click('#dvBarDeck');
             await p.waitForTimeout(100);
             const d2 = await p.evaluate(() => ({ crate: !document.getElementById('vinylCrateView').classList.contains('hidden'), pressed: document.getElementById('dvBarDeck').getAttribute('aria-pressed') }));
-            check(`${tag} E turntable opens the player view (openPlayerView) and goes back`, d0 === 'false' && d1.calls.includes('openPlayerView') && d1.player && d1.pressed === 'true' && d2.crate && d2.pressed === 'false', { d0, d1, d2 });
+            check(`${tag} E turntable opens the player view's deck (openPlayerView, .dv-deck) and goes back`, d0 === 'false' && d1.calls.includes('openPlayerView') && d1.player && d1.deck && d1.pressed === 'true' && d2.crate && d2.pressed === 'false', { d0, d1, d2 });
             check(`${tag} E errors`, p.__errs.length === 0, p.__errs);
             await ctx.close();
         }

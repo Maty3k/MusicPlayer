@@ -16715,14 +16715,22 @@ button.send-menu-cancel {
    than 600px, not a short landscape touch phone) and never in the app.
    Phones and the app shell never match these selectors, so their pixels
    are untouched. The only unscoped rule is the default hide of the new
-   desktop elements (#dvBar, #dvSide, #dvPlPlay).
+   desktop elements (#dvBar, #dvSide, the playlist page's #dvPl* pieces
+   and the song rows' album and length cells).
    New desktop rules go in this block, under html.dv2.
    ========================================================================== */
 
 /* New desktop-only DOM is hidden everywhere unless the scope shows it. */
 #dvBar,
 #dvSide,
-#dvPlPlay { display: none; }
+#dvPlPlay,
+#dvPlHead,
+#dvPlShuffle,
+#dvPlMoreWrap,
+#dvPlDone,
+#dvPlCols,
+.song-list-album,
+.song-list-dur { display: none; }
 
 html.dv2 {
     --dv-bar-h: 84px;
@@ -18152,4 +18160,588 @@ html.dv2 #vinylCrateView .crate-empty-actions button:focus-visible {
     html.dv2 #vinylCrateView .recent-song-play { transition: none; transform: none; }
     html.dv2 #vinylCrateView .crate-empty-actions button.is-primary:hover { transform: none; }
     html.dv2 body.m-playing #vinylCrateView .record-card.now-playing .card-eq i { animation: none; }
+}
+
+/* ---------- Step 5: the playlist page (the player view, #musicPlayerView) ----------
+   Opening a playlist shows one full-width page beside the sidebar: a
+   header (a big cover, "Playlist", the name, the count and, when every
+   song's length is known, the total; a round Play, shuffle, ⋯ and "Find in
+   these songs") over a table of songs: #, cover, title and artist, album
+   and length when the library has them, then ♥ and ⋯ (shown on hover or
+   focus; a liked ♥ always). The playing row shows the bars in the # column,
+   only on the playing list. The turntable (.music-main) leaves this page:
+   it shows instead, full width, in deck mode (#musicPlayerView.dv-deck,
+   the bar's turntable and lyrics buttons). The phone's playlist screen
+   uses the same DOM; everything here is html.dv2 only. */
+html.dv2 #musicPlayerView { background: var(--dv-side-bg); }
+html.dv2 #musicPlayerView:not(.dv-deck) .music-main { display: none; }
+html.dv2 #musicPlayerView.dv-deck #musicSidebar { display: none; }
+
+html.dv2 #musicSidebar {
+    /* The song table's columns: drag handle, #, cover, title (+ artist
+       under it), [album], [length], ♥, ⋯, remove */
+    --dv-cols: 16px 32px 40px minmax(0, 1fr) 32px 32px 28px;
+    --dv-a1: "grab num art title  fav more del";
+    --dv-a2: "grab num art artist fav more del";
+    --dv-page-pad: clamp(16px, 2.2vw, 32px);
+    flex: 1 1 auto;
+    width: auto !important; /* (the old resizable sidebar's inline width) */
+    min-width: 0;
+    max-width: none;
+    margin: 8px;
+    padding: 0 0 40px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--dv-panel);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--cream) 16%, transparent) transparent;
+    transition: none;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+html.dv2 #musicSidebar.dv-has-album {
+    --dv-cols: 16px 32px 40px minmax(0, 4fr) minmax(0, 3fr) 32px 32px 28px;
+    --dv-a1: "grab num art title  album fav more del";
+    --dv-a2: "grab num art artist album fav more del";
+}
+html.dv2 #musicSidebar.dv-has-dur {
+    --dv-cols: 16px 32px 40px minmax(0, 1fr) 56px 32px 32px 28px;
+    --dv-a1: "grab num art title  dur fav more del";
+    --dv-a2: "grab num art artist dur fav more del";
+}
+html.dv2 #musicSidebar.dv-has-album.dv-has-dur {
+    --dv-cols: 16px 32px 40px minmax(0, 4fr) minmax(0, 3fr) 56px 32px 32px 28px;
+    --dv-a1: "grab num art title  album dur fav more del";
+    --dv-a2: "grab num art artist album dur fav more del";
+}
+html.dv2 #musicSidebar .sidebar-resize-handle,
+html.dv2 #musicSidebar .sidebar-collapse-btn { display: none; }
+
+/* ---- The header ---- */
+html.dv2 #musicSidebar .sidebar-header-area {
+    display: grid;
+    grid-template-columns: auto auto auto auto minmax(0, 1fr) minmax(150px, 280px);
+    grid-template-areas:
+        "head head    head head head head"
+        "play shuffle more done .    find"
+        "note note    note note note note";
+    align-items: center;
+    column-gap: 8px;
+    height: auto;
+    margin: 0;
+    padding: calc(var(--dv-page-pad) + 8px) var(--dv-page-pad) 20px;
+    border: 0;
+    opacity: 1;
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--dv-pl-color, #d4a574) 40%, var(--dv-panel)) 0,
+        color-mix(in srgb, var(--dv-pl-color, #d4a574) 14%, var(--dv-panel)) 72%,
+        var(--dv-panel) 100%);
+    transition: none;
+}
+/* The old header's title, count and icon circles: the page header and
+   the ⋯ menu have them now */
+html.dv2 #musicSidebar .sidebar-header-row,
+html.dv2 #musicSidebar .sidebar-track-count { display: none; }
+
+html.dv2 #dvPlHead {
+    grid-area: head;
+    display: flex;
+    align-items: flex-end;
+    gap: clamp(16px, 2vw, 28px);
+    min-width: 0;
+    margin-bottom: 24px;
+}
+html.dv2 #dvPlHead .dv-pl-cover {
+    flex: 0 0 auto;
+    width: clamp(120px, 15vw, 232px);
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--dv-pl-color, #d4a574) 70%, #000);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+html.dv2 #dvPlHead .dv-pl-cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+html.dv2 #dvPlHead .dv-pl-cover-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: color-mix(in srgb, var(--cream) 80%, transparent);
+}
+html.dv2 #dvPlHead .dv-pl-cover-empty svg { width: 38%; height: 38%; }
+html.dv2 #dvPlHead .dv-pl-info { flex: 1 1 auto; min-width: 0; }
+html.dv2 #dvPlHead .dv-pl-kicker {
+    margin: 0 0 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--cream);
+}
+html.dv2 #dvPlHead .dv-pl-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    margin: 0;
+    font-family: var(--display);
+    font-size: clamp(2rem, 0.9rem + 3.4vw, 4.75rem);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -0.03em;
+    color: var(--cream);
+    overflow-wrap: anywhere;
+}
+html.dv2 #dvPlHead .dv-pl-meta {
+    margin: 12px 0 0;
+    font-size: 0.875rem;
+    color: color-mix(in srgb, var(--cream) 72%, transparent);
+}
+
+/* ---- The action row: a big round Play, shuffle, ⋯, Done, find ---- */
+html.dv2 #dvPlPlay {
+    grid-area: play;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    margin: 0 8px 0 0;
+    padding: 0;
+    border-radius: 50%;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+}
+html.dv2 #dvPlPlay:hover:not(:disabled) { transform: scale(1.05); }
+html.dv2 #dvPlPlay svg { width: 22px; height: 22px; }
+html.dv2 #dvPlPlay .dv-pl-ic-play { margin-left: 3px; }
+/* The word stays for screen readers ("Play" / "Pause") */
+html.dv2 #dvPlPlay .dv-pl-play-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+html.dv2 #musicSidebar .dv-pl-tool {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: color-mix(in srgb, var(--cream) 70%, transparent);
+    cursor: pointer;
+    transition: color 0.15s ease, transform 0.15s ease;
+}
+html.dv2 #musicSidebar .dv-pl-tool:hover { color: var(--cream); transform: scale(1.05); }
+html.dv2 #musicSidebar .dv-pl-tool:focus-visible,
+html.dv2 #musicSidebar .dv-pl-menu button:focus-visible,
+html.dv2 #dvPlDone:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+}
+html.dv2 #dvPlShuffle { grid-area: shuffle; }
+html.dv2 #dvPlShuffle[aria-pressed="true"] { color: var(--amber); }
+html.dv2 #dvPlShuffle .dv-pl-dot {
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0;
+}
+html.dv2 #dvPlShuffle[aria-pressed="true"] .dv-pl-dot { opacity: 1; }
+html.dv2 #dvPlShuffle[data-mode="smart"] .dv-pl-dot { box-shadow: 0 0 6px 1px rgba(var(--amber-rgb), 0.8); }
+
+html.dv2 #dvPlMoreWrap {
+    grid-area: more;
+    position: relative;
+    display: block;
+}
+html.dv2 #dvPlMore[aria-expanded="true"] { color: var(--cream); }
+html.dv2 #musicSidebar .dv-pl-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    min-width: 230px;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    border-radius: 12px;
+    background: var(--sleeve);
+    border: 1px solid var(--line);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+html.dv2 #musicSidebar .dv-pl-menu[hidden],
+html.dv2 #musicSidebar .dv-pl-menu [hidden] { display: none; }
+html.dv2 #musicSidebar .dv-pl-menu button {
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--cream);
+    font: 400 0.875rem/1.2 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+}
+html.dv2 #musicSidebar .dv-pl-menu button:hover,
+html.dv2 #musicSidebar .dv-pl-menu button:focus-visible { background: var(--dv-hover); }
+html.dv2 #musicSidebar .dv-pl-menu button:disabled { opacity: 0.55; cursor: default; }
+html.dv2 #musicSidebar .dv-pl-menu-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+html.dv2 #musicSidebar .dv-pl-menu .dv-pl-menu-danger { color: #f0a29a; }
+html.dv2 #musicSidebar .dv-pl-menu .dv-pl-menu-danger.is-armed {
+    background: rgba(200, 70, 60, 0.22);
+    color: #ffd3cc;
+    font-weight: 600;
+}
+
+html.dv2 #dvPlDone:not([hidden]) {
+    grid-area: done;
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    margin-left: 4px;
+    padding: 0 16px;
+    border: 1px solid color-mix(in srgb, var(--cream) 40%, transparent);
+    border-radius: 999px;
+    background: none;
+    color: var(--cream);
+    font: 600 0.85rem/1 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    cursor: pointer;
+}
+html.dv2 #dvPlDone:hover { border-color: var(--cream); }
+
+html.dv2 #musicSidebar #mFilterInput {
+    grid-area: find;
+    justify-self: end;
+    width: 100%;
+    height: 36px;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--cream) 9%, transparent);
+    color: var(--cream);
+    font: 400 0.85rem/1 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+html.dv2 #musicSidebar #mFilterInput::placeholder { color: color-mix(in srgb, var(--cream) 55%, transparent); }
+html.dv2 #musicSidebar #mFilterInput:focus {
+    border-color: color-mix(in srgb, var(--cream) 35%, transparent);
+    background: color-mix(in srgb, var(--cream) 12%, transparent);
+}
+html.dv2 #musicSidebar #mFilterInput:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+/* "No songs here match …" (the phone's line, shown here too) */
+html.dv2 #musicSidebar #mFilterEmpty {
+    grid-area: note;
+    display: block;
+    margin: 16px 0 0;
+    font-size: 0.9rem;
+    color: color-mix(in srgb, var(--cream) 72%, transparent);
+}
+html.dv2 #musicSidebar #mFilterEmpty:empty { display: none; }
+/* An empty playlist or one still loading: nothing to find yet */
+html.dv2 #musicSidebar.m-pl-empty #mFilterInput,
+html.dv2 #musicSidebar.m-pl-loading #mFilterInput { display: none; }
+
+/* ---- The song table ---- */
+html.dv2 #dvPlCols,
+html.dv2 #musicSidebar #songList > .song-list-item:not(.discover-item):not(.radio-song-item) {
+    display: grid;
+    grid-template-columns: var(--dv-cols);
+    column-gap: 12px;
+    align-items: center;
+}
+html.dv2 #dvPlCols {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    grid-template-areas: var(--dv-a1);
+    margin: 0 var(--dv-page-pad) 8px;
+    padding: 8px 8px;
+    border-bottom: 1px solid var(--line);
+    background: var(--dv-panel);
+    font-size: 0.8rem;
+    color: color-mix(in srgb, var(--cream) 60%, transparent);
+}
+html.dv2 #dvPlCols .dv-col-num { grid-area: num; justify-self: center; }
+html.dv2 #dvPlCols .dv-col-title { grid-column: art-start / title-end; }
+html.dv2 #dvPlCols .dv-col-album { grid-area: album; display: none; }
+html.dv2 #dvPlCols .dv-col-dur { grid-area: dur; display: none; justify-self: end; }
+html.dv2 #dvPlCols .dv-col-dur svg { display: block; }
+html.dv2 #musicSidebar.dv-has-album .dv-col-album { display: block; }
+html.dv2 #musicSidebar.dv-has-dur .dv-col-dur { display: block; }
+html.dv2 #musicSidebar.m-pl-empty #dvPlCols,
+html.dv2 #musicSidebar.m-pl-loading #dvPlCols { display: none; }
+
+html.dv2 #musicSidebar .song-list {
+    gap: 0;
+    padding: 0 var(--dv-page-pad);
+}
+html.dv2 #musicSidebar #songList > .song-list-item:not(.discover-item):not(.radio-song-item) {
+    grid-template-rows: auto auto;
+    grid-template-areas: var(--dv-a1) var(--dv-a2);
+    row-gap: 1px;
+    min-height: 56px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    transition: background-color 0.12s ease;
+}
+/* (Find: rows that don't match go, as everywhere else) */
+html.dv2 #musicSidebar #songList > .song-list-item.m-filtered-out:not(.discover-item):not(.radio-song-item) { display: none; }
+html.dv2 #musicSidebar #songList > .song-list-item:hover,
+html.dv2 #musicSidebar #songList > .song-list-item:focus-within { background: var(--dv-hover); }
+html.dv2 #musicSidebar #songList > .song-list-item.active { background: color-mix(in srgb, var(--cream) 10%, transparent); }
+html.dv2 #musicSidebar #songList > .song-list-item:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: -2px;
+}
+html.dv2 #musicSidebar #songList .song-list-item button:focus-visible,
+html.dv2 #musicSidebar #songList .song-drag-handle:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 1px;
+}
+
+/* Cells: the info block's title and artist become cells of their own */
+html.dv2 #musicSidebar #songList > .song-list-item:not(.discover-item):not(.radio-song-item) .song-list-info { display: contents; }
+html.dv2 #musicSidebar #songList .song-list-item .song-list-title {
+    grid-area: title;
+    align-self: end;
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: var(--cream);
+}
+html.dv2 #musicSidebar #songList .song-list-item .song-list-artist {
+    grid-area: artist;
+    align-self: start;
+    margin: 0;
+    font-size: 0.82rem;
+    letter-spacing: 0;
+    text-transform: none;
+    color: color-mix(in srgb, var(--cream) 62%, transparent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+html.dv2 #musicSidebar #songList > .song-list-item.active .song-list-title { color: var(--amber); }
+
+html.dv2 #musicSidebar #songList .song-list-item .song-list-vinyl {
+    grid-area: art;
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+}
+html.dv2 #musicSidebar #songList .song-list-item .song-list-cover { border-radius: 4px; }
+
+html.dv2 #musicSidebar #songList .song-list-num {
+    grid-area: num;
+    justify-self: center;
+    font-size: 0.9rem;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    color: color-mix(in srgb, var(--cream) 62%, transparent);
+}
+/* Hovering a row: its number turns into a play triangle */
+html.dv2 #musicSidebar:not(.dv-reordering) #songList > .song-list-item:not(.active):hover .song-list-num {
+    width: 14px;
+    height: 14px;
+    font-size: 0;
+    background: var(--cream);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+/* The playing row (only on the playing list): the bars instead of its
+   number, moving only while music plays */
+html.dv2 #musicSidebar #songList > .song-list-item.active .song-list-num { display: none; }
+html.dv2 #musicSidebar #songList > .song-list-item:not(.discover-item):not(.radio-song-item) .song-list-playing-indicator {
+    grid-area: num;
+    justify-self: center;
+    align-self: center;
+    height: 12px;
+    margin: 0;
+}
+html.dv2 #musicSidebar #songList .song-list-playing-indicator span { background: var(--amber); }
+html.dv2 body:not(.m-playing) #musicSidebar #songList .song-list-playing-indicator span { animation-play-state: paused; }
+
+html.dv2 #musicSidebar.dv-has-album #songList .song-list-album,
+html.dv2 #musicSidebar.dv-has-dur #songList .song-list-dur {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.85rem;
+    color: color-mix(in srgb, var(--cream) 62%, transparent);
+}
+html.dv2 #musicSidebar #songList .song-list-album { grid-area: album; }
+html.dv2 #musicSidebar #songList .song-list-dur {
+    grid-area: dur;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ♥, ⋯ and remove: on hover or focus (a liked ♥ always) */
+html.dv2 #musicSidebar #songList .song-actions {
+    display: contents;
+    position: static;
+    opacity: 1;
+    pointer-events: auto;
+}
+html.dv2 #musicSidebar #songList .song-fav-btn,
+html.dv2 #musicSidebar #songList .song-send-btn,
+html.dv2 #musicSidebar #songList .song-delete-btn,
+html.dv2 #musicSidebar #songList .song-drag-handle {
+    justify-self: center;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+html.dv2 #musicSidebar #songList .song-fav-btn { grid-area: fav; width: 32px; height: 32px; }
+html.dv2 #musicSidebar #songList .song-fav-btn.is-fav { opacity: 1; color: var(--amber); }
+html.dv2 #musicSidebar #songList .song-send-btn,
+html.dv2 #musicSidebar #songList .song-delete-btn {
+    width: 28px;
+    height: 28px;
+    background: none;
+    color: color-mix(in srgb, var(--cream) 70%, transparent);
+    transform: none;
+}
+html.dv2 #musicSidebar #songList .song-send-btn { grid-area: more; }
+html.dv2 #musicSidebar #songList .song-send-btn svg { display: none; }
+html.dv2 #musicSidebar #songList .song-send-btn::after {
+    content: '\22EF';
+    font-size: 1.3rem;
+    line-height: 1;
+}
+html.dv2 #musicSidebar #songList .song-delete-btn { grid-area: del; font-size: 1.2rem; }
+html.dv2 #musicSidebar #songList .song-send-btn:hover,
+html.dv2 #musicSidebar #songList .song-delete-btn:hover { color: var(--cream); background: var(--dv-hover); }
+html.dv2 #musicSidebar #songList .song-drag-handle {
+    grid-area: grab;
+    width: 16px;
+    margin: 0;
+    color: color-mix(in srgb, var(--cream) 55%, transparent);
+}
+html.dv2 #musicSidebar #songList > .song-list-item:hover :is(.song-fav-btn, .song-send-btn, .song-delete-btn, .song-drag-handle),
+html.dv2 #musicSidebar #songList > .song-list-item:focus-within :is(.song-fav-btn, .song-send-btn, .song-delete-btn, .song-drag-handle),
+html.dv2 #musicSidebar.dv-reordering #songList .song-drag-handle { opacity: 1; }
+/* Reorder mode: a row is a thing to drag, not to play */
+html.dv2 #musicSidebar.dv-reordering #songList > .song-list-item { cursor: default; }
+html.dv2 #musicSidebar.dv-reordering #songList .song-drag-handle { color: var(--cream); }
+html.dv2 #musicSidebar #songList > .song-list-item.dragging {
+    background: color-mix(in srgb, var(--cream) 14%, transparent);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+}
+
+/* Discover and the now-playing suggestion keep their own rows, on the
+   page's margins, in the page's colours */
+html.dv2 #musicSidebar #songList > .discover-header { margin-top: 32px; }
+html.dv2 #musicSidebar #songList .discover-label { color: var(--cream); }
+html.dv2 #musicSidebar #songList .discover-note { color: color-mix(in srgb, var(--cream) 72%, transparent); }
+
+/* A row's ⋯ popover (hosted in the page's main landmark on the desktop):
+   its "Send to…" label readable on the panel colours */
+html.dv2 .send-menu-title { color: color-mix(in srgb, var(--cream) 70%, transparent); }
+
+/* ---- Empty, loading, couldn't load ---- */
+html.dv2 #musicSidebar #songList > .song-list-empty {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 24px 8px 40px;
+    text-align: left;
+}
+html.dv2 #musicSidebar .song-list-empty-icon { display: none; }
+html.dv2 #musicSidebar .song-list-empty-text {
+    font-family: var(--display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--cream);
+}
+html.dv2 #musicSidebar .song-list-empty-sub {
+    max-width: 46ch;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: color-mix(in srgb, var(--cream) 72%, transparent);
+}
+html.dv2 #musicSidebar .song-list-empty-actions { display: flex; gap: 8px; margin-top: 8px; }
+html.dv2 #musicSidebar .song-list-empty-actions button {
+    height: 40px;
+    padding: 0 20px;
+    border-radius: 999px;
+    font: 600 0.9rem/1 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    cursor: pointer;
+}
+html.dv2 #musicSidebar .song-list-empty-add { background: var(--amber); color: var(--on-amber); border: 0; }
+html.dv2 #musicSidebar .song-list-empty-add:hover { background: var(--amber-hi); }
+html.dv2 #musicSidebar .song-list-empty-import {
+    background: none;
+    border: 1px solid color-mix(in srgb, var(--cream) 40%, transparent);
+    color: var(--cream);
+}
+html.dv2 #musicSidebar .song-list-empty-import:hover { border-color: var(--cream); }
+html.dv2 #musicSidebar .song-list-empty-actions button:focus-visible,
+html.dv2 #musicSidebar .song-list-retry:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+html.dv2 #musicSidebar #songList > .song-list-loading {
+    justify-content: flex-start;
+    gap: 16px;
+    padding: 24px 8px;
+    font-size: 0.95rem;
+    color: color-mix(in srgb, var(--cream) 72%, transparent);
+}
+html.dv2 #musicSidebar #songList > .song-list-loading.is-failed { color: var(--cream); }
+html.dv2 #musicSidebar .song-list-retry {
+    height: 36px;
+    padding: 0 18px;
+    border-radius: 999px;
+    font-weight: 600;
+}
+
+/* ---- 601-900px (beside the icon rail): a smaller header, no remove column */
+@media (max-width: 900px) {
+    html.dv2 #musicSidebar {
+        --dv-cols: 16px 28px 40px minmax(0, 1fr) 32px 32px 0;
+        --dv-page-pad: 16px;
+    }
+    html.dv2 #musicSidebar.dv-has-album { --dv-cols: 16px 28px 40px minmax(0, 3fr) minmax(0, 2fr) 32px 32px 0; }
+    html.dv2 #musicSidebar.dv-has-dur { --dv-cols: 16px 28px 40px minmax(0, 1fr) 48px 32px 32px 0; }
+    html.dv2 #musicSidebar.dv-has-album.dv-has-dur { --dv-cols: 16px 28px 40px minmax(0, 3fr) minmax(0, 2fr) 48px 32px 32px 0; }
+    html.dv2 #musicSidebar #songList .song-delete-btn { display: none; }
+    html.dv2 #dvPlHead { margin-bottom: 18px; }
+    html.dv2 #musicSidebar .sidebar-header-area {
+        grid-template-columns: auto auto auto auto minmax(0, 1fr) minmax(120px, 220px);
+    }
+    html.dv2 #musicSidebar #songList > .song-list-item:not(.discover-item):not(.radio-song-item),
+    html.dv2 #dvPlCols { column-gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html.dv2 #musicSidebar #songList .song-list-playing-indicator span { animation: none; }
+    html.dv2 #musicSidebar .dv-pl-tool,
+    html.dv2 #musicSidebar #songList > .song-list-item,
+    html.dv2 #musicSidebar #songList .song-fav-btn,
+    html.dv2 #musicSidebar #songList .song-send-btn,
+    html.dv2 #musicSidebar #songList .song-delete-btn,
+    html.dv2 #musicSidebar #songList .song-drag-handle { transition: none; }
+    html.dv2 #musicSidebar .dv-pl-tool:hover { transform: none; }
 }

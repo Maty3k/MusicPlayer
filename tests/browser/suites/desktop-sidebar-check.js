@@ -211,12 +211,16 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             const sh = await side(p);
             check(`${tag} E Home: the collection again, Home current, no playlist current, the shown one put away`,
                 h.crate && !h.player && h.viewedId === null && h.active === id && sh.home === 'page' && sh.rows.every(r => !r.current), { h, home: sh.home });
-            // The bar's turntable opens the playing list (not the one shown before)
+            // The bar's turntable opens the playing list (not the one shown before).
+            // Desktop step 5 changed this on purpose: the turntable is now the
+            // player view's deck mode (#musicPlayerView.dv-deck), which is no
+            // playlist's page, so no sidebar row is current while it shows.
             await p.click('#dvBarDeck');
             await p.waitForTimeout(700);
             const t = await playState(p);
             const st = await side(p);
-            check(`${tag} E the turntable then opens the playing list (current in the sidebar)`, t.player && t.onScreen === id && st.rows.find(r => r.id === id).current === 'page', { t });
+            const deck = await p.evaluate(() => document.getElementById('musicPlayerView').classList.contains('dv-deck'));
+            check(`${tag} E the turntable then shows the deck with the playing list behind it (no playlist current in the sidebar)`, t.player && deck && t.onScreen === id && st.rows.every(r => !r.current), { t, deck });
             await p.click('#dvSideHome');
             await p.waitForTimeout(500);
             await p.click('#dvSideSearch');
