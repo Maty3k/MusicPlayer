@@ -16717,7 +16717,7 @@ button.send-menu-cancel {
    are untouched. The only unscoped rule is the default hide of the new
    desktop elements (#dvBar, #dvSide, the playlist page's #dvPl* pieces,
    the song rows' album and length cells, the Search page's counts, the
-   side panel and the avatar menu).
+   side panel, the avatar menu and the skip link).
    New desktop rules go in this block, under html.dv2.
    ========================================================================== */
 
@@ -16736,6 +16736,7 @@ button.send-menu-cancel {
 #dvNpMenu,
 #dvPanel,
 #dvAcct,
+#dvSkip,
 .song-list-album,
 .song-list-dur,
 .m-search-count { display: none; }
@@ -17544,7 +17545,7 @@ html.dv2 #dvPlPlay {
 }
 html.dv2 #dvPlPlay:hover:not(:disabled) { background: var(--amber-hi); transform: scale(1.03); }
 html.dv2 #dvPlPlay:disabled { opacity: 0.45; cursor: default; }
-html.dv2 #dvPlPlay:focus-visible { outline: 2px solid var(--cream); outline-offset: 2px; }
+html.dv2 #dvPlPlay:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 html.dv2 #dvPlPlay .dv-pl-ic-pause { display: none; }
 html.dv2 #dvPlPlay.is-playing .dv-pl-ic-play { display: none; }
 html.dv2 #dvPlPlay.is-playing .dv-pl-ic-pause { display: block; }
@@ -19881,4 +19882,164 @@ html.dv2 #dvAcct .dv-acct-label {
     html.dv2 #dvAcctBtn { transition: none; }
     html.dv2 #dvAcctBtn:hover,
     html.dv2 #dvAcctBtn[aria-expanded="true"] { transform: none; }
+}
+
+/* ---------- Step 10: keyboard and accessibility ----------
+   "Skip to content" (the first Tab stop, shown while it has focus; it
+   moves focus to the page's heading), the Keyboard shortcuts window
+   (#dvKeysModal: "?" and the avatar menu), one focus ring for every
+   control (2px amber), only the page that shows in the Tab order and the
+   accessibility tree (the others fade out, then go), AA muted text in the
+   windows (as on the phone sheets) and no motion when the system asks for
+   less. Everything here is html.dv2 only. */
+
+/* ---- Skip to content: off screen until Tab reaches it ---- */
+html.dv2 #dvSkip {
+    display: block;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 400; /* over the sidebar, the page, the side panel and the bar */
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: var(--amber);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    transform: translateY(calc(-100% - 60px)); /* (its shadow too) */
+}
+html.dv2 #dvSkip:focus { transform: none; }
+html.dv2 #dvSkip:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+/* ---- A page that isn't showing: out of the Tab order and the
+   accessibility tree once it has faded out (it shows at once) ---- */
+html.dv2 #vinylCrateView.hidden {
+    visibility: hidden;
+    transition: opacity 0.6s ease, transform 0.6s ease, visibility 0s linear 0.6s;
+}
+html.dv2 #musicPlayerView:not(.active) {
+    visibility: hidden;
+    transition: opacity 0.5s ease, transform 0.5s ease, visibility 0s linear 0.5s;
+}
+/* (the hidden YouTube player in it plays on as before) */
+html.dv2 #musicPlayerView:not(.active) #youtubeContainer { visibility: visible; }
+
+/* ---- One focus ring: 2px amber, outside the control (inside it in
+   menus, rows and lists, where the box clips) ---- */
+html.dv2 :is(button, a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"]), [role="button"], [role="tab"], [role="menuitem"], [role="slider"]):focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+}
+html.dv2 :is(#dvSideAddMenu, #dvBarSleepMenu, #dvPlMenu, #dvNpMenu, #dvAcctMenu) [role="menuitem"]:focus-visible,
+html.dv2 .send-menu .send-menu-item:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: -2px;
+}
+/* The turntable is zoomed to the page: its ring keeps its 2px */
+html.dv2 #musicPlayerView.dv-deck #pitchTrack:focus-visible,
+html.dv2 #musicPlayerView.dv-deck #dvNpExtras .dv-np-x:focus-visible {
+    outline-width: calc(2px * var(--dv-np-unzoom, 1));
+}
+/* The lyrics fade at their edges: their ring is on their panel (step 6, 8) */
+html.dv2 #musicPlayerView.dv-deck #sleeveLyrics:focus-visible { outline: none; }
+/* The Search page's field: the ring goes round the field */
+html.dv2 #mSearchPage #mSearchInput:focus-visible { outline: none; }
+html.dv2 #mSearchPage .m-search-field:has(#mSearchInput:focus-visible) {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+}
+/* A heading that takes focus (Skip to content, Now Playing opening) is no
+   control: no ring */
+html.dv2 :is(#mGreeting, #dvPlName, #dvNpHeading):focus { outline: none; }
+
+/* ---- Muted text in the windows reads at AA (the phone sheets' fix) ---- */
+html.dv2 .add-song-modal .settings-hint,
+html.dv2 .add-song-modal .search-result-artist,
+html.dv2 .add-song-modal .settings-account-group .settings-hint,
+html.dv2 .add-song-modal .stats-section-label,
+html.dv2 .add-song-modal .stats-stat-label,
+html.dv2 .add-song-modal .stats-song-artist,
+html.dv2 .add-song-modal .stats-plays-unit,
+html.dv2 .add-song-modal .stats-empty,
+html.dv2 .add-song-modal .playlist-wizard-hint { color: rgba(251, 245, 234, 0.72); }
+
+/* ---- The Keyboard shortcuts window ---- */
+html.dv2 #dvKeysModal .dv-keys-panel {
+    width: 680px;
+    max-width: calc(100vw - 48px);
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+html.dv2 #dvKeysModal .add-song-modal-header { margin-bottom: 6px; }
+html.dv2 #dvKeysModal .dv-keys-note {
+    margin: 0 0 18px;
+    font-size: 0.85rem;
+    color: rgba(251, 245, 234, 0.72);
+}
+html.dv2 #dvKeysModal .dv-keys-cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 8px 32px;
+}
+html.dv2 #dvKeysModal h3 {
+    margin: 10px 0 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--amber);
+}
+html.dv2 #dvKeysModal .dv-keys-list { margin: 0; }
+html.dv2 #dvKeysModal .dv-keys-list > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+}
+html.dv2 #dvKeysModal .dv-keys-list > div:last-child { border-bottom: 0; }
+html.dv2 #dvKeysModal dt {
+    font-size: 0.875rem;
+    color: var(--cream);
+}
+html.dv2 #dvKeysModal dd {
+    margin: 0;
+    flex: 0 0 auto;
+    font-size: 0.8rem;
+    color: rgba(251, 245, 234, 0.72);
+    white-space: nowrap;
+}
+html.dv2 #dvKeysModal kbd {
+    display: inline-block;
+    min-width: 1.9em;
+    padding: 3px 7px;
+    border: 1px solid color-mix(in srgb, var(--cream) 28%, transparent);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--cream) 8%, transparent);
+    font: 600 0.78rem/1.2 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--cream);
+    text-align: center;
+}
+
+/* ---- Less motion: no transitions and no running animations anywhere on
+   the desktop (the turntable, the playing bars, the page fades, the
+   windows). Animations end at once rather than going (animationend still
+   fires for the script). ---- */
+@media (prefers-reduced-motion: reduce) {
+    html.dv2 *,
+    html.dv2 *::before,
+    html.dv2 *::after {
+        animation-duration: 0.01ms !important;
+        animation-delay: 0s !important;
+        animation-iteration-count: 1 !important;
+        transition: none !important;
+        scroll-behavior: auto !important;
+    }
 }

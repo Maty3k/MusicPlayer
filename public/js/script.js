@@ -3709,8 +3709,8 @@ function rebuildSongList() {
         // One non-row item (no .song-list-item, no data-index): row code and
         // a find query left over from another list never touch it.
         songList.innerHTML = viewFailed
-            ? `<li class="song-list-loading is-failed" role="alert">
-                <span class="song-list-loading-text">Couldn't load this playlist</span>
+            ? `<li class="song-list-loading is-failed">
+                <span class="song-list-loading-text" role="alert">Couldn't load this playlist</span>
                 <button type="button" class="song-list-retry" onclick="mRetryView()">Retry</button>
             </li>`
             : `<li class="song-list-loading">
@@ -12839,6 +12839,12 @@ document.addEventListener('DOMContentLoaded', () => {
             updateSleeveProgress();
             dvBarProgress(t, d);
         };
+        // Shift+← / → (desktopKeys): as the seek slider's arrows
+        window.dvSeekBy = (delta) => {
+            const d = duration();
+            if (!d) return;
+            seekTo(Math.min(position() + delta, Math.max(0, d - 1)));
+        };
         if (seek) {
             let dragging = false;
             const ratioAt = (e) => {
@@ -14624,6 +14630,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Focus back on the avatar first: the window that opens returns there
             setOpen(false, true);
             if (what === 'stats') window.showStatsModal();
+            else if (what === 'keys') { if (window.dvKeys) window.dvKeys.open(); }
             else if (what === 'bring') window.showBringMusicModal();
             else if (what === 'playback' || what === 'appearance' || what === 'account') {
                 window.showSettingsModal();
@@ -14682,6 +14689,268 @@ document.addEventListener('DOMContentLoaded', () => {
             syncLabel();
             return out;
         };
+    })();
+
+    // ============================================================
+    // DESKTOP WINDOWS (desktop step 10): on the desktop the page's windows
+    // (.add-song-modal: Settings, Your listening, Import, Add songs, Edit
+    // playlist, Bring your music over, Keyboard shortcuts...; and the GIF
+    // maker) act as dialogs. One that opens takes focus (what it focused
+    // itself, else its first control) and the page behind it goes inert
+    // (out of the Tab order and the accessibility tree); Esc closes the top
+    // one (unless it handles Esc itself, or can't be dismissed: the member
+    // welcome); one that closes hands focus back to what opened it. Phones
+    // keep their own layers (the phone shell's inert stack): nothing here
+    // runs outside html.dv2.
+    // ============================================================
+    (function desktopDialogs() {
+        const $ = (id) => document.getElementById(id);
+        const isDesk = () => htmlEl.classList.contains('dv2');
+        const WINDOWS = '.add-song-modal, .vgm-modal';
+        const OPEN = '.add-song-modal.active, .vgm-modal.active';
+        // The page around the windows (they live after it, in the body)
+        const PAGE = ['dvSkip', 'dvSide', 'music-section', 'dvPanel', 'dvBar'].map($).filter(Boolean);
+        const HIDE = {
+            settingsModal: 'hideSettingsModal',
+            statsModal: 'hideStatsModal',
+            spotifyImportModal: 'hideSpotifyImportModal',
+            addSongModal: 'hideAddSongModal',
+            playlistEditModal: 'hidePlaylistEditModal',
+            bringMusicModal: 'hideBringMusicModal',
+            queueModal: 'hideQueueModal',
+            scanModal: 'hideScanModal',
+            mAddToSheet: 'mHideAddToSheet',
+            vinylGifModal: 'closeVinylGifModal',
+            dvKeysModal: 'dvHideKeys',
+        };
+        const NO_ESC = ['memberWelcomeModal'];
+        const FOCUSABLE = 'button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+        const usable = (el) => !!el && el.isConnected && el !== document.body && !el.disabled
+            && !(el.closest && el.closest('[inert]')) && el.getClientRects().length > 0;
+        const stack = []; // { el, opener }, bottom to top
+        let pageInert = false;
+        // The last thing focused outside every window: the opener when a
+        // window focuses its own field as it opens
+        let lastOutside = null;
+        document.addEventListener('focusin', (e) => {
+            if (e.target && e.target.closest && !e.target.closest(WINDOWS)) lastOutside = e.target;
+        }, true);
+
+        function firstControl(win) {
+            const all = [...win.querySelectorAll(FOCUSABLE)].filter((el) => usable(el) && getComputedStyle(el).visibility !== 'hidden');
+            return all.find((el) => !el.matches('.add-song-modal-close, .vgm-close')) || all[0] || null;
+        }
+        // Focus went with the window (or never left it)
+        function lost(win) {
+            const a = document.activeElement;
+            return !a || a === document.body || win.contains(a) || !a.isConnected || a.getClientRects().length === 0;
+        }
+        function sync() {
+            const desk = isDesk();
+            const open = desk ? [...document.querySelectorAll(OPEN)] : [];
+            const inert = open.length > 0;
+            if (inert !== pageInert) {
+                pageInert = inert;
+                PAGE.forEach((el) => { el.inert = inert; });
+            }
+            // Closed ones leave the stack; focus goes back to their opener
+            for (let i = stack.length - 1; i >= 0; i--) {
+                if (open.includes(stack[i].el)) continue;
+                const gone = stack.splice(i, 1)[0];
+                if (!desk || !lost(gone.el)) continue;
+                const top = stack[stack.length - 1];
+                const back = usable(gone.opener) ? gone.opener : (top ? firstControl(top.el) : null);
+                if (back) back.focus({ preventScroll: true });
+            }
+            // New ones: remember what opened them, then move focus in
+            open.forEach((el) => {
+                if (stack.some((x) => x.el === el)) return;
+                const a = document.activeElement;
+                const opener = a && a !== document.body && !el.contains(a) ? a : lastOutside;
+                stack.push({ el, opener });
+                requestAnimationFrame(() => {
+                    if (!el.matches(OPEN) || el.contains(document.activeElement)) return;
+                    const to = firstControl(el);
+                    if (to) to.focus({ preventScroll: true });
+                });
+            });
+        }
+        let queued = false;
+        const queue = () => {
+            if (queued) return;
+            queued = true;
+            queueMicrotask(() => { queued = false; sync(); });
+        };
+        const watch = new MutationObserver(queue);
+        document.querySelectorAll(WINDOWS).forEach((w) => watch.observe(w, { attributes: true, attributeFilter: ['class'] }));
+        watch.observe(htmlEl, { attributes: true, attributeFilter: ['class'] });
+
+        // Esc closes the top window (after its own Esc, if it has one)
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape' || e.defaultPrevented || !isDesk()) return;
+            const top = stack[stack.length - 1];
+            if (!top || !top.el.matches(OPEN) || NO_ESC.includes(top.el.id)) return;
+            e.preventDefault();
+            const hide = HIDE[top.el.id] ? window[HIDE[top.el.id]] : null;
+            if (typeof hide === 'function') { hide(); return; }
+            const btn = top.el.querySelector('.add-song-modal-close, .vgm-close');
+            if (btn) btn.click();
+        });
+        sync();
+    })();
+
+    // ============================================================
+    // DESKTOP KEYBOARD (desktop step 10): shortcuts, "Skip to content" and
+    // the Keyboard shortcuts window ("?", and the avatar menu).
+    // The shortcuts (html.dv2 only; never while typing in a field, under a
+    // window or with a menu open; the media keys stay mediaSession's):
+    //   Space          play / pause
+    //   Ctrl/⌘ + → ←   next / previous song
+    //   Shift + → ←    forward / back 5 seconds
+    //   Ctrl/⌘ + ↑ ↓   volume up / down (10%)
+    //   M L S R        mute, like, shuffle, repeat
+    //   N Q Y          Now Playing, Up next, lyrics (open and close)
+    //   ?              the Keyboard shortcuts window
+    // ("/" and Ctrl/⌘+K open Search: desktopSearch; Esc closes what's on
+    // top: each part's own.) They press the bar's own buttons, so they do
+    // what a click does, and nothing while the bar isn't there. Space and
+    // the arrows leave a focused control its own meaning (a button's
+    // Space, a slider's arrows, a song row's Space); the Ctrl/⌘ arrows
+    // always go to the player.
+    // ============================================================
+    (function desktopKeys() {
+        const $ = (id) => document.getElementById(id);
+        const isDesk = () => htmlEl.classList.contains('dv2');
+        const usable = (el) => !!el && el.isConnected && !el.disabled
+            && !(el.closest && el.closest('[inert]')) && el.getClientRects().length > 0;
+        const press = (id) => {
+            const b = $(id);
+            if (!usable(b)) return false;
+            b.click();
+            return true;
+        };
+        const TEXT = /^(text|search|email|url|tel|password|number|date|datetime-local|month|time|week)$/i;
+        function typing(t) {
+            if (!t || t.nodeType !== 1) return false;
+            if (t.isContentEditable || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT') return true;
+            return t.tagName === 'INPUT' && TEXT.test(t.type || 'text');
+        }
+        // Controls with their own Space (and arrows)
+        const OWN_SPACE = 'button, a[href], input, select, textarea, summary, [role="button"], [role="link"], [role="menuitem"], [role="tab"], [role="slider"], [role="checkbox"], [role="switch"], [role="option"], [role="radio"], .song-list-item[tabindex]';
+        const SLIDERS = '[role="slider"], input[type="range"]';
+        // A window or an open menu has the keys
+        function covered() {
+            if (document.querySelector('.add-song-modal.active, .vgm-modal.active, .send-menu')) return true;
+            return [...document.querySelectorAll('[role="menu"]')].some((m) => m.getClientRects().length > 0);
+        }
+        function volumeBy(d) {
+            const range = $('dvBarVolume');
+            if (!usable(range) || typeof setVolume !== 'function') return false;
+            setVolume(Math.max(0, Math.min(100, Math.round(currentVolume) + d)));
+            return true;
+        }
+
+        // ---- The Keyboard shortcuts window (a dialog: desktopDialogs)
+        const keysModal = $('dvKeysModal');
+        if (keysModal && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || '')) {
+            keysModal.querySelectorAll('.dv-key-mod').forEach((k) => { k.textContent = '⌘'; });
+        }
+        const keysOpen = () => !!keysModal && keysModal.classList.contains('active');
+        function openKeys() {
+            if (!keysModal || !isDesk()) return;
+            keysModal.classList.add('active');
+        }
+        function closeKeys() {
+            if (keysModal) keysModal.classList.remove('active');
+        }
+        window.dvKeys = { open: openKeys, close: closeKeys, isOpen: keysOpen };
+        window.dvHideKeys = closeKeys;
+        if (keysModal) {
+            keysModal.addEventListener('click', (e) => {
+                if (e.target.closest('[data-dv-keys-close]')) closeKeys();
+            });
+        }
+        // Into a phone shell: it's a desktop window
+        new MutationObserver(() => {
+            if (!isDesk() && keysOpen()) closeKeys();
+        }).observe(htmlEl, { attributes: true, attributeFilter: ['class'] });
+
+        // ---- Skip to content: the page's heading (the Search page's field)
+        const skip = $('dvSkip');
+        function pageTarget() {
+            if (window.dvNowPlaying && window.dvNowPlaying.isOpen()) return $('dvNpHeading');
+            if (window.dvSearch && window.dvSearch.isOpen()) return $('mSearchInput');
+            if (playerViewActive()) return $('dvPlName');
+            return $('mGreeting');
+        }
+        if (skip) {
+            skip.addEventListener('click', (e) => {
+                e.preventDefault();
+                const to = pageTarget();
+                if (!to) return;
+                if (to.tagName !== 'INPUT' && !to.hasAttribute('tabindex')) to.tabIndex = -1;
+                to.focus();
+            });
+        }
+
+        // ---- Ctrl/⌘ + arrows: first (the capture phase), so a list's or a
+        // slider's own arrows never see them
+        window.addEventListener('keydown', (e) => {
+            if (!isDesk() || e.defaultPrevented || e.isComposing || e.altKey || e.shiftKey) return;
+            if (e.ctrlKey === e.metaKey) return; // one of them
+            const k = e.key;
+            if (k !== 'ArrowLeft' && k !== 'ArrowRight' && k !== 'ArrowUp' && k !== 'ArrowDown') return;
+            if (typing(e.target) || covered()) return;
+            const done = k === 'ArrowRight' ? press('dvBarNext')
+                : k === 'ArrowLeft' ? press('dvBarPrev')
+                    : volumeBy(k === 'ArrowUp' ? 10 : -10);
+            if (!done) return;
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+
+        // ---- The rest: after the page's own key handlers
+        const LETTERS = { m: 'dvBarMute', l: 'dvBarLike', s: 'dvBarShuffle', r: 'dvBarLoop', q: 'dvBarQueue', y: 'dvBarLyrics' };
+        document.addEventListener('keydown', (e) => {
+            if (!isDesk() || e.defaultPrevented || e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
+            const t = e.target;
+            if (typing(t)) return;
+            const k = e.key;
+            // ? opens this list (and closes it again)
+            if (k === '?') {
+                if (keysOpen()) { e.preventDefault(); closeKeys(); return; }
+                if (covered()) return;
+                e.preventDefault();
+                openKeys();
+                return;
+            }
+            if (covered()) return;
+            if (e.shiftKey) {
+                if (k !== 'ArrowLeft' && k !== 'ArrowRight') return;
+                if (t && t.closest && t.closest(SLIDERS)) return;
+                if (!usable($('dvBarSeek')) || typeof window.dvSeekBy !== 'function') return;
+                e.preventDefault();
+                window.dvSeekBy(k === 'ArrowRight' ? 5 : -5);
+                return;
+            }
+            if (k === ' ' || k === 'Spacebar') {
+                if (t && t.closest && t.closest(OWN_SPACE)) return;
+                if (!usable($('dvBarPlay'))) return;
+                e.preventDefault(); // (and no page scroll)
+                if (!e.repeat) press('dvBarPlay');
+                return;
+            }
+            if (e.repeat || k.length !== 1) return;
+            const key = k.toLowerCase();
+            if (key === 'n') {
+                const np = window.dvNowPlaying;
+                if (!np || !usable($('dvBarDeck'))) return;
+                e.preventDefault();
+                if (np.isOpen()) np.close(); else np.open(document.activeElement);
+                return;
+            }
+            if (LETTERS[key] && press(LETTERS[key])) e.preventDefault();
+        });
     })();
 
     // ---- Leaving phone widths: strip mobile-only state so desktop is clean.

@@ -8,7 +8,8 @@
 // outside, a second click), its keys (arrows, Home, End; focus back on the
 // avatar), its header (the name and email, as on the phone You page) and
 // items (Your listening, Bring your music over, Settings: Playback /
-// Appearance / Account, Install the app only while the browser offers it,
+// Appearance / Account, Keyboard shortcuts (desktop step 10), Install the
+// app only while the browser offers it,
 // Log out), each opening the right window or tab with focus coming back to
 // the avatar when it closes; Log out posting the logout form (intercepted:
 // the shared test session stays logged in); a new name reaching it; Home
@@ -155,7 +156,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         const from = s.phoneName && s.phoneName !== 'Your account' ? s.phoneName : s.phoneSub;
         return from ? Array.from(from)[0].toUpperCase() : null;
     };
-    const ITEMS = 'Your listening|Bring your music over|Playback|Appearance|Account|Log out';
+    const ITEMS = 'Your listening|Bring your music over|Playback|Appearance|Account|Keyboard shortcuts|Log out';
 
     for (const vp of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 800, height: 600 }]) {
         const tag = `${vp.width}x${vp.height}`;
@@ -216,7 +217,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             const o = await acctState(p);
             check(`${tag} B a click opens the menu (expanded), focus on its first item`, o.open && o.expanded === 'true' && o.focus === 'Your listening' && o.focusInMenu, { open: o.open, expanded: o.expanded, focus: o.focus });
             check(`${tag} B its header: the name and email (as on the phone You page)`, o.name === o.phoneName && o.sub === o.phoneSub && !!o.name, { name: o.name, sub: o.sub, phone: [o.phoneName, o.phoneSub] });
-            check(`${tag} B a labelled menu: Your listening, Bring your music over, Settings (Playback, Appearance, Account), Log out; no Install without the browser's offer`,
+            check(`${tag} B a labelled menu: Your listening, Bring your music over, Settings (Playback, Appearance, Account), Keyboard shortcuts, Log out; no Install without the browser's offer`,
                 o.menuRole === 'menu' && o.menuLabel === 'Account' && o.items.join('|') === ITEMS && o.groups.join(',') === 'Settings:Playback/Appearance/Account' && o.seps === 2,
                 { role: o.menuRole, label: o.menuLabel, items: o.items, groups: o.groups, seps: o.seps });
             check(`${tag} B it fits: under the avatar, on the page, above the bar`, !!o.pop && o.pop.t >= o.box.b && o.pop.r <= o.pageBox.r && o.pop.l >= o.pageBox.l && (!o.bar || o.pop.b <= o.bar.t) && o.pop.b <= o.vh,
@@ -265,6 +266,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
                 ['playback', 'settingsModal', 'playback', () => hideSettingsModal()],
                 ['appearance', 'settingsModal', 'appearance', () => hideSettingsModal()],
                 ['account', 'settingsModal', 'account', () => hideSettingsModal()],
+                ['keys', 'dvKeysModal', null, () => window.dvKeys.close()],
             ];
             for (const [item, modal, tab, hide] of cases) {
                 await openMenu(p);

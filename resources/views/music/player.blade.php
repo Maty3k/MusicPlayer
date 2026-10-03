@@ -91,6 +91,11 @@
 </head>
 <body>
 
+    {{-- Desktop: "Skip to content", the first stop for Tab (html.dv2 only;
+         display:none everywhere else). script.js (desktopKeys) moves focus
+         to the page's heading (the Search page's field). --}}
+    <a href="#music-section" class="dv-skip" id="dvSkip">Skip to content</a>
+
     {{-- Desktop sidebar: Home, Search, Your Library, + (html.dv2 only;
          display:none everywhere else). script.js (desktopSidebar) fills the
          playlist rows from playlistsMeta and keeps them in step. --}}
@@ -211,6 +216,10 @@
                             <span>Account</span>
                         </button>
                     </div>
+                    <button type="button" role="menuitem" data-dv-acct="keys" aria-haspopup="dialog" aria-keyshortcuts="Shift+?">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h1M10.5 10h1M14.5 10h1M18 10h-.5M7 14h10"/></svg>
+                        <span>Keyboard shortcuts</span>
+                    </button>
                     {{-- Only while the browser offers to install (beforeinstallprompt) --}}
                     <button type="button" role="menuitem" data-dv-acct="install" hidden>
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 7.5v6M9.4 11.2 12 13.8l2.6-2.6M8 20.5h8"/></svg>
@@ -1230,6 +1239,31 @@
         </div><!-- End music-player-view -->
     </main>
 
+    {{-- Desktop side panel (desktop step 8): Up next and Lyrics on the right
+         of the page, above the bar (html.dv2 only; display:none everywhere
+         else). After the page and before the bar in the markup, so Tab goes
+         sidebar, page, side panel, bar (desktop step 10). The bar's queue and lyrics buttons open it on their tab.
+         script.js (desktopPanel) moves #queueBody in here on the desktop
+         and the sleeve's lyrics (.sleeve-lyrics-zone) while the Lyrics tab
+         shows and Now Playing doesn't. --}}
+    <aside id="dvPanel" aria-label="Up next and lyrics" data-tab="queue">
+        <div class="dv-panel-box">
+            <div class="dv-panel-head">
+                <div class="dv-panel-tabs" role="tablist" aria-label="Side panel">
+                    <button type="button" role="tab" class="dv-panel-tab" id="dvPanelTabQueue" aria-controls="dvPanelQueue" aria-selected="true">Up next</button>
+                    <button type="button" role="tab" class="dv-panel-tab" id="dvPanelTabLyrics" aria-controls="dvPanelLyrics" aria-selected="false" tabindex="-1">Lyrics</button>
+                </div>
+                <button type="button" class="dv-panel-close" id="dvPanelClose" aria-label="Close side panel" title="Close">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+            </div>
+            <div class="dv-panel-body" id="dvPanelQueue" role="tabpanel" aria-labelledby="dvPanelTabQueue" tabindex="-1"></div>
+            <div class="dv-panel-body" id="dvPanelLyrics" role="tabpanel" aria-labelledby="dvPanelTabLyrics" tabindex="-1" hidden>
+                <p class="dv-panel-note" id="dvPanelLyricsNote" hidden>The lyrics are on the Now Playing page.</p>
+            </div>
+        </div>
+    </aside>
+
     <!-- Mobile dock: persistent bottom transport (phones only; .m-only is
          display:none outside the mobile media query). The .song-title /
          .song-artist spans ride setNowPlayingText's querySelectorAll fan-out,
@@ -1283,26 +1317,26 @@
                 <span class="song-artist">{{ $current['artist'] ?? '' }}</span>
             </span>
             </button>
-            <button type="button" class="dv-bar-btn dv-bar-like" id="dvBarLike" aria-pressed="false" aria-label="Favorite">
+            <button type="button" class="dv-bar-btn dv-bar-like" id="dvBarLike" aria-pressed="false" aria-keyshortcuts="L" aria-label="Favorite">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.8-8.85a5.5 5.5 0 0 0 0-7.78z"/></svg>
             </button>
         </div>
         <div class="dv-bar-center">
             <div class="dv-bar-transport" role="toolbar" aria-label="Playback">
-                <button type="button" class="dv-bar-btn dv-bar-mode" id="dvBarShuffle" data-mode="off" aria-pressed="false" aria-label="Shuffle">
+                <button type="button" class="dv-bar-btn dv-bar-mode" id="dvBarShuffle" data-mode="off" aria-pressed="false" aria-keyshortcuts="S" aria-label="Shuffle">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
                     <span class="dv-bar-dot" aria-hidden="true"></span>
                 </button>
-                <button type="button" class="dv-bar-btn" id="dvBarPrev" aria-label="Previous">
+                <button type="button" class="dv-bar-btn" id="dvBarPrev" aria-keyshortcuts="Control+ArrowLeft Meta+ArrowLeft" aria-label="Previous">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="5" y="5.4" width="2.4" height="13.2" rx="1.1"/><path d="M18.6 6.3a1.1 1.1 0 0 0-1.7-.93l-8 5.7a1.1 1.1 0 0 0 0 1.86l8 5.7a1.1 1.1 0 0 0 1.7-.93z"/></svg>
                 </button>
-                <button type="button" class="dv-bar-play" id="dvBarPlay" aria-label="Play">
+                <button type="button" class="dv-bar-play" id="dvBarPlay" aria-keyshortcuts="Space" aria-label="Play">
                     <span class="dv-ic-play"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M6.4 5.6a1.1 1.1 0 0 1 1.68-.94l9.6 6.4a1.1 1.1 0 0 1 0 1.88l-9.6 6.4a1.1 1.1 0 0 1-1.68-.94z"/></svg></span><span class="dv-ic-pause"><svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><rect x="6.6" y="5" width="3.6" height="14" rx="1.5"/><rect x="13.8" y="5" width="3.6" height="14" rx="1.5"/></svg></span>
                 </button>
-                <button type="button" class="dv-bar-btn" id="dvBarNext" aria-label="Next">
+                <button type="button" class="dv-bar-btn" id="dvBarNext" aria-keyshortcuts="Control+ArrowRight Meta+ArrowRight" aria-label="Next">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M5.4 6.3a1.1 1.1 0 0 1 1.7-.93l8 5.7a1.1 1.1 0 0 1 0 1.86l-8 5.7a1.1 1.1 0 0 1-1.7-.93z"/><rect x="16.6" y="5.4" width="2.4" height="13.2" rx="1.1"/></svg>
                 </button>
-                <button type="button" class="dv-bar-btn dv-bar-mode" id="dvBarLoop" data-mode="off" aria-pressed="false" aria-label="Repeat">
+                <button type="button" class="dv-bar-btn dv-bar-mode" id="dvBarLoop" data-mode="off" aria-pressed="false" aria-keyshortcuts="R" aria-label="Repeat">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
                     <span class="dv-bar-loop-one" aria-hidden="true">1</span>
                     <span class="dv-bar-dot" aria-hidden="true"></span>
@@ -1310,7 +1344,7 @@
             </div>
             <div class="dv-bar-seek">
                 <span class="dv-bar-time" id="dvBarElapsed">0:00</span>
-                <div class="dv-bar-track" id="dvBarSeek" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00 of 0:00">
+                <div class="dv-bar-track" id="dvBarSeek" role="slider" tabindex="0" aria-keyshortcuts="Shift+ArrowLeft Shift+ArrowRight" aria-label="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00 of 0:00">
                     <div class="dv-bar-rail"><div class="dv-bar-fill" id="dvBarFill"></div></div>
                     <div class="dv-bar-knob" id="dvBarKnob"></div>
                 </div>
@@ -1318,10 +1352,10 @@
             </div>
         </div>
         <div class="dv-bar-extras" role="group" aria-label="More controls">
-            <button type="button" class="dv-bar-btn" id="dvBarLyrics" aria-pressed="false" aria-label="Lyrics">
+            <button type="button" class="dv-bar-btn" id="dvBarLyrics" aria-pressed="false" aria-keyshortcuts="Y" aria-label="Lyrics">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 17.4V6.2l8-1.7v11.2"/><circle cx="7.2" cy="17.4" r="2.3"/><circle cx="15.2" cy="15.7" r="2.3"/></svg>
             </button>
-            <button type="button" class="dv-bar-btn" id="dvBarQueue" aria-pressed="false" aria-controls="dvPanel" aria-label="Up next">
+            <button type="button" class="dv-bar-btn" id="dvBarQueue" aria-pressed="false" aria-keyshortcuts="Q" aria-controls="dvPanel" aria-label="Up next">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/></svg>
                 <span class="dv-bar-badge" id="dvBarQueueCount" hidden>0</span>
             </button>
@@ -1340,13 +1374,13 @@
                 </div>
             </div>
             <div class="dv-bar-volume">
-                <button type="button" class="dv-bar-btn" id="dvBarMute" aria-pressed="false" aria-label="Mute">
+                <button type="button" class="dv-bar-btn" id="dvBarMute" aria-pressed="false" aria-keyshortcuts="M" aria-label="Mute">
                     <svg class="dv-ic-vol" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
                     <svg class="dv-ic-muted" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></svg>
                 </button>
-                <input type="range" class="dv-bar-range" id="dvBarVolume" min="0" max="100" step="1" value="100" aria-label="Volume" aria-valuetext="100%">
+                <input type="range" class="dv-bar-range" id="dvBarVolume" aria-keyshortcuts="Control+ArrowUp Control+ArrowDown" min="0" max="100" step="1" value="100" aria-label="Volume" aria-valuetext="100%">
             </div>
-            <button type="button" class="dv-bar-btn" id="dvBarDeck" aria-pressed="false" aria-label="Turntable">
+            <button type="button" class="dv-bar-btn" id="dvBarDeck" aria-pressed="false" aria-keyshortcuts="N" aria-label="Turntable">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="2.5"/><circle cx="10.5" cy="12" r="5"/><circle cx="10.5" cy="12" r="1.2" fill="currentColor"/><path d="M18.5 7v6.5l-2.5 2"/></svg>
             </button>
         </div>
@@ -1358,29 +1392,6 @@
             <button type="button" role="menuitem" data-dv-np="show">Show in playlist</button>
         </div>
     </div>
-    {{-- Desktop side panel (desktop step 8): Up next and Lyrics on the right
-         of the page, above the bar (html.dv2 only; display:none everywhere
-         else). The bar's queue and lyrics buttons open it on their tab.
-         script.js (desktopPanel) moves #queueBody in here on the desktop
-         and the sleeve's lyrics (.sleeve-lyrics-zone) while the Lyrics tab
-         shows and Now Playing doesn't. --}}
-    <aside id="dvPanel" aria-label="Up next and lyrics" data-tab="queue">
-        <div class="dv-panel-box">
-            <div class="dv-panel-head">
-                <div class="dv-panel-tabs" role="tablist" aria-label="Side panel">
-                    <button type="button" role="tab" class="dv-panel-tab" id="dvPanelTabQueue" aria-controls="dvPanelQueue" aria-selected="true">Up next</button>
-                    <button type="button" role="tab" class="dv-panel-tab" id="dvPanelTabLyrics" aria-controls="dvPanelLyrics" aria-selected="false" tabindex="-1">Lyrics</button>
-                </div>
-                <button type="button" class="dv-panel-close" id="dvPanelClose" aria-label="Close side panel" title="Close">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                </button>
-            </div>
-            <div class="dv-panel-body" id="dvPanelQueue" role="tabpanel" aria-labelledby="dvPanelTabQueue" tabindex="-1"></div>
-            <div class="dv-panel-body" id="dvPanelLyrics" role="tabpanel" aria-labelledby="dvPanelTabLyrics" tabindex="-1" hidden>
-                <p class="dv-panel-note" id="dvPanelLyricsNote" hidden>The lyrics are on the Now Playing page.</p>
-            </div>
-        </div>
-    </aside>
     {{-- Show the bar from the first paint when the playing list has songs
          (script.js's dvSyncBarVisibility owns it from then on), and the side
          panel when it was left open on this device (desktopPanel) --}}
@@ -1884,6 +1895,54 @@
         </div>
     </div>
 
+    {{-- Desktop keyboard shortcuts (desktop step 10; html.dv2 only): "?"
+         and the avatar menu open it (script.js desktopKeys). On a Mac the
+         Ctrl keys read ⌘. --}}
+    <div class="add-song-modal dv-keys-modal" id="dvKeysModal" role="dialog" aria-modal="true" aria-labelledby="dvKeysTitle">
+        <div class="add-song-modal-backdrop" data-dv-keys-close></div>
+        <div class="add-song-modal-panel dv-keys-panel">
+            <button type="button" class="add-song-modal-close" data-dv-keys-close aria-label="Close">&times;</button>
+            <div class="add-song-modal-header">
+                <h2 class="add-song-modal-title" id="dvKeysTitle">Keyboard shortcuts</h2>
+            </div>
+            <p class="dv-keys-note">They work anywhere except while you type in a field.</p>
+            <div class="dv-keys-cols">
+                <div class="dv-keys-group">
+                    <h3>Playback</h3>
+                    <dl class="dv-keys-list">
+                        <div><dt>Play or pause</dt><dd><kbd>Space</kbd></dd></div>
+                        <div><dt>Next song</dt><dd><kbd class="dv-key-mod">Ctrl</kbd> <kbd>→</kbd></dd></div>
+                        <div><dt>Previous song</dt><dd><kbd class="dv-key-mod">Ctrl</kbd> <kbd>←</kbd></dd></div>
+                        <div><dt>Forward 5 seconds</dt><dd><kbd>Shift</kbd> <kbd>→</kbd></dd></div>
+                        <div><dt>Back 5 seconds</dt><dd><kbd>Shift</kbd> <kbd>←</kbd></dd></div>
+                        <div><dt>Volume up / down</dt><dd><kbd class="dv-key-mod">Ctrl</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dd></div>
+                        <div><dt>Mute</dt><dd><kbd>M</kbd></dd></div>
+                        <div><dt>Like the song</dt><dd><kbd>L</kbd></dd></div>
+                        <div><dt>Shuffle</dt><dd><kbd>S</kbd></dd></div>
+                        <div><dt>Repeat</dt><dd><kbd>R</kbd></dd></div>
+                    </dl>
+                </div>
+                <div class="dv-keys-group">
+                    <h3>Go to</h3>
+                    <dl class="dv-keys-list">
+                        <div><dt>Search</dt><dd><kbd>/</kbd> or <kbd class="dv-key-mod">Ctrl</kbd> <kbd>K</kbd></dd></div>
+                        <div><dt>Now Playing</dt><dd><kbd>N</kbd></dd></div>
+                        <div><dt>Up next</dt><dd><kbd>Q</kbd></dd></div>
+                        <div><dt>Lyrics</dt><dd><kbd>Y</kbd></dd></div>
+                        <div><dt>Keyboard shortcuts</dt><dd><kbd>?</kbd></dd></div>
+                        <div><dt>Close or go back</dt><dd><kbd>Esc</kbd></dd></div>
+                    </dl>
+                    <h3>In lists and menus</h3>
+                    <dl class="dv-keys-list">
+                        <div><dt>Move</dt><dd><kbd>↑</kbd> <kbd>↓</kbd></dd></div>
+                        <div><dt>Play a song</dt><dd><kbd>Enter</kbd></dd></div>
+                        <div><dt>Move a song</dt><dd><kbd>Alt</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dd></div>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Up-next queue — filled + opened by openQueueModal() --}}
     <div class="add-song-modal" id="queueModal" role="dialog" aria-modal="true" aria-labelledby="queueModalTitle">
         <div class="add-song-modal-backdrop" onclick="hideQueueModal()"></div>
@@ -2214,8 +2273,8 @@
     <!-- Vinyl GIF Maker modal -->
     <div class="vgm-modal" id="vinylGifModal">
         <div class="vgm-backdrop" onclick="closeVinylGifModal()"></div>
-        <div class="vgm-panel">
-            <button class="vgm-close" onclick="closeVinylGifModal()" title="Close">&times;</button>
+        <div class="vgm-panel" role="dialog" aria-modal="true" aria-labelledby="vgmTitle">
+            <button class="vgm-close" onclick="closeVinylGifModal()" title="Close" aria-label="Close">&times;</button>
             <div class="vgm-header">
                 <div class="vgm-header-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -2225,7 +2284,7 @@
                     </svg>
                 </div>
                 <div class="vgm-header-text">
-                    <h2>Vinyl GIF Maker</h2>
+                    <h2 id="vgmTitle">Vinyl GIF Maker</h2>
                     <p>Spin a cover into a shareable GIF</p>
                 </div>
             </div>
@@ -2357,7 +2416,7 @@
                         </div>
                         <div class="vgm-speed-row">
                             <span class="vgm-speed-tick">0.5&times;</span>
-                            <input type="range" id="vgmSpeed" class="vgm-speed-slider" min="0.5" max="2.5" step="0.1" value="1">
+                            <input type="range" id="vgmSpeed" class="vgm-speed-slider" aria-label="Spin speed" min="0.5" max="2.5" step="0.1" value="1">
                             <span class="vgm-speed-tick">2.5&times;</span>
                         </div>
                     </div>

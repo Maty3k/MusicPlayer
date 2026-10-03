@@ -7,8 +7,10 @@
 `desktop-nowplaying-check.js` Now Playing, `desktop-search-check.js` the
 Search page, `desktop-panel-check.js` the side panel and
 `desktop-avatar-check.js` the avatar menu at the same three sizes (all six
-with axe scans). All eight check that phones (390×844, 844×390) and the app
-(`?app=1`) don't get them. The items below need a person at a
+with axe scans), and `desktop-a11y-check.js` the keyboard shortcuts, the
+windows, Skip to content, the Tab order and focus rings and an axe scan of
+every page, menu and window at 1440×900 and 1024×768. All nine check that
+phones (390×844, 844×390) and the app (`?app=1`) don't get them. The items below need a person at a
 real desktop browser. Run them in Chrome and in Firefox or Safari.
 
 ## Scope (step 1)
@@ -392,8 +394,8 @@ open it on their tab. The page narrows to make room at every desktop width
 Your initial in a round button at the top right of the page, on Home, a
 playlist page, Search and Now Playing. It opens a menu: your name and
 email, Your listening, Bring your music over, Settings (Playback,
-Appearance, Account), Install the app (only when the browser offers it)
-and Log out. Home's Stats and Settings buttons are gone.
+Appearance, Account), Keyboard shortcuts (step 10), Install the app (only
+when the browser offers it) and Log out. Home's Stats and Settings buttons are gone.
 
 - [ ] The initial is the same as on the phone's Home (your name's first
   letter, or your email's). Hovering shows your name (or email).
@@ -426,3 +428,79 @@ and Log out. Home's Stats and Settings buttons are gone.
   follow the theme.
 - [ ] A phone, a short landscape phone and the app (`?app=1`) look exactly
   as before (the app keeps its Stats and Settings buttons).
+
+## Keyboard and accessibility (step 10)
+
+### Keyboard shortcuts
+
+They work anywhere on the desktop except while you type in a field (the
+Search field, a window's inputs), while a window is open or while a menu
+is open. "?" lists them in a window (also in the avatar menu). On a Mac,
+Ctrl reads ⌘ (both work).
+
+| Keys | What it does |
+| --- | --- |
+| Space | Play or pause (on a focused button, Space presses that button) |
+| Ctrl/⌘ + → | Next song |
+| Ctrl/⌘ + ← | Previous song |
+| Shift + → / ← | Forward / back 5 seconds (not on a focused slider) |
+| Ctrl/⌘ + ↑ / ↓ | Volume up / down by 10% |
+| M | Mute and unmute |
+| L | Like or unlike the playing song (in Favorites: the hint only) |
+| S | Shuffle (off → on → smart, as the bar's button) |
+| R | Repeat (all → one → off, as the bar's button) |
+| N | Open or close Now Playing |
+| Q | Open or close the side panel on Up next |
+| Y | Open or close the lyrics (the side panel; on Now Playing, its lyrics) |
+| / or Ctrl/⌘ + K | Search (step 7) |
+| ? | The Keyboard shortcuts window (again: closes it) |
+| Esc | Closes the window, menu or side panel on top, or Now Playing |
+
+The media keys (keyboard, headset) work as before.
+
+- [ ] Each shortcut above does what its bar button does, from Home, a
+  playlist page, Search and Now Playing. Space doesn't scroll the page.
+- [ ] In the Search field, Settings → Account's name field and the Add
+  songs field, letters and Space type; Ctrl+←/→ move the cursor by words.
+- [ ] With a window (Settings, Your listening...) or a menu (the avatar,
+  +, sleep, ⋯) open, the shortcuts do nothing.
+- [ ] Shift+? opens "Keyboard shortcuts" with focus in it; Esc, × or ?
+  close it, focus back where it was. The avatar menu's "Keyboard shortcuts"
+  opens it too.
+- [ ] Every window (Settings, Your listening, Import, Add songs, Edit
+  playlist, New playlist, Bring your music over, the GIF maker): it takes
+  focus as it opens, Tab stays inside it, Esc closes it and focus goes back
+  to what opened it. A screen reader reads its title as a dialog.
+
+### Skip link, Tab order, focus
+
+- [ ] Load the page and press Tab: "Skip to content" shows at the top left.
+  Enter moves focus to the page's heading (Home's greeting, the playlist's
+  name, "Now Playing") or, on Search, into the field.
+- [ ] Keep pressing Tab: the sidebar, the avatar, the page, the side panel
+  (when open), then the player bar. Nothing from a page that isn't showing
+  (Home's cards behind a playlist page, a playlist's rows behind Home)
+  takes focus.
+- [ ] Every stop shows the same amber 2px ring (menus and rows: inside the
+  item; the Search field: round the field; Now Playing's lyrics: round
+  their panel).
+
+### Screen readers and contrast
+
+- [ ] One heading level 1 per page (Home's greeting, the playlist's name,
+  "Now Playing", "Search"); the page that isn't showing isn't read.
+- [ ] A playlist that couldn't load is announced ("Couldn't load this
+  playlist").
+- [ ] The GIF maker is read as a dialog, "Vinyl GIF Maker"; its speed
+  slider is "Spin speed".
+- [ ] Hint text in Settings, Import and Edit playlist is easy to read (AA).
+
+### Less motion
+
+- [ ] With "reduce motion" on (Windows: Settings → Accessibility → Visual
+  effects → Animation effects off; macOS: Reduce motion), nothing moves on
+  the desktop: the turntable and the small record stand still, the playing
+  bars stop, the pages and windows switch without fading.
+
+- [ ] A phone, a short landscape phone and the app (`?app=1`) look and
+  behave exactly as before: no skip link, the keys above do nothing there.
