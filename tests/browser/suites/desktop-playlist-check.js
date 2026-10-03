@@ -288,17 +288,19 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             const k = await p.evaluate(() => ({ cur: currentSongIndex, last: window.__played[window.__played.length - 1], want: songsData[3] && songsData[3].title }));
             check(`${tag} E keyboard: arrows move between rows (one in the Tab order), Enter plays the focused one`,
                 f.i === '3' && f.tabs === 1 && k.cur === 3 && k.last === k.want, { f, k });
-            // ♥ on hover, and it likes the song
-            const fav = await p.evaluate(() => !!document.querySelector('#songList .song-list-item[data-index="2"] .song-fav-btn'));
+            // ♥ on hover, and it likes the song. A liked song keeps its filled
+            // ♥ showing, so use the first row that isn't liked yet.
+            const fi = await p.evaluate(() => [...document.querySelectorAll('#songList > .song-list-item')].findIndex(r => { const b = r.querySelector('.song-fav-btn'); return b && !b.classList.contains('is-fav'); }));
+            const fav = fi >= 0;
             if (fav) {
-                // Measure the target row at rest: pointer parked, nothing focused
-                // (an earlier step can leave row 0 hovered or focused on CI).
+                const row = `#songList > .song-list-item:nth-child(${fi + 1})`;
+                // Measure the row at rest: pointer parked, nothing focused
                 await p.mouse.move(2, 2); await p.evaluate(() => document.activeElement && document.activeElement.blur()); await p.waitForTimeout(250);
-                const op0 = await p.evaluate(() => getComputedStyle(document.querySelector('#songList .song-list-item[data-index="2"] .song-fav-btn')).opacity);
-                await p.hover('#songList .song-list-item[data-index="2"]'); await p.waitForTimeout(250);
-                const op1 = await p.evaluate(() => getComputedStyle(document.querySelector('#songList .song-list-item[data-index="2"] .song-fav-btn')).opacity);
-                const song = await p.evaluate(() => listSongs()[2].title);
-                await p.click('#songList .song-list-item[data-index="2"] .song-fav-btn'); await p.waitForTimeout(400);
+                const op0 = await p.evaluate((r) => getComputedStyle(document.querySelector(r + ' .song-fav-btn')).opacity, row);
+                await p.hover(row); await p.waitForTimeout(250);
+                const op1 = await p.evaluate((r) => getComputedStyle(document.querySelector(r + ' .song-fav-btn')).opacity, row);
+                const song = await p.evaluate((r) => listSongs()[parseInt(document.querySelector(r).dataset.index, 10)].title, row);
+                await p.click(row + ' .song-fav-btn'); await p.waitForTimeout(400);
                 const fw = writes(p, 'favorite');
                 check(`${tag} E ♥ shows on hover (hidden otherwise) and likes that song`, op0 === '0' && op1 === '1' && fw.length === 1 && fw[0].song.title === song, { op0, op1, fw: fw.map(x => x.song.title), song });
             } else {
