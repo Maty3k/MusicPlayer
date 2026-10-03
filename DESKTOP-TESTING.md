@@ -3,9 +3,10 @@
 `tests/browser/suites/desktop-bar-check.js` covers the player bar in Chrome at
 1440×900 and 1024×768, `desktop-sidebar-check.js` covers the sidebar at
 1440×900, 1024×768 and 800×600, `desktop-home-check.js` covers Home and
-`desktop-playlist-check.js` the playlist page and
-`desktop-nowplaying-check.js` Now Playing at the same three sizes (all three
-with axe scans). All five check that phones
+`desktop-playlist-check.js` the playlist page,
+`desktop-nowplaying-check.js` Now Playing and `desktop-search-check.js` the
+Search page at the same three sizes (all four with axe scans). All six check
+that phones
 (390×844, 844×390) and the app (`?app=1`) don't get them. The items below need a person at a
 real desktop browser. Run them in Chrome and in Firefox or Safari.
 
@@ -69,8 +70,8 @@ changes only when you press Play or click a song.
   player bar. The page fills the rest. The sidebar's playlist list and the
   page scroll separately.
 - [ ] Home and Search sit at the top. Home is highlighted on the
-  collection. Search opens the search window and is highlighted while it's
-  open. Home takes you back to the collection from a playlist.
+  collection. Search opens the Search page (step 7) and is highlighted
+  while it shows. Home takes you back to the collection from a playlist.
 - [ ] Your Library lists every playlist with its cover, name and song
   count. The one playing has an amber name and small bars, which move only
   while music plays. An empty playlist is never marked as playing.
@@ -276,3 +277,53 @@ turntable button, opens it; the lyrics button opens it with lyrics on.
   setting: the page and the lyrics panel look right.
 - [ ] A phone, and the app (`?app=1`), show their own Now Playing exactly as
   before.
+
+## Search (step 7)
+
+Search is now a page in the main area (the phone's Search page), not the
+old search window. The sidebar's Search, `/` or Ctrl+K (⌘K on a Mac) opens
+it.
+
+- [ ] Search, `/` (when you're not typing in a field) and Ctrl+K / ⌘K open
+  the page with the cursor in the big field at the top, and Search is
+  highlighted in the sidebar. Ctrl+K doesn't open the browser's own search.
+  `/` typed in a field (e.g. Find in these songs) is just a slash.
+- [ ] With an empty field: Recent searches as chips (× removes one, Clear
+  removes all) and Your playlists as tiles. A tile opens that playlist's
+  page.
+- [ ] Type two letters: "In your library" with the number found, as rows
+  (cover, title and artist, the playlist's coloured chip on the right). From
+  three letters, "From YouTube" follows as a grid of cards, each with a + on
+  its picture. Long titles end in "…" (YouTube cards wrap to two lines).
+- [ ] Click a library row: it plays and Search stays. The bar shows it.
+- [ ] Click a row's chip: that playlist's page opens and plays the song
+  (the sidebar marks it as playing).
+- [ ] Click a YouTube card: it plays as a preview and Search stays. Its +
+  opens "Add to playlist" in a window. Pick a playlist: "Added to …" shows,
+  and the song is in that playlist. Esc or × closes the window with focus
+  back on the +.
+- [ ] Paste a YouTube playlist link: "Import this YouTube playlist" opens
+  the import window filled in and fetching. A Spotify playlist link offers
+  the Spotify import; a video link offers Add this song.
+- [ ] Enter remembers the search; it shows as a chip next time the field is
+  empty. The field keeps the cursor.
+- [ ] Keyboard: ↓ from the field goes to the first result; ↑/↓ move between
+  rows (staying on the chip or + when you're on one), ←/→ along every
+  button, Home/End to the first and last, Esc back to the field, ↑ from the
+  first row back to the field. Tab still reaches everything.
+- [ ] Screen reader: the field is labelled "Search your library and
+  YouTube" inside a search landmark; results are announced (e.g. "7 songs
+  in your library", then "3 more from YouTube").
+- [ ] Switching: a playlist (sidebar, tile or chip) replaces Search; Search
+  replaces a playlist page; Home closes Search. Now Playing opened from
+  Search (the bar's turntable, cover or lyrics) goes back to Search when you
+  close it (button, Esc or ‹).
+- [ ] The results scroll under the field, which stays at the top. Nothing
+  runs off the page, and there's no sideways scroll.
+- [ ] The old search window never opens on the desktop.
+- [ ] 601–900px window (icon rail): the field and results fit, chips and
+  tiles wrap.
+- [ ] Each room theme (Settings → Appearance): the page, the field and the
+  chips follow the theme.
+- [ ] A phone (its Search tab), a short landscape phone (the search window),
+  and the app (`?app=1`, the search window) are exactly as before.

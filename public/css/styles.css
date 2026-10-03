@@ -16715,8 +16715,8 @@ button.send-menu-cancel {
    than 600px, not a short landscape touch phone) and never in the app.
    Phones and the app shell never match these selectors, so their pixels
    are untouched. The only unscoped rule is the default hide of the new
-   desktop elements (#dvBar, #dvSide, the playlist page's #dvPl* pieces
-   and the song rows' album and length cells).
+   desktop elements (#dvBar, #dvSide, the playlist page's #dvPl* pieces,
+   the song rows' album and length cells and the Search page's counts).
    New desktop rules go in this block, under html.dv2.
    ========================================================================== */
 
@@ -16734,7 +16734,8 @@ button.send-menu-cancel {
 #dvNpExtras,
 #dvNpMenu,
 .song-list-album,
-.song-list-dur { display: none; }
+.song-list-dur,
+.m-search-count { display: none; }
 
 html.dv2 {
     --dv-bar-h: 84px;
@@ -19120,4 +19121,430 @@ html.dv2 #musicPlayerView.dv-deck .lyrics-ctrl-sync { color: var(--cream-60); fo
     html.dv2 #dvBar .dv-bar-open,
     html.dv2 #dvNpHead .dv-np-back,
     html.dv2 #dvNpExtras .dv-np-x { transition: none; }
+}
+
+/* ---------- Step 7: one Search page (#mSearchPage under html.dv-search) ----------
+   The phone's Search page (same DOM, same script) as a page beside the
+   sidebar while html.dv-search is on (desktopSearch): one rounded panel
+   with a big field at the top that stays put while the results scroll.
+   Empty field: recent searches as chips, then your playlists as tiles.
+   Typing: "In your library" as a list of rows (cover, title and artist,
+   the playlist chip at the right) and "From YouTube" as a grid of cards
+   with a + on each. A pasted link: its import / add rows. The phone's
+   heading stays for screen readers only. Everything here is html.dv2 only. */
+html.dv2 { --dv-search-top: color-mix(in srgb, var(--surface-hi) 55%, var(--ink)); }
+html.dv2.dv-search #vinylCrateView { visibility: hidden; }
+
+html.dv2.dv-search #mSearchPage {
+    --dv-search-pad: clamp(20px, 2.4vw, 36px);
+    display: block;
+    position: absolute;
+    inset: 8px;
+    z-index: 15; /* over the crate (10) */
+    padding: 0 var(--dv-search-pad) 48px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    /* flat under the field's band, then Home's fade */
+    background: linear-gradient(180deg, var(--dv-search-top) 0, var(--dv-search-top) 100px, var(--dv-panel) 360px);
+    color: var(--cream);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--cream) 16%, transparent) transparent;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+html.dv2 #mSearchPage button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+html.dv2 #mSearchPage button:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: -2px;
+}
+html.dv2 #mSearchPage [hidden] { display: none !important; }
+
+/* The heading: for screen readers (the field says what the page is) */
+html.dv2 #mSearchPage .m-search-head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ---- The field: big, at the top, staying there on a full-width band
+   (the panel's top colour) that the results scroll under */
+html.dv2 #mSearchPage .m-search-field {
+    position: sticky;
+    top: 20px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 680px;
+    height: 56px;
+    margin: 20px 0 0;
+    padding: 0 6px 0 18px;
+    border: 1px solid color-mix(in srgb, var(--cream) 14%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cream) 9%, var(--ink));
+    color: var(--cream-60);
+    box-shadow: 0 0 0 100vmax var(--dv-search-top);
+    clip-path: inset(-20px -100vmax -12px -100vmax);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+html.dv2 #mSearchPage .m-search-field:hover { border-color: color-mix(in srgb, var(--cream) 26%, transparent); }
+html.dv2 #mSearchPage .m-search-field:focus-within {
+    border-color: var(--amber);
+    background: color-mix(in srgb, var(--cream) 12%, var(--ink));
+    color: var(--cream);
+}
+html.dv2 #mSearchPage .m-search-field svg { flex: 0 0 auto; }
+html.dv2 #mSearchInput {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--cream);
+    font: 500 1.05rem/1.2 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-appearance: none;
+    appearance: none;
+}
+html.dv2 #mSearchInput::placeholder { color: color-mix(in srgb, var(--cream) 55%, transparent); }
+html.dv2 #mSearchInput::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+html.dv2 #mSearchPage .m-search-clear {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--cream-60);
+}
+html.dv2 #mSearchPage .m-search-clear:hover { color: var(--cream); background: var(--dv-hover); }
+html.dv2 #mSearchPage .m-search-clear:focus-visible { outline-offset: 0; }
+
+/* ---- Results */
+html.dv2 #mSearchResults {
+    display: block;
+    max-width: 1880px;
+    padding: 12px 0 0;
+}
+html.dv2 #mSearchResults:focus { outline: none; }
+html.dv2 #mSearchResults .m-search-section {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 28px 0 10px;
+}
+html.dv2 #mSearchResults > .m-search-section:first-child,
+html.dv2 #mSearchResults .m-sr-lib > .m-search-section:first-child { margin-top: 12px; }
+html.dv2 #mSearchResults .m-search-heading {
+    margin: 0;
+    font-family: var(--display);
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    color: var(--cream);
+}
+html.dv2 #mSearchResults .m-search-count {
+    display: inline;
+    font-size: 0.85rem;
+    color: var(--cream-60);
+}
+html.dv2 #mSearchResults .m-search-clear-all {
+    margin-left: auto;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--cream-60);
+}
+html.dv2 #mSearchResults .m-search-clear-all:hover { color: var(--cream); background: var(--dv-hover); }
+html.dv2 #mSearchResults .m-search-hint {
+    padding: 56px 12px;
+    text-align: center;
+    font-size: 1rem;
+    line-height: 1.45;
+    color: var(--cream-60);
+}
+html.dv2 #mSearchResults .m-search-hint-sm {
+    padding: 4px 0 8px;
+    text-align: left;
+    font-size: 0.9rem;
+}
+
+/* Recent searches: chips */
+html.dv2 #mSearchResults .m-recent-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+html.dv2 #mSearchResults .m-recent-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+    border: 1px solid color-mix(in srgb, var(--cream) 16%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cream) 5%, transparent);
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+html.dv2 #mSearchResults .m-recent-row:hover {
+    background: var(--dv-hover);
+    border-color: color-mix(in srgb, var(--cream) 26%, transparent);
+}
+html.dv2 #mSearchResults .m-recent-q {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    height: 36px;
+    padding: 0 4px 0 12px;
+    border-radius: 999px 0 0 999px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--cream);
+}
+html.dv2 #mSearchResults .m-recent-q svg { flex: 0 0 auto; width: 16px; height: 16px; color: var(--cream-60); }
+html.dv2 #mSearchResults .m-recent-q span { max-width: 32ch; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+html.dv2 #mSearchResults .m-recent-x {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    margin-right: 2px;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    line-height: 1;
+    color: var(--cream-60);
+}
+html.dv2 #mSearchResults .m-recent-x:hover { color: var(--cream); background: var(--dv-hover); }
+
+/* Your playlists: tiles (cover + name), as many columns as fit */
+html.dv2 #mSearchResults .m-search-browse {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+}
+html.dv2 #mSearchResults .m-rp-tile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    height: 64px;
+    padding: 0 12px 0 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--cream) 7%, transparent);
+    text-align: left;
+    transition: background-color 0.15s ease;
+}
+html.dv2 #mSearchResults .m-rp-tile:hover { background: color-mix(in srgb, var(--cream) 13%, transparent); }
+html.dv2 #mSearchResults .m-rp-art {
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--pl-color, var(--amber)) 30%, var(--ink));
+    color: var(--cream-60);
+}
+html.dv2 #mSearchResults .m-rp-art img { width: 100%; height: 100%; object-fit: cover; }
+html.dv2 #mSearchResults .m-rp-art img[src*="hqdefault"],
+html.dv2 #mSearchResults .m-rp-art img[src*="sddefault"] { transform: scale(1.34); }
+html.dv2 #mSearchResults .m-rp-art-empty svg { width: 24px; height: 24px; }
+html.dv2 #mSearchResults .m-rp-name {
+    min-width: 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--cream);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+html.dv2 #mSearchResults .m-rp-tile.is-active .m-rp-name { color: var(--amber); }
+
+/* In your library: rows (the song plays here; the chip opens its playlist) */
+html.dv2 #mSearchResults .m-sr-lib .m-sr-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 0 12px 0 0;
+    border-radius: 6px;
+    transition: background-color 0.15s ease;
+}
+html.dv2 #mSearchResults .m-sr-lib .m-sr-row:hover,
+html.dv2 #mSearchResults .m-sr-lib .m-sr-row:focus-within { background: var(--dv-hover); }
+html.dv2 #mSearchResults .m-sr-lib .search-result {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    min-height: 56px;
+    gap: 12px;
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+html.dv2 #mSearchResults .search-result:hover { background: none; }
+html.dv2 #mSearchResults .m-sr-lib .search-result-cover { width: 40px; height: 40px; border-radius: 4px; }
+html.dv2 #mSearchResults .search-result-cover-empty svg { width: 20px; height: 20px; }
+html.dv2 #mSearchResults .search-result .search-result-title { font-size: 0.95rem; font-weight: 500; color: var(--cream); }
+html.dv2 #mSearchResults .search-result .search-result-artist { font-size: 0.82rem; color: var(--cream-60); }
+html.dv2 #mSearchResults .search-result:hover .search-result-title { text-decoration: underline; text-underline-offset: 2px; }
+html.dv2 #mSearchResults .m-sr-open {
+    flex: 0 1 auto;
+    max-width: 40%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 4px;
+    border-radius: 999px;
+}
+html.dv2 #mSearchResults .m-sr-open .search-result-pl {
+    max-width: 100%;
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    transition: background-color 0.15s ease;
+}
+html.dv2 #mSearchResults .m-sr-open:hover .search-result-pl { background: color-mix(in srgb, var(--pl-color, var(--amber)) 30%, transparent); }
+html.dv2 #mSearchResults .m-sr-open:focus-visible { outline-offset: 0; }
+
+/* From YouTube: a grid of cards (the card previews; + adds) */
+html.dv2 #mSearchResults .m-sr-yt {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+    gap: 8px;
+    margin: 0 -12px;
+}
+html.dv2 #mSearchResults .m-sr-yt > .m-search-section,
+html.dv2 #mSearchResults .m-sr-yt > .m-search-hint {
+    grid-column: 1 / -1;
+    padding-left: 12px;
+    padding-right: 12px;
+}
+html.dv2 #mSearchResults .m-sr-yt > .m-search-section { margin-bottom: 2px; }
+html.dv2 #mSearchResults .m-sr-yt .m-sr-row {
+    position: relative;
+    min-width: 0;
+    border-radius: 10px;
+    transition: background-color 0.15s ease;
+}
+html.dv2 #mSearchResults .m-sr-yt .m-sr-row:hover,
+html.dv2 #mSearchResults .m-sr-yt .m-sr-row:focus-within { background: var(--dv-hover); }
+html.dv2 #mSearchResults .m-sr-yt .search-result {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 12px;
+    border-radius: 10px;
+}
+html.dv2 #mSearchResults .m-sr-yt .search-result-cover {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    border-radius: 8px;
+    object-fit: cover;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+html.dv2 #mSearchResults .m-sr-yt .search-result-cover-empty { display: grid; place-items: center; }
+html.dv2 #mSearchResults .m-sr-yt .search-result-info { gap: 3px; }
+html.dv2 #mSearchResults .m-sr-yt .search-result-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    line-height: 1.3;
+}
+html.dv2 #mSearchResults .m-sr-add {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--ink) 78%, transparent);
+    color: var(--cream);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+html.dv2 #mSearchResults .m-sr-add svg { width: 20px; height: 20px; }
+html.dv2 #mSearchResults .m-sr-add:hover {
+    background: var(--amber);
+    color: var(--on-amber);
+    transform: scale(1.06);
+}
+html.dv2 #mSearchResults .m-sr-add:focus-visible { outline-offset: 2px; }
+
+/* A pasted link: its rows */
+html.dv2 #mSearchResults .m-search-link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    max-width: 680px;
+    min-height: 64px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    text-align: left;
+    transition: background-color 0.15s ease;
+}
+html.dv2 #mSearchResults .m-search-link:hover { background: var(--dv-hover); }
+html.dv2 #mSearchResults .m-search-link-ic {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(var(--amber-rgb), 0.14);
+    color: var(--amber);
+}
+html.dv2 #mSearchResults .m-search-link-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+html.dv2 #mSearchResults .m-search-link-text b { font-size: 0.98rem; font-weight: 600; }
+html.dv2 #mSearchResults .m-search-link-text small { font-size: 0.85rem; color: var(--cream-60); }
+
+/* "Add to playlist" (the phone's sheet): a centred window here */
+html.dv2 #mAddToSheet .m-addto-row { gap: 12px; }
+html.dv2 #mAddToSheet .m-addto-row:hover { background: rgba(255, 245, 233, 0.06); }
+html.dv2 #mAddToSheet .m-addto-row:focus-visible { outline: 2px solid var(--amber); outline-offset: -2px; }
+html.dv2 #mAddToSheet .m-addto-song { margin-top: -6px; overflow-wrap: anywhere; }
+html.dv2 #mAddToSheet .m-addto-list { max-height: min(60vh, 520px); overflow-y: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+    html.dv2 #mSearchPage .m-search-field,
+    html.dv2 #mSearchResults .m-recent-row,
+    html.dv2 #mSearchResults .m-rp-tile,
+    html.dv2 #mSearchResults .m-sr-row,
+    html.dv2 #mSearchResults .m-sr-open .search-result-pl,
+    html.dv2 #mSearchResults .m-sr-add,
+    html.dv2 #mSearchResults .m-search-link { transition: none; }
 }

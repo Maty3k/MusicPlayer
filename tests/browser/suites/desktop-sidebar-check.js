@@ -225,13 +225,21 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             await p.waitForTimeout(500);
             await p.click('#dvSideSearch');
             await p.waitForTimeout(400);
-            const se = await p.evaluate(() => ({ open: document.getElementById('searchModal').classList.contains('active'), focus: document.activeElement && document.activeElement.id }));
+            // Desktop step 7 changed this on purpose: Search is a page in the
+            // main area now (#mSearchPage under html.dv-search), not the old
+            // search window (desktop-search-check covers the page itself)
+            const se = await p.evaluate(() => ({
+                page: document.documentElement.classList.contains('dv-search') && document.getElementById('mSearchPage').getClientRects().length > 0,
+                modal: document.getElementById('searchModal').classList.contains('active'),
+                focus: document.activeElement && document.activeElement.id,
+            }));
             const ss = await side(p);
-            check(`${tag} E Search opens the search window and is current`, se.open && ss.search === 'page' && ss.home === null, { se, search: ss.search, home: ss.home });
-            await p.evaluate(() => hideSearchModal());
+            check(`${tag} E Search opens the Search page (not the old window) and is current`, se.page && !se.modal && se.focus === 'mSearchInput' && ss.search === 'page' && ss.home === null, { se, search: ss.search, home: ss.home });
+            await p.click('#dvSideHome');
             await p.waitForTimeout(300);
             const sh2 = await side(p);
-            check(`${tag} E closing search makes Home current again`, sh2.home === 'page' && !sh2.search, sh2);
+            const gone = await p.evaluate(() => !document.documentElement.classList.contains('dv-search') && document.getElementById('mSearchPage').getClientRects().length === 0);
+            check(`${tag} E Home closes the Search page and is current again`, gone && sh2.home === 'page' && !sh2.search, { gone, sh2 });
             check(`${tag} D/E errors`, p.__errs.length === 0, p.__errs);
             await ctx.close();
         }

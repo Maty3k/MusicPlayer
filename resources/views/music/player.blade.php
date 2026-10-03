@@ -102,7 +102,7 @@
                 </button>
             </li>
             <li>
-                <button type="button" class="dv-side-link" id="dvSideSearch" aria-haspopup="dialog" title="Search">
+                <button type="button" class="dv-side-link" id="dvSideSearch" aria-keyshortcuts="/ Control+K" title="Search (/)">
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m20 20-4.4-4.4"/></svg>
                     <span class="dv-side-label">Search</span>
                 </button>
@@ -681,12 +681,13 @@
 
         {{-- Phone Search tab: a page inside #music-section (under the Now
              Playing sheet, over the crate). Its own field and results, so the
-             landscape/desktop search modal can't clear them. --}}
+             landscape search modal can't clear them. The desktop redesign
+             shows it too, as its Search page (html.dv2.dv-search). --}}
         <section class="m-search-page m-only" id="mSearchPage" aria-label="Search">
             <header class="m-tab-head m-search-head">
                 <h1 class="m-tab-title">Search</h1>
             </header>
-            <div class="m-search-field">
+            <div class="m-search-field" role="search">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m20 20-4.4-4.4"/></svg>
                 <input type="search" id="mSearchInput" placeholder="Songs, artists or a link" autocomplete="off" enterkeyhint="search" aria-label="Search your library and YouTube">
                 <button type="button" class="m-search-clear" id="mSearchClear" aria-label="Clear search" hidden>

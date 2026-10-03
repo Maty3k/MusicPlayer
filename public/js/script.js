@@ -10760,6 +10760,11 @@ document.addEventListener('DOMContentLoaded', () => {
             switchTab('search');
             return;
         }
+        // The desktop redesign searches on its Search page (desktop step 7)
+        if (htmlEl.classList.contains('dv2') && window.dvSearch) {
+            window.dvSearch.open();
+            return;
+        }
         return modalShowSearch.apply(this, arguments);
     };
 
@@ -11104,7 +11109,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pageResults.length) {
             return libDone ? `<div class="m-search-hint m-search-hint-sm">Nothing in your library matches “${escapeHtml(q)}”.</div>` : '';
         }
-        return '<div class="m-search-section"><h2 class="m-search-heading">In your library</h2></div>'
+        // (The count shows on the desktop page only; the status line says it)
+        const n = pageResults.length;
+        return `<div class="m-search-section"><h2 class="m-search-heading">In your library</h2><span class="m-search-count" aria-hidden="true">${n === 1 ? '1 song' : n + (n >= 40 ? '+' : '') + ' songs'}</span></div>`
             + pageResults.map((r, i) => {
                 const cover = safeUrl(r.cover);
                 const coverHtml = cover
@@ -11308,7 +11315,9 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.addEventListener('keydown', (e) => {
             if (e.key !== 'Enter') return;
             rememberSearch();
-            searchInput.blur(); // done typing: drop the keyboard
+            // Done typing: drop the keyboard (the desktop page keeps focus
+            // in the field; arrow down goes into the results)
+            if (!htmlEl.classList.contains('dv2')) searchInput.blur();
         });
         let savedQuery = '';
         try { savedQuery = sessionStorage.getItem('mSearchQuery') || ''; } catch (e) {}
@@ -13050,8 +13059,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // playing one. It follows the page's own update paths:
     // updateCrateRecords (switches, renames, recolours, covers, deletes),
     // setCrateCardCount (counts), viewChanged / rebuildSongList (which list
-    // is on screen or playing), and the player view's and the search
-    // window's open state.
+    // is on screen or playing), and the player view's and the Search page's
+    // open state (html.dv-search, desktopSearch).
     // ============================================================
     (function desktopSidebar() {
         const side = document.getElementById('dvSide');
@@ -13060,7 +13069,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const $ = (id) => document.getElementById(id);
         const homeBtn = $('dvSideHome');
         const searchBtn = $('dvSideSearch');
-        const searchModal = $('searchModal');
         const emptyNote = $('dvSideEmpty');
 
         const sourceOf = (id) => {
@@ -13118,7 +13126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         function sync() {
             const playerOpen = playerViewActive();
-            const searchOpen = !!(searchModal && searchModal.classList.contains('active'));
+            const searchOpen = !playerOpen && htmlEl.classList.contains('dv-search');
             setCurrent(homeBtn, !playerOpen && !searchOpen);
             setCurrent(searchBtn, searchOpen);
             // The turntable (the player view's deck mode) is no playlist's page
@@ -13196,13 +13204,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (homeBtn) {
             homeBtn.addEventListener('click', () => {
-                if (searchModal && searchModal.classList.contains('active')) window.hideSearchModal();
+                if (window.dvSearch) window.dvSearch.close();
                 window.showPlaylistPicker();
                 sync();
             });
         }
-        // The desktop search window for now (a Search page comes later)
-        if (searchBtn) searchBtn.addEventListener('click', () => window.showSearchModal());
+        // The Search page (desktop step 7, desktopSearch)
+        if (searchBtn) searchBtn.addEventListener('click', () => { if (window.dvSearch) window.dvSearch.open(); });
 
         // ---- The + menu: New playlist, Bring your music over
         const addBtn = $('dvSideAdd');
@@ -13304,10 +13312,163 @@ document.addEventListener('DOMContentLoaded', () => {
             sync();
         };
         if (playerView) new MutationObserver(sync).observe(playerView, { attributes: true, attributeFilter: ['class'] });
-        if (searchModal) new MutationObserver(sync).observe(searchModal, { attributes: true, attributeFilter: ['class'] });
+        // The Search page opening and closing (html.dv-search)
+        let searchWas = htmlEl.classList.contains('dv-search');
+        new MutationObserver(() => {
+            const now = htmlEl.classList.contains('dv-search');
+            if (now !== searchWas) { searchWas = now; sync(); }
+        }).observe(htmlEl, { attributes: true, attributeFilter: ['class'] });
 
         syncCrackle();
         render();
+    })();
+
+    // ============================================================
+    // DESKTOP SEARCH PAGE (html.dv2, desktop step 7): the phone's Search
+    // page (#mSearchPage: the same field, results and code as the Search
+    // tab) shown in the main area while html.dv-search is on. The sidebar's
+    // Search, "/" and Ctrl+K (⌘K) open it with focus in the field; Home and
+    // any playlist page close it. Now Playing opened from it closes back to
+    // it. The results act as on the phone: a library hit plays right here,
+    // its playlist chip opens that playlist's page and plays the hit there,
+    // a YouTube hit previews and its + opens "Add to playlist" (the phone's
+    // sheet, a centred window here), a pasted link offers the import. The
+    // arrow keys move through the results (up from the first goes back to
+    // the field). The old search window never opens on the desktop
+    // (showSearchModal comes here).
+    // ============================================================
+    (function desktopSearch() {
+        if (!searchPage || !searchInput || !searchResultsEl) return;
+        const dvOn = () => htmlEl.classList.contains('dv2');
+        // Now Playing was opened from the Search page: show it again when
+        // the player view closes (closeDeck's way back with no playlist)
+        let resume = false;
+
+        function open() {
+            if (!dvOn()) return;
+            if (playerViewActive()) {
+                // A playlist page or Now Playing: Search takes the main area
+                if (window.dvNowPlaying) window.dvNowPlaying.forget();
+                resume = false;
+                window.showPlaylistPicker();
+            }
+            const wasOpen = htmlEl.classList.contains('dv-search');
+            htmlEl.classList.add('dv-search');
+            if (!wasOpen && !searchInput.value.trim()) renderSearchHome(); // fresh recents and tiles
+            searchInput.focus({ preventScroll: true });
+            searchInput.select();
+        }
+        function close() {
+            resume = false;
+            htmlEl.classList.remove('dv-search');
+        }
+        window.dvSearch = {
+            open,
+            close,
+            isOpen: () => dvOn() && htmlEl.classList.contains('dv-search'),
+        };
+
+        // A page over it closes it: a playlist page for good, Now Playing
+        // until it closes again
+        if (playerView) {
+            new MutationObserver(() => {
+                const active = playerView.classList.contains('active');
+                const deck = playerView.classList.contains('dv-deck');
+                if (active) {
+                    if (htmlEl.classList.contains('dv-search')) {
+                        resume = deck;
+                        htmlEl.classList.remove('dv-search');
+                    } else if (!deck) {
+                        resume = false;
+                    }
+                } else if (resume) {
+                    resume = false;
+                    if (dvOn()) htmlEl.classList.add('dv-search');
+                }
+            }).observe(playerView, { attributes: true, attributeFilter: ['class'] });
+        }
+        // Into a phone shell (a resize, an unfold): the phone has its tabs
+        new MutationObserver(() => {
+            if (!dvOn() && htmlEl.classList.contains('dv-search')) close();
+        }).observe(htmlEl, { attributes: true, attributeFilter: ['class'] });
+
+        // "/" (outside a text field) and Ctrl+K / ⌘K, never under a window
+        document.addEventListener('keydown', (e) => {
+            if (!dvOn() || e.defaultPrevented || e.isComposing) return;
+            const k = e.key;
+            const ctrlK = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (k === 'k' || k === 'K');
+            const slash = k === '/' && !e.ctrlKey && !e.metaKey && !e.altKey;
+            if (!ctrlK && !slash) return;
+            if (document.querySelector('.add-song-modal.active, .vgm-modal.active')) return;
+            const t = e.target;
+            if (slash && t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+            e.preventDefault();
+            open();
+        });
+
+        // ---- The arrow keys: down from the field into the results; up and
+        // down from row to row (staying on the chip or + when the next row
+        // has one), left and right through every button, Home / End, Esc
+        // back to the field. Tab still goes through them all.
+        function resultRows() {
+            const rows = [];
+            let box = null;
+            searchResultsEl.querySelectorAll('button').forEach((b) => {
+                if (b.disabled || !b.getClientRects().length) return;
+                const at = b.closest('.m-sr-row, .m-recent-row') || b;
+                if (at !== box) { rows.push([]); box = at; }
+                rows[rows.length - 1].push(b);
+            });
+            return rows;
+        }
+        searchPage.addEventListener('keydown', (e) => {
+            if (!dvOn() || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            const k = e.key;
+            const t = e.target;
+            if (t === searchInput) {
+                if (k !== 'ArrowDown') return;
+                const first = resultRows()[0];
+                if (!first) return;
+                e.preventDefault();
+                first[0].focus();
+                return;
+            }
+            if (!searchResultsEl.contains(t)) return;
+            if (k === 'Escape') {
+                e.preventDefault();
+                searchInput.focus();
+                return;
+            }
+            if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(k)) return;
+            const rows = resultRows();
+            const flat = rows.flat();
+            const i = flat.indexOf(t);
+            if (i < 0) return;
+            const r = rows.findIndex((row) => row.includes(t));
+            const c = rows[r].indexOf(t);
+            const near = (row) => (row ? row[Math.min(c, row.length - 1)] : null);
+            let to = null;
+            if (k === 'ArrowRight') to = flat[i + 1];
+            else if (k === 'ArrowLeft') to = flat[i - 1];
+            else if (k === 'ArrowDown') to = near(rows[r + 1]);
+            else if (k === 'ArrowUp') to = r > 0 ? near(rows[r - 1]) : searchInput;
+            else if (k === 'Home') to = flat[0];
+            else if (k === 'End') to = flat[flat.length - 1];
+            e.preventDefault();
+            if (!to) return;
+            to.focus();
+            if (to !== searchInput) to.scrollIntoView({ block: 'nearest' });
+        });
+
+        // "Add to playlist" is a window here: Esc closes it (back to its +)
+        if (addToSheet) {
+            addToSheet.addEventListener('keydown', (e) => {
+                if (e.key !== 'Escape' || !dvOn() || !addToSheet.classList.contains('active')) return;
+                e.preventDefault();
+                e.stopPropagation();
+                window.mHideAddToSheet();
+            });
+        }
     })();
 
     // ============================================================
