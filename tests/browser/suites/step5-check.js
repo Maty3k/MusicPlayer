@@ -252,10 +252,10 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
     {
         const { ctx, p } = await open('many', { viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, openPlaylist: false });
         await p.evaluate(() => openPlayerView()); await p.waitForTimeout(700);
-        const d = { bar: await vis(p, '#mPlBar'), back: await vis(p, '#backToCrate'), home: await vis(p, '#dvSideHome'), queue: await vis(p, '.queue-btn'), filter: await vis(p, '#mFilterInput'), handle: await vis(p, '#songList .song-drag-handle'), hero: await vis(p, '.m-hero-actions') };
+        const d = { bar: await vis(p, '#mPlBar'), back: await vis(p, '#backToCrate'), home: await vis(p, '#dvSideHome'), queue: await vis(p, '.queue-btn'), more: await vis(p, '#dvPlMore'), filter: await vis(p, '#mFilterInput'), handle: await vis(p, '#songList .song-drag-handle'), hero: await vis(p, '.m-hero-actions') };
         // Desktop step 3: the "← Crate" pill gives way to the sidebar's Home
         // (it used to be checked as shown here); the rest is as it was.
-        check('O1 desktop playlist view unchanged (but "← Crate" gave way to the sidebar Home)', !d.bar && !d.back && d.home && d.queue && d.filter && d.handle && !d.hero, d);
+        check('O1 desktop playlist view unchanged (but "← Crate" gave way to the sidebar Home)', !d.bar && !d.back && d.home && (d.queue || d.more) && d.filter && d.handle && !d.hero, d); // step 5: the queue icon moved into the page's ⋯ menu
         await ctx.close();
     }
     {

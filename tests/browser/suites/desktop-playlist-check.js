@@ -291,7 +291,10 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             // ♥ on hover, and it likes the song
             const fav = await p.evaluate(() => !!document.querySelector('#songList .song-list-item[data-index="2"] .song-fav-btn'));
             if (fav) {
-                const op0 = await p.evaluate(() => getComputedStyle(document.querySelector('#songList .song-list-item[data-index="0"] .song-fav-btn')).opacity);
+                // Measure the target row at rest: pointer parked, nothing focused
+                // (an earlier step can leave row 0 hovered or focused on CI).
+                await p.mouse.move(2, 2); await p.evaluate(() => document.activeElement && document.activeElement.blur()); await p.waitForTimeout(250);
+                const op0 = await p.evaluate(() => getComputedStyle(document.querySelector('#songList .song-list-item[data-index="2"] .song-fav-btn')).opacity);
                 await p.hover('#songList .song-list-item[data-index="2"]'); await p.waitForTimeout(250);
                 const op1 = await p.evaluate(() => getComputedStyle(document.querySelector('#songList .song-list-item[data-index="2"] .song-fav-btn')).opacity);
                 const song = await p.evaluate(() => listSongs()[2].title);
