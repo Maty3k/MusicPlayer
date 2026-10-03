@@ -1,9 +1,10 @@
 // Desktop step 6: Now Playing (the player view's deck mode under html.dv2)
 // at 1440x900, 1024x768 and 800x600 (beside the icon rail). Checks the
-// ways in (the bar's cover/title, its turntable button, its lyrics button
-// with lyrics on) and out (the turntable button again, Esc, the page's back
-// button), each going back to where it was opened from (Home or the
-// playlist page) with focus back on the control that opened it; the layout
+// ways in (the bar's cover/title, its turntable button; since desktop step
+// 8 the lyrics button only turns the page's lyrics on and off) and out (the
+// turntable button again, Esc, the page's back button), each going back to
+// where it was opened from (Home or the playlist page) with focus back on
+// the control that opened it; the layout
 // (the turntable centred, bigger than step 5's deck, nothing overflowing;
 // the lyrics beside it on wide pages and below it on narrower ones, gone
 // while lyrics are off); the song, artist and "Playing from" (also after
@@ -245,14 +246,17 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             const s4 = await npState(p);
             check(`${tag} B Enter on the turntable button opens it; the back button returns Home with focus on the turntable button`,
                 s3.open && s3.focus === 'dvNpHeading' && !s4.open && s4.crate && s4.focus === 'dvBarDeck', { s3: { open: s3.open, focus: s3.focus }, s4: { open: s4.open, crate: s4.crate, focus: s4.focus } });
-            // Lyrics: opens it with lyrics on; again turns them off (the page stays; the turntable takes the room)
+            // Lyrics on Now Playing: turns them on (pressed); again turns them off (the page stays; the
+            // turntable takes the room). (Desktop step 8: from Home or a playlist it opens the side
+            // panel's Lyrics tab instead of Now Playing; desktop-panel-check covers that.)
             await setLyrics(p, false);
+            await p.click('#dvBarDeck'); await p.waitForTimeout(600);
             await p.click('#dvBarLyrics'); await p.waitForTimeout(600);
             const l1 = await npState(p);
             await p.click('#dvBarLyrics'); await p.waitForTimeout(600);
             const l2 = await npState(p);
-            check(`${tag} B lyrics opens it with lyrics on (pressed); again turns them off: the page stays, the lyrics go and the turntable grows`,
-                l1.open && l1.lyricsOn && l1.lyricsPressed === 'true' && !!l1.sleeve && l1.focus === 'dvNpHeading'
+            check(`${tag} B on Now Playing, lyrics turns them on (pressed); again turns them off: the page stays, the lyrics go and the turntable grows`,
+                l1.open && l1.lyricsOn && l1.lyricsPressed === 'true' && !!l1.sleeve && l1.focus === 'dvBarLyrics'
                 && l2.open && !l2.lyricsOn && l2.lyricsPressed === 'false' && !l2.sleeve && l2.nolyrics && l2.deck.w > l1.deck.w && !l2.overflowX && l2.deck.b <= l2.main.b,
                 { l1: { open: l1.open, on: l1.lyricsOn, pressed: l1.lyricsPressed, sleeve: !!l1.sleeve, w: Math.round(l1.deck.w) }, l2: { open: l2.open, on: l2.lyricsOn, sleeve: !!l2.sleeve, w: Math.round(l2.deck.w), b: l2.deck.b, mb: l2.main.b } });
             // The sleeve's own lyrics switch turns them off too: focus moves to the bar's lyrics button

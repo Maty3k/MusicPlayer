@@ -1263,7 +1263,7 @@
             <button type="button" class="dv-bar-btn" id="dvBarLyrics" aria-pressed="false" aria-label="Lyrics">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 17.4V6.2l8-1.7v11.2"/><circle cx="7.2" cy="17.4" r="2.3"/><circle cx="15.2" cy="15.7" r="2.3"/></svg>
             </button>
-            <button type="button" class="dv-bar-btn" id="dvBarQueue" aria-haspopup="dialog" aria-label="Up next">
+            <button type="button" class="dv-bar-btn" id="dvBarQueue" aria-pressed="false" aria-controls="dvPanel" aria-label="Up next">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/></svg>
                 <span class="dv-bar-badge" id="dvBarQueueCount" hidden>0</span>
             </button>
@@ -1300,12 +1300,40 @@
             <button type="button" role="menuitem" data-dv-np="show">Show in playlist</button>
         </div>
     </div>
+    {{-- Desktop side panel (desktop step 8): Up next and Lyrics on the right
+         of the page, above the bar (html.dv2 only; display:none everywhere
+         else). The bar's queue and lyrics buttons open it on their tab.
+         script.js (desktopPanel) moves #queueBody in here on the desktop
+         and the sleeve's lyrics (.sleeve-lyrics-zone) while the Lyrics tab
+         shows and Now Playing doesn't. --}}
+    <aside id="dvPanel" aria-label="Up next and lyrics" data-tab="queue">
+        <div class="dv-panel-box">
+            <div class="dv-panel-head">
+                <div class="dv-panel-tabs" role="tablist" aria-label="Side panel">
+                    <button type="button" role="tab" class="dv-panel-tab" id="dvPanelTabQueue" aria-controls="dvPanelQueue" aria-selected="true">Up next</button>
+                    <button type="button" role="tab" class="dv-panel-tab" id="dvPanelTabLyrics" aria-controls="dvPanelLyrics" aria-selected="false" tabindex="-1">Lyrics</button>
+                </div>
+                <button type="button" class="dv-panel-close" id="dvPanelClose" aria-label="Close side panel" title="Close">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+            </div>
+            <div class="dv-panel-body" id="dvPanelQueue" role="tabpanel" aria-labelledby="dvPanelTabQueue" tabindex="-1"></div>
+            <div class="dv-panel-body" id="dvPanelLyrics" role="tabpanel" aria-labelledby="dvPanelTabLyrics" tabindex="-1" hidden>
+                <p class="dv-panel-note" id="dvPanelLyricsNote" hidden>The lyrics are on the Now Playing page.</p>
+            </div>
+        </div>
+    </aside>
     {{-- Show the bar from the first paint when the playing list has songs
-         (script.js's dvSyncBarVisibility owns it from then on) --}}
+         (script.js's dvSyncBarVisibility owns it from then on), and the side
+         panel when it was left open on this device (desktopPanel) --}}
     <script>
         (function () {
             var root = document.documentElement;
             if (root.classList.contains('dv2') && {{ count($songs) > 0 ? 'true' : 'false' }}) root.classList.add('dv2-bar');
+            try {
+                var tab = localStorage.getItem('dvPanel');
+                if (root.classList.contains('dv2') && (tab === 'queue' || tab === 'lyrics')) root.classList.add('dv-panel');
+            } catch (e) {}
         })();
     </script>
 

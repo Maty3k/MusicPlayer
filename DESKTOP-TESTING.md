@@ -4,10 +4,10 @@
 1440×900 and 1024×768, `desktop-sidebar-check.js` covers the sidebar at
 1440×900, 1024×768 and 800×600, `desktop-home-check.js` covers Home and
 `desktop-playlist-check.js` the playlist page,
-`desktop-nowplaying-check.js` Now Playing and `desktop-search-check.js` the
-Search page at the same three sizes (all four with axe scans). All six check
-that phones
-(390×844, 844×390) and the app (`?app=1`) don't get them. The items below need a person at a
+`desktop-nowplaying-check.js` Now Playing, `desktop-search-check.js` the
+Search page and `desktop-panel-check.js` the side panel at the same three
+sizes (all five with axe scans). All seven check that phones (390×844,
+844×390) and the app (`?app=1`) don't get them. The items below need a person at a
 real desktop browser. Run them in Chrome and in Firefox or Safari.
 
 ## Scope (step 1)
@@ -42,9 +42,11 @@ real desktop browser. Run them in Chrome and in Firefox or Safari.
 - [ ] The volume slider moves the deck's knob and the knob moves the slider.
   Mute goes to 0 and comes back to the last level. Arrow keys work on the
   focused slider.
-- [ ] Lyrics: from the crate it opens Now Playing (step 6) with lyrics on.
-  Pressed again, it turns lyrics off and Now Playing stays.
-- [ ] Queue opens the Up next window. The number badge counts queued songs.
+- [ ] Lyrics: from Home, a playlist or Search it opens the side panel's
+  Lyrics tab (step 8) with lyrics on; pressed again, it closes the panel.
+  On Now Playing it turns the page's lyrics off and on.
+- [ ] Queue opens the side panel's Up next tab (step 8); pressed again, it
+  closes it. The number badge counts queued songs.
 - [ ] Sleep: the menu opens above the button with focus on "15 minutes".
   ↑/↓ move, Esc closes and returns focus to the button, and clicking
   outside closes it. A timer shows its minutes on the button, and "Turn off"
@@ -222,7 +224,8 @@ the bar's turntable (or lyrics) button.
 ## Now Playing (step 6)
 
 The turntable is now a Now Playing page. The bar's cover or title, or its
-turntable button, opens it; the lyrics button opens it with lyrics on.
+turntable button, opens it. (Step 8: the lyrics button no longer opens it;
+elsewhere it opens the side panel's Lyrics tab.)
 
 - [ ] The page: a back button (‹) and "Now Playing" at the top, the big
   turntable in the middle over a blurred, darkened copy of the cover, and
@@ -327,3 +330,58 @@ it.
   chips follow the theme.
 - [ ] A phone (its Search tab), a short landscape phone (the search window),
   and the app (`?app=1`, the search window) are exactly as before.
+
+## Side panel: Up next and Lyrics (step 8)
+
+A panel on the right of the page, from the top of the window to the player
+bar, with two tabs: Up next and Lyrics. The bar's queue and lyrics buttons
+open it on their tab. The page narrows to make room at every desktop width
+(the panel is narrower beside the icon rail), so nothing sits under it.
+
+- [ ] Queue in the bar: the panel opens on Up next, the button lights up,
+  and focus moves to the Up next tab. Pressed again, the panel closes, the
+  page widens back, and focus stays on the button. The old Up next window
+  never opens on the desktop.
+- [ ] Up next shows the playing song, then the queued songs with Clear. A
+  song row's ⋯ → Play next / Add to queue shows up there at once.
+- [ ] Drag a queued song by its handle to reorder it. With a song's play or
+  × button focused, Alt+↑ / Alt+↓ move it (focus follows). The order stays
+  after a reload.
+- [ ] × removes a song (focus stays on the × in its place). Clicking a song
+  plays it now, and the songs before it leave the queue. Clear empties it
+  ("Nothing queued yet").
+- [ ] "Next from (the playing playlist)": with shuffle off, its next five
+  songs in order (round to the top unless repeat is off); clicking one plays
+  it. With shuffle on it only says the songs are picked as they play. It
+  follows song changes, shuffle and repeat, and edits to that playlist.
+- [ ] A playlist's ⋯ → Up next opens the panel on Up next.
+- [ ] Lyrics in the bar (from Home, a playlist or Search): the panel opens
+  on Lyrics with lyrics turned on. Synced lyrics light up line by line and
+  scroll to follow the song; clicking a line jumps there; −, + and the
+  offset nudge the timing; the small note button turns lyrics off and on.
+  Switching between Home, playlists and Search keeps them there.
+- [ ] Open Now Playing with the panel on Lyrics: the lyrics show on the Now
+  Playing page only (never twice), and the panel's Lyrics tab says "The
+  lyrics are on the Now Playing page." Close Now Playing: they come back to
+  the panel. Up next stays usable beside Now Playing.
+- [ ] The tabs: click either, or with a tab focused use ←/→ (and Home/End).
+  The bar's buttons light up for the tab that shows.
+- [ ] Esc with focus in the panel closes it, focus back on the bar's
+  button for that tab (Esc never closes Now Playing from inside the panel).
+  The × in the panel's corner does the same.
+- [ ] Reload: the panel comes back open on the same tab, or stays closed.
+  It's per device and browser.
+- [ ] Layout at 800, 1024, 1440 and 1920px wide: the panel reaches from the
+  top to the bar, the page beside it has no sideways scroll, and Home, a
+  playlist page, Search and Now Playing all fit (long titles end in "…").
+- [ ] Screen reader: the panel is an "Up next and lyrics" complementary
+  landmark with a "Side panel" tab list; each queued song's buttons say
+  "Play now: (song)" and "Remove from queue: (song)"; the lyrics are a
+  "Lyrics" region you can Tab to and scroll with the arrows. The panel
+  itself announces nothing on its own (no live regions).
+- [ ] Narrow the window below 600px with the panel open: the phone layout
+  shows its own queue window and Now Playing lyrics; widen it again and the
+  panel is back.
+- [ ] Each room theme (Settings → Appearance): the panel follows the theme.
+- [ ] A phone, a short landscape phone and the app (`?app=1`) keep the Up
+  next window and their own lyrics exactly as before.

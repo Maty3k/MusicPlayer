@@ -408,13 +408,15 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         await act('edit');
         const edit = await p.evaluate(() => ({ open: document.getElementById('playlistEditModal').classList.contains('active'), id: editingPlaylistId }));
         await p.evaluate(() => hidePlaylistEditModal()); await p.waitForTimeout(300);
+        // (Desktop step 8: Up next opens the side panel, not the queue window)
         await act('queue');
-        const queue = await modalOpen(p, 'queueModal');
-        await p.evaluate(() => hideQueueModal()); await p.waitForTimeout(300);
+        const queue = await p.evaluate(() => !document.getElementById('queueModal').classList.contains('active') && document.getElementById('dvPanel').getClientRects().length > 0
+            && document.getElementById('dvPanelTabQueue').getAttribute('aria-selected') === 'true');
+        await p.evaluate(() => window.dvSidePanel.close()); await p.waitForTimeout(300);
         await act('share');
         const share = writes(p, 'share');
         const name = await p.evaluate((i) => playlistsMeta[i].name, id);
-        check(`${tag} G its actions: Add songs (to this playlist), Import into this playlist, Edit details, Up next, Share all act on the playlist on screen`,
+        check(`${tag} G its actions: Add songs (to this playlist), Import into this playlist, Edit details, Up next (the side panel), Share all act on the playlist on screen`,
             add && addTo === name && imp.any.length === 1 && imp.into === true && imp.pl === id && edit.open && edit.id === id && queue && share.length === 1 && share[0].playlist === id,
             { add, addTo, name, imp, edit, queue, share });
         // Delete: two clicks; a shown playlist goes in place (what plays plays on)
@@ -520,13 +522,17 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         check(`${tag} J the turntable button shows the deck (no page, no playlist highlighted); again, back to the playlist page it came from`,
             s1.deck && s1.mainShown && !s1.pageShown && b1 === 'true' && s1.sideOpen.length === 0
             && !s2.deck && s2.pageShown && !s2.mainShown && s2.onScreen === id && b2 === 'false' && s2.sideOpen[0] === id, { s1: { deck: s1.deck, main: s1.mainShown, page: s1.pageShown, side: s1.sideOpen }, b1, s2: { deck: s2.deck, page: s2.pageShown, on: s2.onScreen }, b2 });
-        // Lyrics from the page: the deck with lyrics on
+        // Lyrics from the page: the side panel's Lyrics tab beside the page,
+        // lyrics on (desktop step 8: it used to open the deck); again closes it
         await p.click('#dvBarLyrics'); await p.waitForTimeout(400);
-        const ly = await p.evaluate(() => ({ deck: document.getElementById('musicPlayerView').classList.contains('dv-deck'), on: lyricsEnabled, pressed: document.getElementById('dvBarLyrics').getAttribute('aria-pressed') }));
-        // A playlist from the sidebar leaves the deck for its page
+        const ly = await p.evaluate(() => ({ deck: document.getElementById('musicPlayerView').classList.contains('dv-deck'), on: lyricsEnabled, pressed: document.getElementById('dvBarLyrics').getAttribute('aria-pressed'),
+            panel: document.getElementById('dvPanel').getClientRects().length > 0, page: document.getElementById('musicSidebar').getClientRects().length > 0 }));
+        await p.click('#dvBarLyrics'); await p.waitForTimeout(300);
+        // The deck, then a playlist from the sidebar leaves it for its page
+        await p.click('#dvBarDeck'); await p.waitForTimeout(500);
         await p.click(`#dvSideList .dv-side-pl[data-playlist="${id}"]`); await p.waitForTimeout(1500);
         const s3 = await pageState(p);
-        check(`${tag} J lyrics opens the deck with lyrics on; a sidebar playlist then shows its page`, ly.deck && ly.on && ly.pressed === 'true' && !s3.deck && s3.pageShown && s3.onScreen === id, { ly, s3: { deck: s3.deck, on: s3.onScreen } });
+        check(`${tag} J lyrics opens the side panel's Lyrics (lyrics on) beside the page; from the deck, a sidebar playlist shows its page`, !ly.deck && ly.page && ly.panel && ly.on && ly.pressed === 'true' && !s3.deck && s3.pageShown && s3.onScreen === id, { ly, s3: { deck: s3.deck, on: s3.onScreen } });
         // Home → turntable → back goes Home
         await p.click('#dvSideHome'); await p.waitForTimeout(500);
         await p.click('#dvBarDeck'); await p.waitForTimeout(500);

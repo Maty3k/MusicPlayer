@@ -8,6 +8,7 @@
 // (Desktop step 3 changed F: opening a playlist only shows it now.)
 // (Desktop step 6: the cover and title became a button that opens Now
 // Playing; A names it by its text and E's outside click avoids it.)
+// (Desktop step 8: E's queue and lyrics buttons open the side panel.)
 // Writes to /save-music are faked and recorded (reads go through).
 const L = require('../lib');
 const APP = L.APP;
@@ -236,10 +237,14 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         // ---- E. Queue, sleep, lyrics, turntable
         {
             const { ctx, p } = await open({ vp });
-            await p.click('#dvBarQueue');
-            const q = await p.evaluate(() => ({ calls: window.__calls.slice(), open: document.getElementById('queueModal').classList.contains('active') }));
-            check(`${tag} E queue opens the queue (openQueueModal)`, q.calls.includes('openQueueModal') && q.open, q);
-            await p.evaluate(() => hideQueueModal());
+            // (Desktop step 8: the queue button opens the side panel's Up next,
+            // not the queue window; desktop-panel-check covers the panel)
+            await p.click('#dvBarQueue'); await p.waitForTimeout(200);
+            const q = await p.evaluate(() => ({ modal: document.getElementById('queueModal').classList.contains('active'), panel: document.getElementById('dvPanel').getClientRects().length > 0,
+                tab: document.getElementById('dvPanelTabQueue').getAttribute('aria-selected'), pressed: document.getElementById('dvBarQueue').getAttribute('aria-pressed') }));
+            await p.click('#dvBarQueue'); await p.waitForTimeout(200);
+            const q2 = await p.evaluate(() => ({ panel: document.getElementById('dvPanel').getClientRects().length > 0, pressed: document.getElementById('dvBarQueue').getAttribute('aria-pressed') }));
+            check(`${tag} E queue opens the side panel on Up next (not the queue window), pressed; again closes it`, !q.modal && q.panel && q.tab === 'true' && q.pressed === 'true' && !q2.panel && q2.pressed === 'false', { q, q2 });
             await p.evaluate(() => { playQueue.push(songToQueueItem(songsData[0])); updateQueueBadge(); });
             const badge = await p.evaluate(() => ({ t: document.getElementById('dvBarQueueCount').textContent, hidden: document.getElementById('dvBarQueueCount').hidden, label: document.getElementById('dvBarQueue').getAttribute('aria-label') }));
             check(`${tag} E the queue count shows on the button`, badge.t === '1' && !badge.hidden && badge.label === 'Up next: 1 queued', badge);
@@ -270,17 +275,20 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             const s4 = await p.evaluate(() => ({ deadline: sleepDeadline, end: sleepEndOfTrack, label: document.getElementById('dvBarSleepLabel').textContent, on: document.getElementById('dvBarSleep').classList.contains('is-on') }));
             check(`${tag} E "Turn off" shows while set, an outside click closes the menu, Turn off clears it`, offShown && closedOutside && s4.deadline === 0 && !s4.end && s4.label === '' && !s4.on, { offShown, closedOutside, s4 });
 
-            // Lyrics: from the crate, opens the turntable with lyrics on; again turns them off
+            // Lyrics: from the crate, opens the side panel's Lyrics tab with
+            // lyrics on; again closes it (desktop step 8: it used to open the
+            // turntable; on Now Playing it still turns its lyrics off and on,
+            // see desktop-nowplaying-check)
             await p.evaluate(() => { lyricsEnabled = false; updateLyricsControls(); });
             await clearCalls(p);
-            await p.click('#dvBarLyrics');
-            const l1 = await p.evaluate(() => ({ calls: window.__calls.slice(), on: lyricsEnabled, player: document.getElementById('musicPlayerView').classList.contains('active'), deck: document.getElementById('musicPlayerView').classList.contains('dv-deck'), pressed: document.getElementById('dvBarLyrics').getAttribute('aria-pressed') }));
-            await p.click('#dvBarLyrics');
-            const l2 = await p.evaluate(() => ({ on: lyricsEnabled, player: document.getElementById('musicPlayerView').classList.contains('active'), pressed: document.getElementById('dvBarLyrics').getAttribute('aria-pressed'), sleeveOff: document.getElementById('lyricsToggleBtn').classList.contains('off') }));
-            // (Desktop step 5: the lyrics live on the deck, .dv-deck)
-            check(`${tag} E lyrics: opens the player view's deck with lyrics on (openPlayerView + toggleLyrics), again turns them off`,
-                l1.calls.includes('openPlayerView') && l1.calls.includes('toggleLyrics') && l1.on && l1.player && l1.deck && l1.pressed === 'true'
-                && !l2.on && l2.player && l2.pressed === 'false' && l2.sleeveOff, { l1, l2 });
+            await p.click('#dvBarLyrics'); await p.waitForTimeout(200);
+            const l1 = await p.evaluate(() => ({ calls: window.__calls.slice(), on: lyricsEnabled, deck: document.getElementById('musicPlayerView').classList.contains('dv-deck'), pressed: document.getElementById('dvBarLyrics').getAttribute('aria-pressed'),
+                panel: document.getElementById('dvPanel').getClientRects().length > 0, tab: document.getElementById('dvPanelTabLyrics').getAttribute('aria-selected'), inPanel: !!document.getElementById('sleeveLyrics').closest('#dvPanel') }));
+            await p.click('#dvBarLyrics'); await p.waitForTimeout(200);
+            const l2 = await p.evaluate(() => ({ on: lyricsEnabled, panel: document.getElementById('dvPanel').getClientRects().length > 0, pressed: document.getElementById('dvBarLyrics').getAttribute('aria-pressed'), inPanel: !!document.getElementById('sleeveLyrics').closest('#dvPanel') }));
+            check(`${tag} E lyrics: opens the side panel on Lyrics with lyrics on (toggleLyrics; no turntable), again closes it`,
+                l1.calls.includes('toggleLyrics') && !l1.calls.includes('openPlayerView') && l1.on && !l1.deck && l1.panel && l1.tab === 'true' && l1.inPanel && l1.pressed === 'true'
+                && l2.on && !l2.panel && !l2.inPanel && l2.pressed === 'false', { l1, l2 });
 
             // Turntable: toggles the player view
             await p.evaluate(() => showPlaylistPicker());

@@ -16716,7 +16716,8 @@ button.send-menu-cancel {
    Phones and the app shell never match these selectors, so their pixels
    are untouched. The only unscoped rule is the default hide of the new
    desktop elements (#dvBar, #dvSide, the playlist page's #dvPl* pieces,
-   the song rows' album and length cells and the Search page's counts).
+   the song rows' album and length cells, the Search page's counts and the
+   side panel).
    New desktop rules go in this block, under html.dv2.
    ========================================================================== */
 
@@ -16733,6 +16734,7 @@ button.send-menu-cancel {
 #dvNpInfo,
 #dvNpExtras,
 #dvNpMenu,
+#dvPanel,
 .song-list-album,
 .song-list-dur,
 .m-search-count { display: none; }
@@ -19547,4 +19549,237 @@ html.dv2 #mAddToSheet .m-addto-list { max-height: min(60vh, 520px); overflow-y: 
     html.dv2 #mSearchResults .m-sr-open .search-result-pl,
     html.dv2 #mSearchResults .m-sr-add,
     html.dv2 #mSearchResults .m-search-link { transition: none; }
+}
+
+/* ---------- Step 8: the side panel (#dvPanel: Up next and Lyrics) ----------
+   One rounded panel on the right, from the top of the window to the bar,
+   while html.dv-panel is on (desktopPanel: open, on the desktop, with the
+   bar showing). Two tabs: Up next (the queue window's #queueBody, moved in,
+   then "Next from <playlist>") and Lyrics (the sleeve's lyrics zone, moved
+   in while Now Playing is closed). The page narrows to make room at every
+   desktop width (a narrower panel beside the icon rail). Everything here
+   is html.dv2 only. */
+html.dv2 { --dv-panel-w: clamp(300px, 24vw, 360px); }
+
+html.dv2.dv2-bar.dv-panel #dvPanel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: var(--dv-bar-h);
+    z-index: 250; /* over #music-section (200), under the bar (300) and every modal */
+    width: var(--dv-panel-w);
+    display: flex;
+    flex-direction: column;
+    padding: 8px 8px 8px 0;
+    background: var(--dv-side-bg);
+    color: var(--cream);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+/* The page narrows to make room (every desktop page reflows down to the
+   ~420px left at 800px; floating over the page would hide its right-hand
+   controls, e.g. a song row's ⋯) */
+html.dv2.dv2-bar.dv-panel #music-section { right: var(--dv-panel-w); }
+@media (max-width: 900px) {
+    html.dv2 { --dv-panel-w: 280px; }
+}
+
+html.dv2 #dvPanel [hidden] { display: none !important; }
+html.dv2 #dvPanel button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+html.dv2 #dvPanel button:focus-visible,
+html.dv2 #dvPanel .dv-panel-body:focus-visible,
+html.dv2 #dvPanel .sleeve-lyrics:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: -2px;
+}
+
+html.dv2 #dvPanel .dv-panel-box {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--dv-panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+/* ---- Head: the two tabs and × ---- */
+html.dv2 #dvPanel .dv-panel-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 10px 10px 14px;
+}
+html.dv2 #dvPanel .dv-panel-tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    gap: 6px;
+}
+html.dv2 #dvPanel .dv-panel-tab {
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(255, 245, 233, 0.07);
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+html.dv2 #dvPanel .dv-panel-tab:hover { background: rgba(255, 245, 233, 0.13); }
+html.dv2 #dvPanel .dv-panel-tab[aria-selected="true"] {
+    background: var(--cream);
+    color: var(--ink);
+}
+html.dv2 #dvPanel .dv-panel-tab[aria-selected="true"]:focus-visible { outline-offset: 2px; }
+html.dv2 #dvPanel .dv-panel-close {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--cream-60);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+html.dv2 #dvPanel .dv-panel-close:hover { background: var(--dv-hover); color: var(--cream); }
+
+/* ---- The tab bodies: each scrolls on its own ---- */
+html.dv2 #dvPanel .dv-panel-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--cream) 16%, transparent) transparent;
+}
+
+/* Up next: the queue window's list (its own styles), fitted to the column */
+html.dv2 #dvPanel #dvPanelQueue { padding: 2px 10px 24px; }
+html.dv2 #dvPanel #queueBody {
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+}
+html.dv2 #dvPanel .queue-section-label { margin: 6px 4px 8px; color: var(--cream); font-size: 0.9rem; }
+html.dv2 #dvPanel .queue-section-head { margin: 18px 0 6px; }
+html.dv2 #dvPanel .queue-section-head .queue-section-label { margin: 0 4px; }
+html.dv2 #dvPanel .queue-now { gap: 12px; padding: 8px; border-radius: 10px; }
+html.dv2 #dvPanel .queue-now-cover,
+html.dv2 #dvPanel .queue-item-cover { width: 44px; height: 44px; border-radius: 6px; }
+html.dv2 #dvPanel .queue-item { gap: 10px; padding: 4px 6px; border-radius: 8px; }
+html.dv2 #dvPanel .queue-item:focus-within { background: rgba(255, 245, 233, 0.06); }
+html.dv2 #dvPanel .queue-item-artist { color: var(--cream-60); }
+html.dv2 #dvPanel .queue-item-remove { width: 30px; height: 30px; border-radius: 50%; color: var(--cream-60); }
+html.dv2 #dvPanel .queue-item-remove:hover { background: rgba(232, 93, 117, 0.22); color: #ffb3bf; }
+html.dv2 #dvPanel .queue-clear-btn {
+    padding: 5px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 245, 233, 0.06);
+    color: var(--cream-60);
+    font-size: 0.8rem;
+}
+html.dv2 #dvPanel .queue-clear-btn:hover { background: rgba(255, 245, 233, 0.12); color: var(--cream); }
+html.dv2 #dvPanel .queue-item:focus-within .queue-item-playicon { opacity: 1; }
+html.dv2 #dvPanel .queue-empty { padding: 20px 8px; color: var(--cream-60); text-align: left; }
+/* "Next from <playlist>": a row is one button (cover, title and artist) */
+html.dv2 #dvPanel .dv-nf-label { margin-top: 20px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+html.dv2 #dvPanel .dv-nf-item { padding: 0; }
+html.dv2 #dvPanel .dv-nf-row {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 6px;
+    border-radius: 8px;
+    text-align: left;
+}
+html.dv2 #dvPanel .dv-nf-row .queue-item-info { display: flex; flex-direction: column; }
+html.dv2 #dvPanel .dv-nf-note { margin: 0 4px; font-size: 0.85rem; line-height: 1.45; color: var(--cream-60); }
+
+/* Lyrics: the sleeve's zone (lines, then the offset and on/off controls) */
+html.dv2 #dvPanel #dvPanelLyrics {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+html.dv2 #dvPanel .dv-panel-note {
+    margin: auto 0;
+    padding: 24px 20px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    text-align: center;
+    color: var(--cream-60);
+}
+html.dv2 #dvPanel .sleeve-lyrics-zone {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+html.dv2 #dvPanel .sleeve-lyrics {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 18px 18px 24px;
+    border-top: 0;
+    gap: 2px;
+    outline: none;
+}
+html.dv2 #dvPanel .lyrics-line {
+    font-size: 1.05rem;
+    line-height: 1.45;
+    padding: 6px 0;
+    text-align: left;
+    transform-origin: left center;
+    filter: none;
+    color: var(--cream-60);
+}
+html.dv2 #dvPanel .lyrics-line:hover { color: var(--cream); }
+html.dv2 #dvPanel .lyrics-line.active {
+    color: var(--cream);
+    transform: none;
+    text-shadow: 0 0 18px rgba(var(--amber-rgb), 0.35);
+}
+html.dv2 #dvPanel .lyrics-line.active ~ .lyrics-line { filter: none; }
+html.dv2 #dvPanel .lyrics-line.lyrics-line-plain { color: color-mix(in srgb, var(--cream) 85%, transparent); cursor: default; }
+html.dv2 #dvPanel .lyrics-placeholder {
+    font-size: 0.9rem;
+    font-style: normal;
+    letter-spacing: 0;
+    color: var(--cream-60);
+}
+html.dv2 #dvPanel .lyrics-controls {
+    flex: 0 0 auto;
+    gap: 10px;
+    padding: 8px 0 10px;
+    border-top: 1px solid var(--line);
+}
+html.dv2 #dvPanel .lyrics-ctrl-btn {
+    width: 30px;
+    height: 26px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: rgba(255, 245, 233, 0.06);
+    color: var(--cream-60);
+}
+html.dv2 #dvPanel .lyrics-ctrl-btn:hover,
+html.dv2 #dvPanel .lyrics-ctrl-sync:hover { color: var(--cream); }
+html.dv2 #dvPanel .lyrics-ctrl-sync { color: var(--cream-60); font-size: 0.75rem; }
+
+@media (prefers-reduced-motion: reduce) {
+    html.dv2 #dvPanel .dv-panel-tab,
+    html.dv2 #dvPanel .dv-panel-close,
+    html.dv2 #dvPanel .lyrics-line { transition: none; }
+    html.dv2 #dvPanel .sleeve-lyrics { scroll-behavior: auto; }
 }

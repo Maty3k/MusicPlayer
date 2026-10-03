@@ -12797,7 +12797,11 @@ document.addEventListener('DOMContentLoaded', () => {
         click('dvBarNext', () => nextSong());
         click('dvBarShuffle', () => { toggleShuffle(); mSyncModes(); });
         click('dvBarLoop', () => { toggleLoopMode(); mSyncModes(); });
-        click('dvBarQueue', () => window.openQueueModal());
+        // Up next opens the side panel on its Up next tab (desktop step 8)
+        click('dvBarQueue', () => {
+            if (window.dvSidePanel) window.dvSidePanel.toggle('queue');
+            else window.openQueueModal();
+        });
 
         // ---- Play / pause: #vinyl.playing is the play state (see syncPlaying);
         // the icon swaps in CSS off body.m-playing, the label here.
@@ -12960,7 +12964,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const openBtn = $('dvBarOpen');
         window.dvSyncLyricsBtn = function () {
             if (lyricsBtn) {
-                const showing = deckOpen() && lyricsEnabled;
+                // Now Playing shows its own lyrics; elsewhere the side
+                // panel's Lyrics tab does (desktop step 8)
+                const showing = deckOpen() ? !!lyricsEnabled : !!(window.dvSidePanel && window.dvSidePanel.showing('lyrics'));
                 lyricsBtn.setAttribute('aria-pressed', showing ? 'true' : 'false');
                 lyricsBtn.title = showing ? 'Hide lyrics' : 'Show lyrics';
             }
@@ -13020,11 +13026,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }).observe(playerView, { attributes: true, attributeFilter: ['class'] });
         if (lyricsBtn) {
             lyricsBtn.addEventListener('click', () => {
-                // Showing: turn them off (the sleeve's own on/off; the page
-                // stays, the turntable takes the room). Otherwise open Now
-                // Playing with them on.
-                if (deckOpen() && lyricsEnabled) { toggleLyrics(); return; }
-                if (!deckOpen()) openDeck(lyricsBtn);
+                // On Now Playing: turns its lyrics off and on (the sleeve's
+                // own switch; the page stays, the turntable takes the room).
+                // Elsewhere: the side panel's Lyrics tab, opened with lyrics
+                // on, or closed when it shows (desktop step 8).
+                if (deckOpen()) { toggleLyrics(); window.dvSyncLyricsBtn(); return; }
+                if (window.dvSidePanel) { window.dvSidePanel.toggle('lyrics'); return; }
+                openDeck(lyricsBtn);
                 if (!lyricsEnabled) toggleLyrics();
                 window.dvSyncLyricsBtn();
             });
@@ -14042,6 +14050,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // ---- Open / closed: the region, focus, the slider's semantics
         let marked = false;
         function syncOpen() {
+            // The side panel hands the lyrics back first (desktop step 8)
+            if (window.dvSidePanel) window.dvSidePanel.sync();
             const open = isOpen();
             if (open && !marked) {
                 marked = true;
@@ -14068,7 +14078,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 main.removeAttribute('aria-labelledby');
                 main.classList.remove('dv-np-wide', 'dv-np-nolyrics', 'dv-np-compact');
                 if (pitch) ['role', 'tabindex', 'aria-label', 'aria-orientation', 'aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-valuetext'].forEach((a) => pitch.removeAttribute(a));
-                if (lyricsBox) ['role', 'aria-label', 'tabindex'].forEach((a) => lyricsBox.removeAttribute(a));
+                // (the side panel keeps them while it holds the lyrics)
+                if (lyricsBox && !(window.dvSidePanel && window.dvSidePanel.holdsLyrics())) ['role', 'aria-label', 'tabindex'].forEach((a) => lyricsBox.removeAttribute(a));
                 setMenu(false, false);
             }
             if (open) { syncFrom(); syncCrackle(); layout(); }
@@ -14199,6 +14210,350 @@ document.addEventListener('DOMContentLoaded', () => {
 
         syncCrackle();
         syncOpen();
+    })();
+
+    // ============================================================
+    // DESKTOP SIDE PANEL (#dvPanel, desktop step 8): Up next and Lyrics on
+    // the right of the page, above the bar, as two tabs. The bar's queue and
+    // lyrics buttons open it on their tab and close it when it already shows
+    // that tab; Esc (inside it) and its × close it too, focus going back to
+    // the bar's button. Open/closed and the tab are remembered per device.
+    // Up next is the queue window's own list (#queueBody, renderQueue and
+    // friends): on the desktop it lives here, and openQueueModal opens the
+    // panel instead of the window (phones and the app keep the window).
+    // Under it, "Next from <the playing playlist>": its next few songs in
+    // order (shuffle on: just a note, the order isn't known ahead). Lyrics
+    // is the sleeve's own lyrics zone (#sleeveLyrics and its controls, fed
+    // by the lyrics loader as always), moved in here while the tab shows,
+    // except while Now Playing is open: its page shows them, and the tab
+    // says so. The page narrows to make room (CSS: html.dv-panel).
+    // ============================================================
+    (function desktopPanel() {
+        const $ = (id) => document.getElementById(id);
+        const panel = $('dvPanel');
+        const root = document.documentElement;
+        if (!panel) return;
+        const tabs = { queue: $('dvPanelTabQueue'), lyrics: $('dvPanelTabLyrics') };
+        const bodies = { queue: $('dvPanelQueue'), lyrics: $('dvPanelLyrics') };
+        if (!tabs.queue || !tabs.lyrics || !bodies.queue || !bodies.lyrics) return;
+        const note = $('dvPanelLyricsNote');
+        const closeBtn = $('dvPanelClose');
+        const openers = { queue: $('dvBarQueue'), lyrics: $('dvBarLyrics') };
+        const queueBody = $('queueBody');
+        const queueHome = queueBody ? queueBody.parentNode : null;
+        const zone = document.querySelector('.sleeve-lyrics-zone');
+        const zoneHome = zone ? zone.parentNode : null;
+        const zoneNext = zone ? zone.nextElementSibling : null;
+        const lyricsBox = $('sleeveLyrics');
+        const KEY = 'dvPanel';
+        const NEXT_MAX = 5;
+
+        let tab = 'queue';
+        let open = false;
+        try {
+            const v = localStorage.getItem(KEY);
+            if (v === 'queue' || v === 'lyrics') { tab = v; open = true; }
+        } catch (e) {}
+        const save = () => { try { localStorage.setItem(KEY, open ? tab : 'closed'); } catch (e) {} };
+
+        const isDesk = () => root.classList.contains('dv2');
+        // It shows on the desktop once something is loaded (the bar shows)
+        const canShow = () => isDesk() && root.classList.contains('dv2-bar');
+        const shown = () => open && canShow();
+        const npOpen = () => isDesk() && !!(window.dvNowPlaying && window.dvNowPlaying.isOpen());
+        const usable = (el) => !!el && el.isConnected && el.getClientRects().length > 0 && !el.disabled;
+        const holdsLyrics = () => !!zone && zone.parentNode === bodies.lyrics;
+
+        // The lyrics scroll on their own: a labelled stop for the keyboard
+        // (Now Playing marks them the same way while it shows them)
+        function markLyrics() {
+            if (!lyricsBox) return;
+            if (holdsLyrics()) {
+                lyricsBox.setAttribute('role', 'region');
+                lyricsBox.setAttribute('aria-label', 'Lyrics');
+                lyricsBox.tabIndex = 0;
+            } else if (!npOpen() && lyricsBox.hasAttribute('role')) {
+                ['role', 'aria-label', 'tabindex'].forEach((a) => lyricsBox.removeAttribute(a));
+            }
+        }
+        // The line being sung, in the middle (a move resets the scroll)
+        function centreLyric() {
+            if (!lyricsBox || !holdsLyrics()) return;
+            const act = lyricsBox.querySelector('.lyrics-line.active');
+            if (!act) return;
+            const a = act.getBoundingClientRect(), b = lyricsBox.getBoundingClientRect();
+            lyricsBox.scrollTop += (a.top + a.height / 2) - (b.top + b.height / 2);
+        }
+
+        function sync() {
+            const on = shown();
+            if (root.classList.contains('dv-panel') !== on) root.classList.toggle('dv-panel', on);
+            if (panel.dataset.tab !== tab) panel.dataset.tab = tab;
+            for (const k of ['queue', 'lyrics']) {
+                const sel = k === tab;
+                if (tabs[k].getAttribute('aria-selected') !== String(sel)) tabs[k].setAttribute('aria-selected', String(sel));
+                if (tabs[k].tabIndex !== (sel ? 0 : -1)) tabs[k].tabIndex = sel ? 0 : -1;
+                if (bodies[k].hidden === sel) bodies[k].hidden = !sel;
+            }
+            // Up next: here on the desktop (with the bar), in its window otherwise
+            if (queueBody && queueHome) {
+                const want = canShow() ? bodies.queue : queueHome;
+                if (queueBody.parentNode !== want) {
+                    want.appendChild(queueBody);
+                    renderQueue();
+                }
+            }
+            // Lyrics: here while the tab shows, unless Now Playing shows them
+            if (zone && zoneHome) {
+                const here = on && tab === 'lyrics' && !npOpen();
+                if (here && !holdsLyrics()) {
+                    bodies.lyrics.appendChild(zone);
+                    requestAnimationFrame(centreLyric);
+                } else if (!here && zone.parentNode !== zoneHome) {
+                    zoneHome.insertBefore(zone, zoneNext && zoneNext.parentNode === zoneHome ? zoneNext : null);
+                }
+                markLyrics();
+            }
+            if (note) {
+                const hide = !(tab === 'lyrics' && npOpen());
+                if (note.hidden !== hide) note.hidden = hide;
+            }
+            if (openers.queue) {
+                const pressed = on && tab === 'queue' ? 'true' : 'false';
+                if (openers.queue.getAttribute('aria-pressed') !== pressed) openers.queue.setAttribute('aria-pressed', pressed);
+            }
+            if (typeof window.dvSyncLyricsBtn === 'function') window.dvSyncLyricsBtn();
+            if (on && tab === 'queue') refreshQueue();
+        }
+
+        function show(t, focus) {
+            tab = t;
+            open = true;
+            save();
+            sync();
+            if (focus && shown() && usable(tabs[tab])) tabs[tab].focus({ preventScroll: true });
+        }
+        function hide() {
+            const from = tab;
+            const inside = panel.contains(document.activeElement);
+            open = false;
+            save();
+            sync();
+            // Focus was in the panel: back to the bar's button for that tab
+            if (inside) {
+                const to = usable(openers[from]) ? openers[from] : openers.queue;
+                if (usable(to)) to.focus({ preventScroll: true });
+            }
+        }
+        // The bar's buttons: open on that tab (lyrics turned on), or close
+        function toggle(t) {
+            if (shown() && tab === t) { hide(); return; }
+            if (t === 'lyrics' && !lyricsEnabled) toggleLyrics();
+            show(t, true);
+        }
+
+        window.dvSidePanel = {
+            sync,
+            toggle,
+            open: (t) => show(t === 'lyrics' ? 'lyrics' : 'queue', true),
+            close: () => { if (open) hide(); },
+            isOpen: shown,
+            showing: (t) => shown() && tab === t,
+            holdsLyrics,
+        };
+
+        // ---- Tabs: click, or ←/→/Home/End (they follow focus)
+        const order = ['queue', 'lyrics'];
+        for (const k of order) {
+            tabs[k].addEventListener('click', () => show(k, false));
+            tabs[k].addEventListener('keydown', (e) => {
+                let to = null;
+                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') to = order[(order.indexOf(k) + 1) % order.length];
+                else if (e.key === 'Home') to = order[0];
+                else if (e.key === 'End') to = order[order.length - 1];
+                if (!to) return;
+                e.preventDefault();
+                show(to, true);
+            });
+        }
+        if (closeBtn) closeBtn.addEventListener('click', hide);
+        // Esc inside the panel closes it (a menu or window handles its own first)
+        panel.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape' || e.defaultPrevented) return;
+            if (document.querySelector('.add-song-modal.active, .vgm-modal.active, .send-menu')) return;
+            e.preventDefault();
+            hide();
+        });
+
+        // ---- Up next: the queue window's list, here
+        const origOpenQueue = window.openQueueModal;
+        window.openQueueModal = function () {
+            if (canShow()) { show('queue', true); return; }
+            return origOpenQueue.apply(this, arguments);
+        };
+
+        const esc = (v) => escapeHtml(String(v == null ? '' : v));
+        const playingName = () => {
+            const meta = typeof playlistsMeta === 'object' && playlistsMeta ? playlistsMeta[String(activePlaylistId)] : null;
+            return meta && meta.name ? meta.name : '';
+        };
+        // The playing list's next songs as Next plays them (no shuffle): from
+        // the row after the playing one (the row itself while it hasn't
+        // started), round to the top unless repeat is off, and never back
+        // round to the playing row
+        function nextIndices() {
+            if (!Array.isArray(songsData) || !songsData.length || shuffleMode !== 'off') return [];
+            const n = songsData.length;
+            const started = currentRowStarted() && !currentRadioSong;
+            const first = started ? currentSongIndex + 1 : currentSongIndex;
+            const out = [];
+            for (let k = 0; out.length < NEXT_MAX && k < n; k++) {
+                let i = first + k;
+                if (i >= n) {
+                    if (loopMode === 'off') break;
+                    i %= n;
+                }
+                if (started && i === currentSongIndex) break;
+                if (songsData[i]) out.push(i);
+            }
+            return out;
+        }
+        function nextFromHtml() {
+            const name = playingName();
+            if (!name || !Array.isArray(songsData) || !songsData.length) return '';
+            const head = `<div class="queue-section-label dv-nf-label">Next from ${esc(name)}</div>`;
+            if (shuffleMode !== 'off') return head + '<p class="dv-nf-note">Shuffle is on: songs are picked as they play.</p>';
+            const list = nextIndices();
+            if (!list.length) return '';
+            return head + `<ol class="queue-list dv-nf-list">${list.map((i) => {
+                const s = songsData[i];
+                return `<li class="queue-item dv-nf-item" data-nf="${i}"><button type="button" class="dv-nf-row" data-nf-index="${i}">${queueCoverHtml(s, 'queue-item-cover')}<span class="queue-item-info"><span class="queue-item-title">${esc(s.title)}</span><span class="queue-item-artist">${esc(s.artist)}</span></span></button></li>`;
+            }).join('')}</ol>`;
+        }
+        // What the list shows: re-rendered only when that changes
+        function signature() {
+            const now = currentRadioSong || (Array.isArray(songsData) ? songsData[currentSongIndex] : null);
+            const next = nextIndices().map((i) => i + ':' + songsData[i].title + ':' + songsData[i].cover).join(',');
+            return [now ? now.title + '|' + now.artist + '|' + now.cover : '', currentSongIndex, shuffleMode, loopMode, playingName(), next].join('~');
+        }
+        let lastSig = null;
+        function refreshQueue() {
+            if (!queueBody || queueBody.parentNode !== bodies.queue) return;
+            if (signature() !== lastSig) renderQueue();
+        }
+
+        // Focus survives a re-render: the same button on the same row (or the
+        // one now in its place), the new first row after a play, a moved row
+        let focusAfter = null;
+        const ROW_BTNS = ['queue-item-play', 'queue-item-remove', 'dv-nf-row'];
+        function focusSpot() {
+            const a = document.activeElement;
+            if (!a || !queueBody.contains(a)) return null;
+            const q = a.closest('[data-qindex]');
+            const cls = ROW_BTNS.find((c) => a.classList.contains(c)) || '';
+            return { q: q ? parseInt(q.dataset.qindex, 10) : null, cls };
+        }
+        function restoreFocus(spot) {
+            if (!spot) return;
+            const a = document.activeElement;
+            if (a && a !== document.body && a.isConnected && queueBody.contains(a)) return;
+            let to = null;
+            if (spot.q !== null) {
+                const items = [...queueBody.querySelectorAll('.queue-item[data-qindex]')];
+                if (items.length) {
+                    const li = items[Math.min(spot.q, items.length - 1)];
+                    to = (spot.cls && li.querySelector('.' + spot.cls)) || li.querySelector('.queue-item-play');
+                }
+            }
+            if (!to) to = queueBody.querySelector('.queue-item-play, .dv-nf-row');
+            (to || bodies.queue).focus({ preventScroll: true });
+            if (to) to.scrollIntoView({ block: 'nearest' });
+        }
+        function decorate() {
+            // Each row's buttons say which song they're for
+            queueBody.querySelectorAll('.queue-item[data-qindex]').forEach((li) => {
+                const t = (li.querySelector('.queue-item-title') || {}).textContent || '';
+                const play = li.querySelector('.queue-item-play');
+                const rm = li.querySelector('.queue-item-remove');
+                if (play) {
+                    play.setAttribute('aria-label', 'Play now: ' + t);
+                    play.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+                }
+                if (rm) rm.setAttribute('aria-label', 'Remove from queue: ' + t);
+            });
+        }
+        const origRender = window.renderQueue;
+        window.renderQueue = function () {
+            const here = !!queueBody && queueBody.parentNode === bodies.queue;
+            const spot = here ? (focusAfter || focusSpot()) : null;
+            focusAfter = null;
+            const out = origRender.apply(this, arguments);
+            if (here) {
+                queueBody.insertAdjacentHTML('beforeend', nextFromHtml());
+                decorate();
+                lastSig = signature();
+                restoreFocus(spot);
+            }
+            return out;
+        };
+        bodies.queue.addEventListener('click', (e) => {
+            // Playing a queued song drops the ones before it: focus the new first
+            if (e.target.closest('.queue-item-play, .queue-item-info')) {
+                const a = document.activeElement;
+                if (a && queueBody.contains(a)) focusAfter = { q: 0, cls: 'queue-item-play' };
+            }
+            // A "Next from" song plays now, from the playing list
+            const row = e.target.closest('.dv-nf-row');
+            if (row) {
+                const i = parseInt(row.dataset.nfIndex, 10);
+                if (!(i >= 0 && i < songsData.length)) return;
+                noteUserSongAsk();
+                switchSong(i);
+            }
+        }, true);
+        // Alt+↑/↓ moves a queued song (the drag handle's keyboard twin)
+        bodies.queue.addEventListener('keydown', (e) => {
+            if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+            const li = e.target.closest && e.target.closest('.queue-item[data-qindex]');
+            if (!li) return;
+            e.preventDefault();
+            const i = parseInt(li.dataset.qindex, 10);
+            const j = i + (e.key === 'ArrowUp' ? -1 : 1);
+            if (!(i >= 0 && i < playQueue.length && j >= 0 && j < playQueue.length)) return;
+            [playQueue[i], playQueue[j]] = [playQueue[j], playQueue[i]];
+            const cls = ['queue-item-play', 'queue-item-remove'].find((c) => e.target.classList.contains(c)) || 'queue-item-play';
+            focusAfter = { q: j, cls };
+            afterQueueChange();
+        });
+
+        // ---- Keep up: the song (the bar's title, the end of a song change),
+        // shuffle and repeat, the playing list's songs and name, the page's
+        // scope, the bar, and Now Playing opening and closing
+        const refresh = () => { if (shown() && tab === 'queue') refreshQueue(); };
+        const meta = document.querySelector('#dvBar .dv-bar-meta');
+        if (meta) new MutationObserver(refresh).observe(meta, { childList: true, characterData: true, subtree: true });
+        ['dvBarShuffle', 'dvBarLoop'].forEach((id) => {
+            const el = $(id);
+            if (el) new MutationObserver(refresh).observe(el, { attributes: true, attributeFilter: ['data-mode'] });
+        });
+        const after = (name, fn) => {
+            const orig = window[name];
+            if (typeof orig !== 'function') return;
+            window[name] = function () {
+                const out = orig.apply(this, arguments);
+                fn();
+                return out;
+            };
+        };
+        after('rebuildSongList', refresh);
+        after('updateCrateRecords', refresh);
+        // (a song change ends here, its index and radio state settled)
+        after('updateAmpDisplay', refresh);
+        new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['class'] });
+        const view = $('musicPlayerView');
+        if (view) new MutationObserver(sync).observe(view, { attributes: true, attributeFilter: ['class'] });
+
+        sync();
     })();
 
     // ---- Leaving phone widths: strip mobile-only state so desktop is clean.
