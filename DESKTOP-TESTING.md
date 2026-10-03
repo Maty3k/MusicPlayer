@@ -578,3 +578,18 @@ All of it is short (150-350ms) and none of it shows with reduce motion on.
   swings off. The next song's cover fades in behind the turntable.
 - [ ] None of it gets in the way: a row or card can be clicked while its
   page fades in, and nothing jumps when the motion ends.
+
+## First-run setup
+
+Browser suite: `tests/browser/suites/setup-wizard-check.js` (phone and desktop).
+
+- [ ] A brand-new account (no playlists) opens on the setup: a centred card
+  over the page, focus on "Welcome to Music Player". Tab reaches Get started;
+  Enter goes on. Tab and Shift+Tab stay inside the card; Esc closes it.
+- [ ] Each step's heading takes focus (a screen reader reads the step);
+  Back and "Step N of 6" at the top; Enter in the name or playlist field
+  submits it; the sleeve colours are one radio group (arrow keys).
+- [ ] "You're all set" points at the sidebar (Home, Search, Your Library)
+  and the avatar.
+- [ ] 1024, 1440 and 1920px wide, and 800×600: the card fits, nothing is cut
+  off (it scrolls inside on short windows).

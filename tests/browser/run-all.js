@@ -94,6 +94,7 @@ const SUITES = [
     { name: 'fs-check' },
     { name: 'fs2-check' },
     { name: 'onboarding-check' },
+    { name: 'setup-wizard-check' },
     { name: 'desktop-bar-check' },
     { name: 'desktop-sidebar-check' },
     { name: 'desktop-home-check' },

@@ -1,9 +1,13 @@
 // "Where's your music now?": the chooser that helps a new user bring their
-// music over from another app. A brand-new account (no playlists) gets it on
-// load, before the first-playlist wizard (Start fresh leads on to it); an
-// empty library gets it from Home's empty card; anyone gets it from the You
-// page, Library + and (desktop) the crate's sleeve tile. Each way opens the
-// right import tab, the file picker, or Add songs; back closes it.
+// music over from another app. An empty library gets it from Home's empty
+// card; anyone gets it from the You page, Library + and (desktop) the
+// crate's sleeve tile. Each way opens the right import tab, the file picker,
+// or Add songs; back closes it.
+// A brand-new account (no playlists) used to get the chooser itself on load;
+// since the setup wizard it gets the wizard instead (its "where" step shows
+// these same rows, see setup-wizard-check), and the chooser's Start fresh on
+// such an account opens the wizard's playlist step. N1, N3–N5, D6 and D7
+// changed with it.
 // Accounts (BrowserTestSeeder): empty = no playlists, demo = one empty
 // Favorites, mid = songs. Writes to /save-music are faked.
 const L = require('../lib');
@@ -22,8 +26,11 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         });
         const p = await ctx.newPage();
         p.__errs = []; p.on('pageerror', e => p.__errs.push(e.message));
-        p.__posts = []; p.__uploads = 0;
         await p.route(/youtube\.com|sdk\.scdn|spotify\.com|ytimg\.com|lrclib/, r => r.abort());
+        await p.goto(APP); await p.waitForTimeout(1400);
+        if (opts.raw) return { ctx, p };
+        // Fakes and stubs after the load (the mock harness keeps this part)
+        p.__posts = []; p.__uploads = 0;
         await p.route('**/youtube-playlist', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, title: 'A List', videos: [] }) }));
         await p.route('**/upload-song', (r) => { p.__uploads++; return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, mp3_url: `/media/bring-${p.__uploads}.mp3`, cover: '' }) }); });
         await p.route('**/save-music', async (route) => {
@@ -35,20 +42,20 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             if (['recordPlay', 'stats', 'switch', 'favorite'].includes(body.action)) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, stats: { totalPlays: 0, distinctSongs: 0, distinctArtists: 0, topSongs: [], topArtists: [] } }) });
             return route.continue();
         });
-        // A file input's click() is recorded instead of opening a picker
-        await p.addInitScript(() => {
+        // A file input's click() is recorded instead of opening a picker;
+        // nothing plays in these checks
+        await p.evaluate(() => {
             window.__fileClicks = [];
             const orig = HTMLInputElement.prototype.click;
             HTMLInputElement.prototype.click = function () {
                 if (this.type === 'file') { window.__fileClicks.push(this.id); return; }
                 return orig.apply(this, arguments);
             };
+            window.playSongSource = function () {};
         });
-        await p.goto(APP); await p.waitForTimeout(1400);
-        // Nothing plays in these checks
-        await p.evaluate(() => { window.playSongSource = function () {}; });
         return { ctx, p };
     }
+    // ---- end open
     const look = (p) => p.evaluate(() => {
         const chooser = document.getElementById('bringMusicModal');
         const vis = (id) => { const el = document.getElementById(id); return !!el && !el.hidden && el.getClientRects().length > 0; };
@@ -65,6 +72,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             panes: ['importPastePane', 'importYoutubePane', 'importSpotifyPane'].filter(vis),
             intoNew: typeof importIntoNew !== 'undefined' ? importIntoNew : null,
             wizardTitle: (document.getElementById('playlistEditModalTitle') || {}).textContent || '',
+            setup: (() => { const w = document.getElementById('setupWizard'); const sec = w && w.classList.contains('active') && w.querySelector('.setup-step:not([hidden])'); return sec ? sec.dataset.step : null; })(),
             you: document.documentElement.classList.contains('m-you'),
             active: a ? (a.id || (a.dataset && (a.dataset.bring || a.dataset.mAdd)) || a.className || a.tagName) : null,
             sectionInert: !!(document.getElementById('music-section') || {}).inert,
@@ -83,26 +91,32 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
     const pick = async (p, kind, ms = 800) => { await p.tap(`#bringMusicModal .bring-pane:not([hidden]) [data-bring="${kind}"]`); await p.waitForTimeout(ms); return look(p); };
     const spotifyOn = (p) => p.evaluate(() => typeof spotifyOn !== 'undefined' && !!spotifyOn);
 
-    // 1. A brand-new account (no playlists): the chooser on load, before the wizard
+    // 1. A brand-new account (no playlists): the setup wizard on load (was:
+    // the chooser itself); the chooser opened by hand still works
     {
         const { ctx, p } = await open({ acct: 'empty' });
         let s = await look(p);
-        check('N1 a new account opens on the chooser, not the wizard (a back layer; focus on its first way; the page behind inert)',
-            s.chooser && !s.modals.includes('playlistEditModal') && s.layer === 'modal:bringMusic' && s.depth === 1 && s.list && s.active === 'spotify' && s.sectionInert, s);
+        // Changed with the setup wizard: N1 used to expect the chooser here
+        check('N1 a new account opens on the setup wizard\'s Welcome, not the chooser on its own (a back layer; the page behind inert)',
+            s.setup === 'welcome' && !s.chooser && !s.modals.includes('playlistEditModal') && s.layer === 'modal:setup' && s.depth === 1 && s.sectionInert, s);
         const dlg = await p.evaluate(() => { const m = document.getElementById('bringMusicModal'); return { role: m.getAttribute('role'), modal: m.getAttribute('aria-modal'), title: document.getElementById(m.getAttribute('aria-labelledby')).textContent, rows: [...m.querySelectorAll('#bringMusicList [data-bring]')].map(r => r.dataset.bring) }; });
         check('N2 the chooser is a labelled dialog with the five ways', dlg.role === 'dialog' && dlg.modal === 'true' && dlg.title === 'Where’s your music now?' && JSON.stringify(dlg.rows) === JSON.stringify(['spotify', 'apple', 'youtube', 'files', 'fresh']), dlg);
-        s = await pick(p, 'fresh');
-        check('N3 Start fresh reaches the first-run wizard (the chooser\'s layer replaced by the wizard\'s)',
-            !s.chooser && s.modals.includes('playlistEditModal') && /Welcome to your record room/.test(s.wizardTitle) && s.layer === 'modal:playlistEdit' && s.depth === 1, s);
         s = await back(p);
-        check('N4 back closes the wizard onto Home', s.modals.length === 0 && s.depth === 0, s);
+        check('N5 back closes the on-load setup, and nothing follows it', !s.chooser && s.setup === null && s.modals.length === 0 && s.depth === 0, s);
+        // Changed with the setup wizard: Start fresh on a playlist-less
+        // account was the old playlist wizard; now the setup's playlist step
+        await p.evaluate(() => window.showBringMusicModal()); await p.waitForTimeout(600);
+        s = await pick(p, 'fresh');
+        check('N3 the chooser\'s Start fresh (no playlists yet) reaches the setup\'s first playlist (the chooser\'s layer replaced by the setup\'s)',
+            !s.chooser && s.setup === 'playlist' && !s.modals.includes('playlistEditModal') && s.layer === 'modal:setup' && s.depth === 1, s);
+        s = await back(p);
+        check('N4 back closes it onto Home', s.modals.length === 0 && s.depth === 0, s);
         check('N errors', p.__errs.length === 0, p.__errs);
         await ctx.close();
     }
     {
         const { ctx, p } = await open({ acct: 'empty' });
-        let s = await back(p);
-        check('N5 back closes the on-load chooser, and the wizard does not follow it', !s.chooser && s.modals.length === 0 && s.depth === 0, s);
+        let s = await back(p); // the on-load setup
         // a way in from the chooser on a playlist-less account: the import makes its own playlist
         await p.evaluate(() => window.showBringMusicModal()); await p.waitForTimeout(600);
         s = await pick(p, 'youtube');
@@ -245,10 +259,14 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
     {
         const { ctx, p } = await open({ acct: 'empty', desktop: true });
         let s = await look(p);
-        check('D6 desktop new account: the chooser on load, not the wizard', s.chooser && !s.modals.includes('playlistEditModal'), s);
+        // Changed with the setup wizard: D6 and D7 used to expect the chooser
+        // on load and the old playlist wizard after its Start fresh
+        check('D6 desktop new account: the setup wizard on load, not the chooser on its own', s.setup === 'welcome' && !s.chooser && !s.modals.includes('playlistEditModal'), s);
+        await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+        await p.evaluate(() => window.showBringMusicModal()); await p.waitForTimeout(400);
         await p.click('#bringMusicModal [data-bring="fresh"]'); await p.waitForTimeout(500);
         s = await look(p);
-        check('D7 desktop Start fresh → the wizard', !s.chooser && s.modals.includes('playlistEditModal') && /Welcome to your record room/.test(s.wizardTitle), s);
+        check('D7 desktop: the chooser\'s Start fresh (no playlists) → the setup\'s first playlist', !s.chooser && s.setup === 'playlist' && !s.modals.includes('playlistEditModal'), s);
         check('D errors (2)', p.__errs.length === 0, p.__errs);
         await ctx.close();
     }

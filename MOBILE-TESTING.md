@@ -202,15 +202,38 @@ Turn on `?debug=1` to watch `media key:` and `media keeper:` lines.
 - [ ] Without Spotify set up on the server, Import has no Spotify tab and
   nothing mentions Connect Spotify.
 
+## First-run setup
+
+Browser suite: `tests/browser/suites/setup-wizard-check.js`.
+
+- [ ] A brand-new account (no playlists) opens on the setup: Welcome (a
+  spinning record, "Get started"), dots and "Step 1 of 6" at the top.
+- [ ] Your name is filled in from the account; change it and Continue: the
+  Home avatar's initial follows. Skip moves on without saving.
+- [ ] "Where's your music now?" lists Spotify, Apple Music, YouTube, Files
+  and Start fresh; Spotify / Apple Music show their steps inside the setup
+  (Back returns to the list); YouTube, a pasted list or picked files close
+  the setup and carry on as the chooser does.
+- [ ] Start fresh: name the first playlist ("Favorites"), pick a sleeve
+  colour (the sleeve preview follows), Create: the page reloads onto
+  "Add your first song". Search a song, tap it: it plays and the setup says
+  "You're all set" (Home, Search, Library). Start listening opens the record.
+- [ ] Back (the button or the phone's back gesture) goes one step back; on
+  Welcome it closes the setup. × closes it from any step, and one more back
+  then leaves the app as usual (no dead back presses).
+- [ ] Each step slides in from the side (no slide with Reduce motion on).
+- [ ] Member signup: the welcome card ("Step 1 of 5"), then the setup at
+  "Where's your music now?" ("Step 2 of 5").
+- [ ] The app (`?app=1`) keeps its old first run: "Welcome to your record
+  room", then Add your first song.
+- [ ] An account with songs or playlists never sees it.
+
 ## Bringing your music over ("Where's your music now?")
 
 Browser suite: `tests/browser/suites/onboarding-check.js`.
 
-- [ ] A brand-new account (no playlists) opens on "Where's your music now?",
-  not the playlist wizard. Back closes it. Start fresh opens the wizard
-  ("Welcome to your record room"), and after it the first-song search.
-- [ ] Member signup: the welcome card, then the chooser, then Start fresh
-  gives the wizard with "Step 2 of 3".
+- [ ] A brand-new account opens on the setup, not on this chooser alone; the
+  chooser's Start fresh on such an account opens the setup's first playlist.
 - [ ] An account with only empty playlists: Home's "Start your collection"
   card has "Bring your music over" (above "Add a song"); it opens the sheet.
 - [ ] Spotify: with Spotify set up, Import opens on the Spotify link tab.
