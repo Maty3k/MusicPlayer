@@ -955,6 +955,12 @@
                 <button type="button" id="mNpKebab" aria-label="Song options"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
                 <div class="m-grab"></div>
             </div>
+            {{-- Desktop Now Playing header (html.dv2, the player view's deck
+                 mode; display:none everywhere else): back, the page heading --}}
+            <div id="dvNpHead">
+                <button type="button" class="dv-np-back" id="dvNpBack" aria-label="Back" title="Back (Esc)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 6-6 6 6 6"/></svg></button>
+                <h1 class="dv-np-heading" id="dvNpHeading" tabindex="-1">Now Playing</h1>
+            </div>
             <div class="music-main-backdrop" id="musicBackdrop">
                 @if (!empty($current['cover']))
                 <img src="{{ $current['cover'] }}" alt="" id="backdropImg">
@@ -1117,6 +1123,17 @@
                             <div class="pitch-value" id="pitchValue">0%</div>
                             <div class="pitch-label">PITCH</div>
                         </div>
+                        {{-- Desktop Now Playing: the turntable extras beside pitch
+                             (html.dv2 only; the ⋯ menu is #dvNpMenu, in #dvBar) --}}
+                        <div class="dv-np-extras" id="dvNpExtras" role="group" aria-label="Turntable extras">
+                            <button type="button" class="dv-np-x" id="dvNpCrackle" aria-pressed="false" title="Vinyl crackle between songs">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/></svg>
+                                <span>Crackle</span>
+                            </button>
+                            <button type="button" class="dv-np-x dv-np-more" id="dvNpMore" aria-haspopup="menu" aria-expanded="false" aria-controls="dvNpMenu" aria-label="More" title="More">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+                            </button>
+                        </div>
                         <div class="record-player-volume">
                             <div class="volume-knob-wrapper" id="volumeKnobWrapper" title="Drag to adjust volume">
                                 <div class="volume-knob" id="volumeKnob">
@@ -1134,6 +1151,14 @@
                     <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" style="display:none;">
                     <div class="record-player-led" id="bigPlayerLed"></div>
                 </div>
+            </div>
+
+            {{-- Desktop Now Playing: the song under the turntable (html.dv2
+                 only). The .song-* spans ride setNowPlayingText's fan-out. --}}
+            <div id="dvNpInfo">
+                <h2 class="dv-np-song"><span class="song-title">{{ $current['title'] ?? '' }}</span></h2>
+                <p class="dv-np-by"><span class="song-artist">{{ $current['artist'] ?? '' }}</span><span class="song-album">{{ $current['album'] ?? '' }}</span></p>
+                <p class="dv-np-from">Playing from <span id="dvNpFromName"></span></p>
             </div>
 
             </div><!-- End turntable-area -->
@@ -1182,6 +1207,10 @@
          .song-title / .song-artist spans ride setNowPlayingText's fan-out. --}}
     <div id="dvBar" role="region" aria-label="Player">
         <div class="dv-bar-now">
+            {{-- The cover and the title open Now Playing (desktop step 6); the
+                 button is named by its text: "Open Now Playing: <title> <artist>" --}}
+            <button type="button" class="dv-bar-open" id="dvBarOpen" title="Open Now Playing">
+            <span class="dv-vh">Open Now Playing: </span>
             <span class="dv-bar-disc" aria-hidden="true">
                 @if (!empty($current['cover']))
                 <img id="dvBarArt" src="{{ $current['cover'] }}" alt="">
@@ -1194,6 +1223,7 @@
                 <span class="song-title">{{ $current['title'] ?? 'Nothing playing' }}</span>
                 <span class="song-artist">{{ $current['artist'] ?? '' }}</span>
             </span>
+            </button>
             <button type="button" class="dv-bar-btn dv-bar-like" id="dvBarLike" aria-pressed="false" aria-label="Favorite">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.8-8.85a5.5 5.5 0 0 0 0-7.78z"/></svg>
             </button>
@@ -1260,6 +1290,13 @@
             <button type="button" class="dv-bar-btn" id="dvBarDeck" aria-pressed="false" aria-label="Turntable">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="2.5"/><circle cx="10.5" cy="12" r="5"/><circle cx="10.5" cy="12" r="1.2" fill="currentColor"/><path d="M18.5 7v6.5l-2.5 2"/></svg>
             </button>
+        </div>
+        {{-- Now Playing's ⋯ menu (desktop step 6): a fixed popover kept in
+             the Player region, so the turntable's clipped, scaled body can't
+             cut it off (script.js places it under the deck's ⋯) --}}
+        <div class="dv-np-menu" id="dvNpMenu" role="menu" aria-label="More for this song" hidden>
+            <button type="button" role="menuitem" data-dv-np="gif">Make a GIF</button>
+            <button type="button" role="menuitem" data-dv-np="show">Show in playlist</button>
         </div>
     </div>
     {{-- Show the bar from the first paint when the playing list has songs

@@ -3,8 +3,9 @@
 `tests/browser/suites/desktop-bar-check.js` covers the player bar in Chrome at
 1440×900 and 1024×768, `desktop-sidebar-check.js` covers the sidebar at
 1440×900, 1024×768 and 800×600, `desktop-home-check.js` covers Home and
-`desktop-playlist-check.js` the playlist page at the same three sizes (both
-with axe scans). All four check that phones
+`desktop-playlist-check.js` the playlist page and
+`desktop-nowplaying-check.js` Now Playing at the same three sizes (all three
+with axe scans). All five check that phones
 (390×844, 844×390) and the app (`?app=1`) don't get them. The items below need a person at a
 real desktop browser. Run them in Chrome and in Firefox or Safari.
 
@@ -40,16 +41,16 @@ real desktop browser. Run them in Chrome and in Firefox or Safari.
 - [ ] The volume slider moves the deck's knob and the knob moves the slider.
   Mute goes to 0 and comes back to the last level. Arrow keys work on the
   focused slider.
-- [ ] Lyrics: from the crate it opens the turntable with lyrics on. Pressed
-  again, it turns lyrics off.
+- [ ] Lyrics: from the crate it opens Now Playing (step 6) with lyrics on.
+  Pressed again, it turns lyrics off and Now Playing stays.
 - [ ] Queue opens the Up next window. The number badge counts queued songs.
 - [ ] Sleep: the menu opens above the button with focus on "15 minutes".
   ↑/↓ move, Esc closes and returns focus to the button, and clicking
   outside closes it. A timer shows its minutes on the button, and "Turn off"
   clears it.
-- [ ] Turntable opens the turntable (since step 5 it replaces the playlist
-  page). Pressed again, it goes back to where you were: Home, or the
-  playlist page you opened it from.
+- [ ] Turntable opens Now Playing (step 6; it replaces the playlist page).
+  Pressed again, it goes back to where you were: Home, or the playlist page
+  you opened it from.
 - [ ] Tab through the bar: every control shows an amber focus ring, and a
   screen reader announces names and on/off states (e.g. "Shuffle,
   toggle button, pressed").
@@ -216,3 +217,62 @@ the bar's turntable (or lyrics) button.
   the theme.
 - [ ] A phone, and the app (`?app=1`), show their own playlist screen
   exactly as before.
+
+## Now Playing (step 6)
+
+The turntable is now a Now Playing page. The bar's cover or title, or its
+turntable button, opens it; the lyrics button opens it with lyrics on.
+
+- [ ] The page: a back button (‹) and "Now Playing" at the top, the big
+  turntable in the middle over a blurred, darkened copy of the cover, and
+  under it the song's title, "artist · album" and "Playing from
+  (playlist)". A song without a cover shows the plain panel colour behind.
+- [ ] The turntable is bigger than before and grows and shrinks with the
+  window (try 1024px up to a full 1920px screen). Nothing runs off the
+  page, and there's no sideways scroll.
+- [ ] Windows about 1200px and wider: the lyrics sit right of the
+  turntable, as tall as the turntable plus the song. Narrower: the lyrics
+  go below the song with their top edge peeking out; scroll the page to
+  read them. Synced lyrics light up line by line, clicking a line jumps
+  there, and −, + and the offset still nudge the timing.
+- [ ] The bar's lyrics button while Now Playing shows lyrics: the lyrics go
+  and the turntable takes the room. Pressed again they come back. The
+  small note button under the lyrics turns them off too, and focus moves
+  to the bar's lyrics button.
+- [ ] The turntable's own play/previous/next buttons, its song panel and its
+  volume knob are gone (the bar has them). The bar's volume still works.
+- [ ] On the turntable's right: the pitch slider, Crackle and ⋯. Drag pitch
+  (double-click resets it), or Tab to it and use ↑/↓ (1%), Page Up/Down
+  (5%), Home/End and 0. The record and the song's speed follow.
+- [ ] Crackle on the turntable, Crackle at the bottom of the sidebar and
+  Settings → Playback always show the same state, whichever you change.
+- [ ] ⋯ opens Make a GIF and Show in playlist under it (above it near the
+  bottom), never under the bar. ↑/↓ move, Esc closes back onto ⋯, clicking
+  outside closes it.
+- [ ] Make a GIF opens the GIF window. Show in playlist opens the playing
+  playlist's page with the song's row lit and focused. With a smart-shuffle
+  radio track it says "Radio track — not in this playlist" instead.
+- [ ] "Playing from" names the playlist that's playing. Open another
+  playlist, play a song from it, then open Now Playing: it names that one.
+- [ ] Closing: the turntable button, Esc, or ‹ takes you back to Home or the
+  playlist page you came from, and focus goes back to what opened it (the
+  cover/title, the turntable or the lyrics button). Esc with the sleep menu
+  or ⋯ open closes only the menu; Esc in a window (e.g. Make a GIF) leaves
+  Now Playing open.
+- [ ] While it's open no playlist is highlighted in the sidebar, and Home
+  isn't either. Clicking a playlist in the sidebar shows its page.
+- [ ] The bar's time and seek bar keep moving while Now Playing is open and
+  after you leave it. Song changes update the title, the backdrop and the
+  lyrics.
+- [ ] Screen reader: opening it announces the "Now Playing" heading; the
+  page is a "Now Playing" region; the cover/title button reads "Open Now
+  Playing:" and the song; pitch reads as a slider with its percentage; the
+  lyrics are a "Lyrics" region you can Tab to and scroll with the arrows.
+- [ ] 601–900px window (icon rail): a smaller turntable that still fits,
+  Crackle as an icon, the lyrics below.
+- [ ] With "reduce motion" on in the OS, the record on the turntable doesn't
+  spin (nor the bar's).
+- [ ] Each room theme (Settings → Appearance), and the "Leaning" sleeve
+  setting: the page and the lyrics panel look right.
+- [ ] A phone, and the app (`?app=1`), show their own Now Playing exactly as
+  before.

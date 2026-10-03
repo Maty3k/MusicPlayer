@@ -16729,6 +16729,10 @@ button.send-menu-cancel {
 #dvPlMoreWrap,
 #dvPlDone,
 #dvPlCols,
+#dvNpHead,
+#dvNpInfo,
+#dvNpExtras,
+#dvNpMenu,
 .song-list-album,
 .song-list-dur { display: none; }
 
@@ -16778,6 +16782,30 @@ html.dv2 #dvBar .dv-bar-now {
     gap: 12px;
     min-width: 0;
 }
+/* The cover and the title are one button: it opens Now Playing (step 6) */
+html.dv2 #dvBar .dv-bar-open {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 1 auto;
+    min-width: 0;
+    margin: -4px;
+    padding: 4px;
+    border-radius: 10px;
+    text-align: left;
+    transition: background-color 0.15s ease;
+}
+html.dv2 #dvBar .dv-vh {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+html.dv2 #dvBar .dv-bar-open:hover { background: var(--dv-hover); }
+html.dv2 #dvBar .dv-bar-open:hover .song-title { text-decoration: underline; text-underline-offset: 2px; }
 
 html.dv2 #dvBar .dv-bar-disc {
     position: relative;
@@ -18744,4 +18772,352 @@ html.dv2 #musicSidebar .song-list-retry {
     html.dv2 #musicSidebar #songList .song-delete-btn,
     html.dv2 #musicSidebar #songList .song-drag-handle { transition: none; }
     html.dv2 #musicSidebar .dv-pl-tool:hover { transform: none; }
+}
+
+/* ---------- Step 6: Now Playing (the player view's deck mode) ----------
+   #musicPlayerView.dv-deck: a rounded page beside the sidebar, over the
+   playing cover blurred and darkened. A header (back, "Now Playing"), then
+   .turntable-area as a grid: the turntable centred (zoomed by script.js's
+   desktopNowPlaying to --dv-np-zoom: it's 1000x700 fixed-pixel art), the
+   song under it, and the lyrics sleeve beside both when the page is wide
+   (.dv-np-wide), below them otherwise, gone while lyrics are off
+   (.dv-np-nolyrics). The deck's transport, song panel and volume knob hide
+   (the bar has them); its bay keeps pitch and gets crackle and ⋯. */
+html.dv2 #musicPlayerView.dv-deck .music-main {
+    --dv-np-pad: clamp(16px, 2.2vw, 32px);
+    --dv-np-lyrics-w: clamp(260px, 26%, 340px);
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    margin: 8px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--dv-panel);
+    overflow: hidden;
+    isolation: isolate;
+    color: var(--cream);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+/* The room's dressing goes: vignette, orbs, the EQ wash, the shelf glow */
+html.dv2 #musicPlayerView.dv-deck .music-main::after,
+html.dv2 #musicPlayerView.dv-deck .player-eq-visualizer,
+html.dv2 #musicPlayerView.dv-deck .aurora-orbs,
+html.dv2 #musicPlayerView.dv-deck .vinyl-groove-bg,
+html.dv2 #musicPlayerView.dv-deck .turntable-area::after { display: none; }
+
+/* The backdrop: the cover, blurred and darkened (none: the panel colour) */
+html.dv2 #musicPlayerView.dv-deck .music-main-backdrop { z-index: 0; pointer-events: none; }
+html.dv2 #musicPlayerView.dv-deck .music-main-backdrop img {
+    filter: blur(70px) saturate(1.5) brightness(0.5);
+    transform: scale(1.4);
+    opacity: 0.85;
+    animation: none;
+}
+html.dv2 #musicPlayerView.dv-deck .music-main-backdrop::after {
+    background:
+        linear-gradient(180deg, rgba(10, 8, 6, 0.35) 0%, rgba(10, 8, 6, 0.6) 100%),
+        radial-gradient(ellipse 80% 70% at 50% 45%, transparent 20%, rgba(10, 8, 6, 0.45) 100%);
+}
+
+/* ---- Header: back, the page heading ---- */
+html.dv2 #musicPlayerView.dv-deck #dvNpHead {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px var(--dv-np-pad) 6px;
+}
+html.dv2 #dvNpHead .dv-np-back {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.35);
+    color: var(--cream);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+html.dv2 #dvNpHead .dv-np-back:hover { background: rgba(0, 0, 0, 0.55); }
+html.dv2 #dvNpHead .dv-np-back svg { display: block; }
+html.dv2 #dvNpHead .dv-np-heading {
+    margin: 0;
+    font-family: var(--display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--cream);
+}
+/* Focus lands here on open (for screen readers); it isn't a control */
+html.dv2 #dvNpHead .dv-np-heading:focus { outline: none; }
+
+/* ---- The stage: turntable, song, lyrics ---- */
+html.dv2 #musicPlayerView.dv-deck .turntable-area {
+    zoom: 1;
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "deck" "info" "lyrics";
+    align-content: start;
+    justify-items: center;
+    row-gap: 14px;
+    column-gap: 32px;
+    padding: 8px var(--dv-np-pad) var(--dv-np-pad);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--cream) 16%, transparent) transparent;
+}
+html.dv2 #musicPlayerView.dv-deck .dv-np-wide .turntable-area {
+    grid-template-columns: minmax(0, 1fr) var(--dv-np-lyrics-w);
+    grid-template-areas: "deck lyrics" "info lyrics";
+    align-content: center;
+}
+html.dv2 #musicPlayerView.dv-deck .dv-np-nolyrics .turntable-area { align-content: center; }
+
+html.dv2 #musicPlayerView.dv-deck .record-player {
+    grid-area: deck;
+    zoom: var(--dv-np-zoom, 0.66);
+    filter: none;
+}
+
+/* The deck's own song panel, transport and volume knob: the bar has them */
+html.dv2 #musicPlayerView.dv-deck .rp-song-info,
+html.dv2 #musicPlayerView.dv-deck .record-player-controls,
+html.dv2 #musicPlayerView.dv-deck .record-player-volume { display: none; }
+/* The bay now holds pitch and the extras: shorter, centred */
+html.dv2 #musicPlayerView.dv-deck .record-player-right { gap: 22px; }
+html.dv2 #musicPlayerView.dv-deck .record-player-right::before { top: 50%; height: 330px; }
+
+/* ---- Turntable extras: crackle and ⋯ (true size whatever the zoom) ---- */
+html.dv2 #musicPlayerView.dv-deck #dvNpExtras {
+    position: relative;
+    z-index: 1;
+    zoom: var(--dv-np-unzoom, 1);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+html.dv2 #dvNpExtras .dv-np-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 34px;
+    min-width: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(242, 232, 216, 0.06);
+    color: var(--cream-60);
+    font: 600 0.78rem/1 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+html.dv2 #dvNpExtras .dv-np-x:hover { color: var(--cream); background: rgba(242, 232, 216, 0.12); }
+html.dv2 #dvNpExtras .dv-np-x svg { display: block; flex: 0 0 auto; }
+html.dv2 #dvNpExtras .dv-np-more { padding: 0; }
+html.dv2 #dvNpExtras #dvNpCrackle[aria-pressed="true"] {
+    color: var(--amber);
+    border-color: color-mix(in srgb, var(--amber) 55%, transparent);
+    background: rgba(var(--amber-rgb), 0.12);
+}
+/* A small deck: crackle shows its icon only (the name stays for screen readers) */
+html.dv2 .dv-np-compact #dvNpExtras #dvNpCrackle { padding: 0; }
+html.dv2 .dv-np-compact #dvNpExtras #dvNpCrackle span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* Pitch is a keyboard slider here too */
+html.dv2 #musicPlayerView.dv-deck #pitchTrack:focus-visible,
+html.dv2 #dvNpHead .dv-np-back:focus-visible,
+html.dv2 #dvNpExtras .dv-np-x:focus-visible,
+html.dv2 #musicPlayerView.dv-deck .vinyl-sleeve button:focus-visible,
+/* (the lyrics fade at their edges, so the ring goes on the panel) */
+html.dv2 #musicPlayerView.dv-deck .vinyl-sleeve:has(#sleeveLyrics:focus-visible) {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+}
+
+/* ---- The ⋯ menu (fixed; placed under ⋯ by script.js) ---- */
+html.dv2 #dvNpMenu:not([hidden]) {
+    position: fixed;
+    z-index: 320; /* over the bar (300), under every modal */
+    min-width: 190px;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    border-radius: 12px;
+    background: var(--sleeve);
+    border: 1px solid var(--line);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+html.dv2 #dvNpMenu button {
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    text-align: left;
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--cream);
+    white-space: nowrap;
+    cursor: pointer;
+}
+html.dv2 #dvNpMenu button:hover,
+html.dv2 #dvNpMenu button:focus-visible { background: var(--dv-hover); outline: none; }
+
+/* ---- The song under the turntable ---- */
+html.dv2 #musicPlayerView.dv-deck #dvNpInfo {
+    grid-area: info;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+}
+html.dv2 #dvNpInfo .dv-np-song {
+    max-width: 100%;
+    margin: 0;
+    font-family: var(--display);
+    font-size: clamp(1.25rem, 1.9vw, 1.9rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+html.dv2 #dvNpInfo .song-title,
+html.dv2 #dvNpInfo .song-artist,
+html.dv2 #dvNpInfo .song-album {
+    /* (undo the deck's global .song-title / .song-artist look) */
+    display: inline;
+    -webkit-line-clamp: unset;
+    margin: 0;
+    font: inherit;
+    font-style: normal;
+    letter-spacing: inherit;
+    text-transform: none;
+    color: inherit;
+}
+html.dv2 #dvNpInfo .dv-np-song .song-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+html.dv2 #dvNpInfo .dv-np-by {
+    max-width: 100%;
+    margin: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.95rem;
+    color: var(--cream-60);
+}
+html.dv2 #dvNpInfo .dv-np-by .song-album:not(:empty)::before { content: ' \00b7  '; }
+html.dv2 #dvNpInfo .dv-np-by .song-artist:empty + .song-album::before { content: none; }
+html.dv2 #dvNpInfo .dv-np-from {
+    max-width: 100%;
+    margin: 4px 0 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.8rem;
+    color: var(--cream-60);
+}
+html.dv2 #dvNpInfo .dv-np-from[hidden] { display: none; }
+html.dv2 #dvNpInfo #dvNpFromName { color: var(--cream); font-weight: 600; }
+
+/* ---- Lyrics: the sleeve as a panel (its cover, timeline and catalog go) ---- */
+html.dv2 #musicPlayerView.dv-deck .vinyl-sleeve,
+html.dv2[data-sleeve="lean"] #musicPlayerView.dv-deck .vinyl-sleeve {
+    grid-area: lyrics;
+    justify-self: stretch;
+    width: auto;
+    min-width: 0;
+    max-width: 720px;
+    height: clamp(280px, 48vh, 440px);
+    margin: 0;
+    transform: none;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(10, 8, 6, 0.42);
+    box-shadow: none;
+    flex-direction: column;
+    contain: size;
+}
+html.dv2 #musicPlayerView.dv-deck .dv-np-wide .vinyl-sleeve { height: auto; max-width: none; align-self: stretch; }
+html.dv2 #musicPlayerView.dv-deck .dv-np-nolyrics .vinyl-sleeve { display: none; }
+html.dv2 #musicPlayerView.dv-deck .vinyl-sleeve::before,
+html.dv2 #musicPlayerView.dv-deck .vinyl-sleeve::after,
+html.dv2 #musicPlayerView.dv-deck .sleeve-art,
+html.dv2 #musicPlayerView.dv-deck .sleeve-mobile-nowplaying,
+html.dv2 #musicPlayerView.dv-deck .sleeve-progress,
+html.dv2 #musicPlayerView.dv-deck .sleeve-catalog { display: none; }
+html.dv2 #musicPlayerView.dv-deck .sleeve-lyrics {
+    outline: none;
+    padding: 22px 20px;
+    border-top: 0;
+    gap: 2px;
+}
+html.dv2 #musicPlayerView.dv-deck .lyrics-line {
+    font-size: 1.02rem;
+    line-height: 1.5;
+    padding: 6px 0;
+    filter: none;
+    color: color-mix(in srgb, var(--cream) 52%, transparent);
+}
+html.dv2 #musicPlayerView.dv-deck .lyrics-line:hover { color: var(--cream-60); }
+html.dv2 #musicPlayerView.dv-deck .lyrics-line.active {
+    color: var(--cream);
+    transform: scale(1.04);
+    text-shadow: 0 0 18px rgba(var(--amber-rgb), 0.35);
+}
+html.dv2 #musicPlayerView.dv-deck .lyrics-line.active ~ .lyrics-line { filter: none; }
+html.dv2 #musicPlayerView.dv-deck .lyrics-line.lyrics-line-plain { color: color-mix(in srgb, var(--cream) 78%, transparent); }
+html.dv2 #musicPlayerView.dv-deck .lyrics-placeholder {
+    font-size: 0.9rem;
+    font-style: normal;
+    letter-spacing: 0;
+    color: var(--cream-60);
+}
+html.dv2 #musicPlayerView.dv-deck .lyrics-controls { gap: 10px; padding: 8px 0 12px; }
+html.dv2 #musicPlayerView.dv-deck .lyrics-ctrl-btn { width: 30px; height: 26px; color: var(--cream-60); }
+html.dv2 #musicPlayerView.dv-deck .lyrics-ctrl-sync { color: var(--cream-60); font-size: 0.75rem; }
+
+@media (prefers-reduced-motion: reduce) {
+    /* The platter stands still (the bar's record already does) */
+    html.dv2 #musicPlayerView .record,
+    html.dv2 #musicPlayerView .record.playing { animation: none; }
+    html.dv2 #musicPlayerView.dv-deck .lyrics-line { transition: none; }
+    html.dv2 #musicPlayerView.dv-deck .lyrics-line.active { transform: none; }
+    html.dv2 #musicPlayerView.dv-deck .sleeve-lyrics { scroll-behavior: auto; }
+    html.dv2 #dvBar .dv-bar-open,
+    html.dv2 #dvNpHead .dv-np-back,
+    html.dv2 #dvNpExtras .dv-np-x { transition: none; }
 }

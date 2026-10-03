@@ -6,6 +6,8 @@
 // with the deck's knob; that the page ends above the bar; and that phones
 // (390x844, 844x390) and the app shell (?app=1) never get the scope or the bar.
 // (Desktop step 3 changed F: opening a playlist only shows it now.)
+// (Desktop step 6: the cover and title became a button that opens Now
+// Playing; A names it by its text and E's outside click avoids it.)
 // Writes to /save-music are faked and recorded (reads go through).
 const L = require('../lib');
 const APP = L.APP;
@@ -118,7 +120,10 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             check(`${tag} A buttons show a focus ring`, ring.style === 'solid' && parseFloat(ring.w) >= 2, ring);
             const a11y = await p.evaluate(() => {
                 const bar = document.getElementById('dvBar');
-                const unlabeled = [...bar.querySelectorAll('button, input, [role="slider"]')].filter(e => !e.getAttribute('aria-label') && !e.closest('[role="menu"]')).map(e => e.id || e.className);
+                // (Desktop step 6: the cover/title button that opens Now Playing is named
+                // by its own text, "Open Now Playing: <title> <artist>".)
+                const named = (e) => e.id === 'dvBarOpen' && /^Open Now Playing: \S/.test(e.textContent.replace(/\s+/g, ' ').trim());
+                const unlabeled = [...bar.querySelectorAll('button, input, [role="slider"]')].filter(e => !e.getAttribute('aria-label') && !e.closest('[role="menu"]') && !named(e)).map(e => e.id || e.className);
                 return { role: bar.getAttribute('role'), label: bar.getAttribute('aria-label'), tb: bar.querySelector('[role="toolbar"]').getAttribute('aria-label'), unlabeled };
             });
             check(`${tag} A region + toolbar labelled, every control has an aria-label`, a11y.role === 'region' && a11y.label === 'Player' && a11y.tb === 'Playback' && a11y.unlabeled.length === 0, a11y);
@@ -256,7 +261,9 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
                 s3.calls.includes('setSleepTimer') && s3.deadline && s3.label === '30m' && s3.aria === 'Sleep timer: 30 min left' && s3.on && s3.hidden && s3.toast === 'Pausing in 30 minutes', s3);
             await p.click('#dvBarSleep');
             const offShown = await p.evaluate(() => !document.getElementById('dvBarSleepOff').hidden);
-            await p.click('#dvBar .dv-bar-meta'); // outside the menu closes it
+            // Outside the menu closes it. (Desktop step 6: the cover and title are
+            // now a button that opens Now Playing, so click the bar's empty left edge.)
+            await p.mouse.click(4, vp.height - 4);
             const closedOutside = await p.evaluate(() => document.getElementById('dvBarSleepMenu').hidden);
             await p.click('#dvBarSleep');
             await p.click('#dvBarSleepOff');
