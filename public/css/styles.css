@@ -16716,8 +16716,8 @@ button.send-menu-cancel {
    Phones and the app shell never match these selectors, so their pixels
    are untouched. The only unscoped rule is the default hide of the new
    desktop elements (#dvBar, #dvSide, the playlist page's #dvPl* pieces,
-   the song rows' album and length cells, the Search page's counts and the
-   side panel).
+   the song rows' album and length cells, the Search page's counts, the
+   side panel and the avatar menu).
    New desktop rules go in this block, under html.dv2.
    ========================================================================== */
 
@@ -16735,6 +16735,7 @@ button.send-menu-cancel {
 #dvNpExtras,
 #dvNpMenu,
 #dvPanel,
+#dvAcct,
 .song-list-album,
 .song-list-dur,
 .m-search-count { display: none; }
@@ -17597,8 +17598,9 @@ html.dv2 #dvPlPlay.is-playing .dv-pl-ic-pause { display: block; }
 }
 
 /* ---------- Step 4: a clean Home (the crate, #vinylCrateView) ----------
-   One rounded panel beside the sidebar: a greeting, quiet Stats and
-   Settings at the top right, the first-run card, "Jump back in" (one row
+   One rounded panel beside the sidebar: a greeting (the avatar menu, step
+   9, sits at its right: Stats and Settings live there), the first-run
+   card, "Jump back in" (one row
    of song cards) and "Your playlists" (a grid of cover cards, then the New
    playlist and Bring your music over tiles). The room's scenery, the
    VINYLS crate, the marquee, the sleeve's record and badges, the old
@@ -17624,7 +17626,7 @@ html.dv2 #vinylCrateView .room-bg,
 html.dv2 #vinylCrateView .room-right,
 html.dv2 #vinylCrateView .greeting-text,
 html.dv2 #vinylCrateView .collection-stats,
-html.dv2 #vinylCrateView .collection-toolbar .new-playlist-btn:not(.crate-stats-btn):not(.crate-settings-btn),
+html.dv2 #vinylCrateView .collection-toolbar .new-playlist-btn,
 html.dv2 #vinylCrateView .conveyor-dupes,
 html.dv2 #vinylCrateView .record-card-vinyl,
 html.dv2 #vinylCrateView .cover-overlay,
@@ -17664,15 +17666,14 @@ html.dv2 #vinylCrateView .room-content {
 html.dv2 #vinylCrateView .room-center {
     container-type: inline-size;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-        "head   stats  settings"
-        "hint   hint   hint"
-        "recent recent recent"
-        "shelf  shelf  shelf";
+        "head"
+        "hint"
+        "recent"
+        "shelf";
     align-items: center;
     align-content: start;
-    column-gap: 4px;
     row-gap: 0;
     width: auto;
     max-width: 1880px;
@@ -17680,7 +17681,7 @@ html.dv2 #vinylCrateView .room-center {
     min-width: 0;
     flex: none;
     margin: 0 auto;
-    padding: 20px var(--dv-home-pad) 48px;
+    padding: 14px var(--dv-home-pad) 48px; /* the greeting on the avatar's line */
     overflow: visible;
 }
 html.dv2 #vinylCrateView .collection-toolbar { display: contents; }
@@ -17692,7 +17693,7 @@ html.dv2 #vinylCrateView #mHomeHead {
     align-items: center;
     min-width: 0;
     margin: 0;
-    padding: 0;
+    padding: 0 48px 0 0; /* clear of the avatar */
     background: none;
 }
 html.dv2 #vinylCrateView #mGreeting {
@@ -17707,36 +17708,6 @@ html.dv2 #vinylCrateView #mGreeting {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
-/* ---- Stats and Settings: two quiet buttons at the top right */
-html.dv2 #vinylCrateView .collection-toolbar .crate-stats-btn { grid-area: stats; }
-html.dv2 #vinylCrateView .collection-toolbar .crate-settings-btn { grid-area: settings; }
-html.dv2 #vinylCrateView .collection-toolbar .crate-stats-btn,
-html.dv2 #vinylCrateView .collection-toolbar .crate-settings-btn {
-    display: inline-flex;
-    align-items: center;
-    height: 34px;
-    margin: 0;
-    padding: 0 12px;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    background: transparent;
-    box-shadow: none;
-    color: var(--cream-60);
-    font: 500 0.85rem/1 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    letter-spacing: 0;
-    text-transform: none;
-    white-space: nowrap;
-    transition: background-color 0.15s ease, color 0.15s ease;
-}
-html.dv2 #vinylCrateView .collection-toolbar .crate-stats-btn:hover,
-html.dv2 #vinylCrateView .collection-toolbar .crate-settings-btn:hover {
-    background: var(--dv-hover);
-    border-color: transparent;
-    color: var(--cream);
-}
-html.dv2 #vinylCrateView .collection-toolbar .crate-stats-btn svg,
-html.dv2 #vinylCrateView .collection-toolbar .crate-settings-btn svg { width: 15px; height: 15px; }
 
 /* ---- Section headings */
 html.dv2 #vinylCrateView .recent-songs-label {
@@ -18309,7 +18280,8 @@ html.dv2 #dvPlHead .dv-pl-cover-empty {
     color: color-mix(in srgb, var(--cream) 80%, transparent);
 }
 html.dv2 #dvPlHead .dv-pl-cover-empty svg { width: 38%; height: 38%; }
-html.dv2 #dvPlHead .dv-pl-info { flex: 1 1 auto; min-width: 0; }
+/* (its right padding keeps a long name clear of the avatar, step 9) */
+html.dv2 #dvPlHead .dv-pl-info { flex: 1 1 auto; min-width: 0; padding-right: 40px; }
 html.dv2 #dvPlHead .dv-pl-kicker {
     margin: 0 0 6px;
     font-size: 0.8rem;
@@ -19195,7 +19167,7 @@ html.dv2 #mSearchPage .m-search-field {
     gap: 12px;
     max-width: 680px;
     height: 56px;
-    margin: 20px 0 0;
+    margin: 20px 40px 0 0; /* clear of the avatar (step 9) on a narrow page */
     padding: 0 6px 0 18px;
     border: 1px solid color-mix(in srgb, var(--cream) 14%, transparent);
     border-radius: 999px;
@@ -19782,4 +19754,131 @@ html.dv2 #dvPanel .lyrics-ctrl-sync { color: var(--cream-60); font-size: 0.75rem
     html.dv2 #dvPanel .dv-panel-close,
     html.dv2 #dvPanel .lyrics-line { transition: none; }
     html.dv2 #dvPanel .sleeve-lyrics { scroll-behavior: auto; }
+}
+
+/* ---------- Step 9: the avatar menu (#dvAcct) ----------
+   The user's initial (the phone's avatar coin) at the top right of the
+   page, on every page (Home, a playlist, Search, Now Playing): inside
+   #music-section, so it follows the page as the side panel narrows it.
+   It opens a menu under it: who you are, Your listening, Bring your music
+   over, Settings (Playback, Appearance, Account: its tabs), Install the
+   app (while the browser offers it) and Log out. Home's Stats and
+   Settings buttons go (they live here now). Everything here is html.dv2
+   only. */
+html.dv2 #dvAcct {
+    position: absolute;
+    top: 22px;
+    right: 24px;
+    z-index: 40; /* over every page in #music-section (the Search page is 15) */
+    display: block;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+html.dv2 #dvAcct [hidden] { display: none !important; }
+html.dv2 #dvAcct button {
+    font: inherit;
+    color: inherit;
+    border: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html.dv2 #dvAcctBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.45);
+    transition: background-color 0.15s ease, transform 0.15s ease;
+}
+html.dv2 #dvAcctBtn:hover,
+html.dv2 #dvAcctBtn[aria-expanded="true"] { background: rgba(0, 0, 0, 0.7); transform: scale(1.04); }
+html.dv2 #dvAcctBtn:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+html.dv2 #dvAcctBtn .m-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 0.9rem;
+    box-shadow: none;
+}
+
+/* ---- The menu ---- */
+html.dv2 #dvAcctPop {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: max-content;
+    min-width: 240px;
+    max-width: 300px;
+    max-height: calc(100vh - var(--dv-bar-h) - 90px);
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--sleeve);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    color: var(--cream);
+    scrollbar-width: thin;
+}
+html.dv2 #dvAcct .dv-acct-who {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px 12px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+}
+html.dv2 #dvAcct .dv-acct-who .m-avatar { box-shadow: none; }
+html.dv2 #dvAcct .dv-acct-id {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+html.dv2 #dvAcct .dv-acct-id b,
+html.dv2 #dvAcct .dv-acct-id small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+html.dv2 #dvAcct .dv-acct-id b { font-size: 0.95rem; font-weight: 600; }
+html.dv2 #dvAcct .dv-acct-id small { font-size: 0.8rem; color: var(--cream-60); }
+
+html.dv2 #dvAcctMenu { display: flex; flex-direction: column; }
+html.dv2 #dvAcct .dv-acct-group { display: flex; flex-direction: column; }
+html.dv2 #dvAcctMenu [role="menuitem"] {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: none;
+    text-align: left;
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+html.dv2 #dvAcctMenu [role="menuitem"] svg { flex: 0 0 auto; color: var(--cream-60); }
+html.dv2 #dvAcctMenu [role="menuitem"]:hover,
+html.dv2 #dvAcctMenu [role="menuitem"]:focus-visible { background: var(--dv-hover); }
+html.dv2 #dvAcctMenu [role="menuitem"]:hover svg,
+html.dv2 #dvAcctMenu [role="menuitem"]:focus-visible svg { color: var(--cream); }
+html.dv2 #dvAcctMenu [role="menuitem"]:focus-visible { outline: 2px solid var(--amber); outline-offset: -2px; }
+html.dv2 #dvAcct .dv-acct-sep {
+    height: 1px;
+    margin: 6px 4px;
+    background: var(--line);
+}
+html.dv2 #dvAcct .dv-acct-label {
+    padding: 4px 12px 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--cream-60);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html.dv2 #dvAcctBtn { transition: none; }
+    html.dv2 #dvAcctBtn:hover,
+    html.dv2 #dvAcctBtn[aria-expanded="true"] { transform: none; }
 }

@@ -5,9 +5,10 @@
 1440×900, 1024×768 and 800×600, `desktop-home-check.js` covers Home and
 `desktop-playlist-check.js` the playlist page,
 `desktop-nowplaying-check.js` Now Playing, `desktop-search-check.js` the
-Search page and `desktop-panel-check.js` the side panel at the same three
-sizes (all five with axe scans). All seven check that phones (390×844,
-844×390) and the app (`?app=1`) don't get them. The items below need a person at a
+Search page, `desktop-panel-check.js` the side panel and
+`desktop-avatar-check.js` the avatar menu at the same three sizes (all six
+with axe scans). All eight check that phones (390×844, 844×390) and the app
+(`?app=1`) don't get them. The items below need a person at a
 real desktop browser. Run them in Chrome and in Firefox or Safari.
 
 ## Scope (step 1)
@@ -111,8 +112,8 @@ changes only when you press Play or click a song.
 
 ## Home (step 4)
 
-Home is now a rounded panel beside the sidebar: a greeting, Stats and
-Settings at the top right, "Jump back in" and "Your playlists". Clicking a
+Home is now a rounded panel beside the sidebar: a greeting (with the avatar
+menu at its right since step 9), "Jump back in" and "Your playlists". Clicking a
 Jump back in song now plays it right there; Home stays on screen and the
 bar shows the song. (It used to open the turntable.)
 
@@ -120,9 +121,9 @@ bar shows the song. (It used to open the turntable.)
   plant or cat, and no VINYLS crate. Nothing scrolls by on its own.
 - [ ] The heading says "Good morning", "Good afternoon" or "Good evening"
   for the time of day. It changes when you come back to the tab later.
-- [ ] Stats and Settings sit at the top right and open their windows. The
-  old Search and "+ New playlist" buttons are gone (Search and + are in the
-  sidebar).
+- [ ] No Stats or Settings buttons (step 9: they're in the avatar menu at
+  the top right). The old Search and "+ New playlist" buttons are gone
+  (Search and + are in the sidebar).
 - [ ] Jump back in is one row of song cards. Hovering a card shows a round
   play button. Clicking it plays the song, Home stays, and the bar shows it.
   Make the window narrower and wider: the row always fits on one line.
@@ -135,7 +136,7 @@ bar shows the song. (It used to open the turntable.)
   playing.
 - [ ] Hovering a card shows ⋯ on its cover. It opens the playlist's edit
   window. On a touch screen ⋯ is always there.
-- [ ] Keyboard: Tab goes Stats, Settings, the Jump back in cards (each shows
+- [ ] Keyboard: Tab goes the avatar, the Jump back in cards (each shows
   its play button and an amber ring), then each cover and its ⋯, then the
   two tiles (601–900px: the All / Local / Spotify chips come before the
   covers). Enter opens or plays.
@@ -385,3 +386,43 @@ open it on their tab. The page narrows to make room at every desktop width
 - [ ] Each room theme (Settings → Appearance): the panel follows the theme.
 - [ ] A phone, a short landscape phone and the app (`?app=1`) keep the Up
   next window and their own lyrics exactly as before.
+
+## Avatar menu (step 9)
+
+Your initial in a round button at the top right of the page, on Home, a
+playlist page, Search and Now Playing. It opens a menu: your name and
+email, Your listening, Bring your music over, Settings (Playback,
+Appearance, Account), Install the app (only when the browser offers it)
+and Log out. Home's Stats and Settings buttons are gone.
+
+- [ ] The initial is the same as on the phone's Home (your name's first
+  letter, or your email's). Hovering shows your name (or email).
+- [ ] It sits at the top right on every page, in line with Home's greeting
+  and Now Playing's heading, and never covers a page's title, the Search
+  field or the side panel (open the panel: the avatar moves left with the
+  page). On a long playlist scrolled down it sits over the column labels'
+  row without hiding a label.
+- [ ] Click it: the menu opens under it with your name and email on top.
+  Click it again, click anywhere else, or press Esc: it closes.
+- [ ] Keyboard: Tab to the avatar, Enter (or ↓) opens the menu on its first
+  item, ↑ on its last; ↑/↓ move (round the ends), Home/End jump; Enter picks;
+  Esc closes with focus back on the avatar; Tab closes and moves on.
+- [ ] Your listening opens the stats window; Bring your music over opens
+  "Where's your music now?"; Playback, Appearance and Account open Settings
+  on that tab. Closing any of them puts focus back on the avatar.
+- [ ] Change your name in Settings → Account: the avatar's initial, the
+  menu's name and the hover text follow without a reload.
+- [ ] Chrome or Edge, not installed yet: "Install the app" shows (above
+  Log out) and opens the browser's install prompt. Installed, or in Firefox
+  and Safari: no such item.
+- [ ] Log out logs you out and lands on the sign-in page.
+- [ ] The menu fits at 800×600 (above the player bar) and at 1440 and
+  1920px wide, with or without the side panel.
+- [ ] Screen reader: the avatar says "Account: (your name)", a menu button,
+  collapsed/expanded; the menu is "Account" with a "Settings" group.
+- [ ] Narrow the window below 600px with the menu open: it closes and the
+  phone's own avatar (top right of Home) opens the You page as before.
+- [ ] Each room theme (Settings → Appearance): the avatar and the menu
+  follow the theme.
+- [ ] A phone, a short landscape phone and the app (`?app=1`) look exactly
+  as before (the app keeps its Stats and Settings buttons).

@@ -36,6 +36,36 @@ class PhoneYouPageTest extends TestCase
             ->assertSee('<p class="m-you-sub" id="mYouSub">bond@example.com</p>', false);
     }
 
+    // The desktop avatar menu (desktop step 9) shows the same account
+    public function test_desktop_avatar_menu_names_the_account(): void
+    {
+        $user = User::forceCreate([
+            'name' => '007',
+            'email' => 'bond@example.com',
+            'password' => bcrypt('a-long-password'),
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($user)->get('/')
+            ->assertOk()
+            ->assertSee('aria-label="Account: 007" title="007"', false)
+            ->assertSee('<b id="dvAcctName">007</b>', false)
+            ->assertSee('<small id="dvAcctSub">bond@example.com</small>', false)
+            ->assertSee('data-dv-acct="logout"', false);
+
+        $placeholder = User::forceCreate([
+            'name' => 'New member',
+            'email' => 'olive@example.com',
+            'password' => bcrypt('a-long-password'),
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($placeholder)->get('/')
+            ->assertOk()
+            ->assertSee('aria-label="Account: olive@example.com"', false)
+            ->assertSee('<b id="dvAcctName">Your account</b>', false);
+    }
+
     public function test_placeholder_name_falls_back_to_the_email_initial(): void
     {
         $user = User::forceCreate([

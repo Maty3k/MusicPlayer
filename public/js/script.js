@@ -14556,6 +14556,134 @@ document.addEventListener('DOMContentLoaded', () => {
         sync();
     })();
 
+    // ============================================================
+    // DESKTOP AVATAR MENU (#dvAcct, desktop step 9): the user's initial at
+    // the top right of every desktop page. It opens a menu (a menu button:
+    // the arrows, Home and End move, Esc and Tab close it, focus back on the
+    // avatar; a click outside closes it): who you are, Your listening (the
+    // stats window), Bring your music over (the chooser), Settings on its
+    // Playback, Appearance or Account tab, Install the app (only while the
+    // browser offers it: the head script keeps its beforeinstallprompt) and
+    // Log out (the phone You page's logout form, with its CSRF token).
+    // A window opened from it hands focus back to the avatar when it closes.
+    // ============================================================
+    (function desktopAccount() {
+        const $ = (id) => document.getElementById(id);
+        const btn = $('dvAcctBtn');
+        const pop = $('dvAcctPop');
+        const menu = $('dvAcctMenu');
+        if (!btn || !pop || !menu) return;
+        const nameEl = $('dvAcctName');
+        const subEl = $('dvAcctSub');
+        const installItem = menu.querySelector('[data-dv-acct="install"]');
+        const inBrowserTab = window.matchMedia('(display-mode: browser)');
+        let installed = false;
+        const items = () => [...menu.querySelectorAll('[role="menuitem"]')].filter((b) => !b.hidden);
+        const isOpen = () => !pop.hidden;
+
+        function setOpen(open, focusBtn) {
+            if (open && installItem) installItem.hidden = !window.__installPrompt || installed || !inBrowserTab.matches;
+            pop.hidden = !open;
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) {
+                const first = items()[0];
+                if (first) first.focus({ preventScroll: true });
+            } else if (focusBtn) btn.focus({ preventScroll: true });
+        }
+
+        async function install() {
+            const prompt = window.__installPrompt;
+            if (!prompt) return;
+            window.__installPrompt = null; // a prompt can be shown once
+            try {
+                await prompt.prompt();
+                const choice = await prompt.userChoice;
+                if (choice && choice.outcome === 'accepted') window.mToast('Installing: open Music from its new icon.');
+            } catch (e) { /* the browser said no */ }
+        }
+        window.addEventListener('appinstalled', () => { installed = true; });
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setOpen(!isOpen(), false);
+        });
+        // Arrow down / up on the avatar opens the menu on its first / last item
+        btn.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            e.preventDefault();
+            setOpen(true, false);
+            if (e.key === 'ArrowUp') {
+                const list = items();
+                list[list.length - 1].focus();
+            }
+        });
+        menu.addEventListener('click', (e) => {
+            const item = e.target.closest('[data-dv-acct]');
+            if (!item) return;
+            const what = item.dataset.dvAcct;
+            // Focus back on the avatar first: the window that opens returns there
+            setOpen(false, true);
+            if (what === 'stats') window.showStatsModal();
+            else if (what === 'bring') window.showBringMusicModal();
+            else if (what === 'playback' || what === 'appearance' || what === 'account') {
+                window.showSettingsModal();
+                setSettingsTab(what); // it opens on Playback
+            } else if (what === 'install') install();
+            else if (what === 'logout') {
+                const form = document.querySelector('.m-you-logout-form');
+                if (!form) return;
+                if (typeof form.requestSubmit === 'function') form.requestSubmit();
+                else form.submit();
+            }
+        });
+        menu.addEventListener('keydown', (e) => {
+            const list = items();
+            const i = list.indexOf(document.activeElement);
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false, true); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); list[(i + 1) % list.length].focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); list[(i - 1 + list.length) % list.length].focus(); }
+            else if (e.key === 'Home') { e.preventDefault(); list[0].focus(); }
+            else if (e.key === 'End') { e.preventDefault(); list[list.length - 1].focus(); }
+            // Tab goes on from the avatar (the menu is gone by then)
+            else if (e.key === 'Tab') setOpen(false, true);
+        });
+        document.addEventListener('click', (e) => {
+            if (isOpen() && !pop.contains(e.target) && !btn.contains(e.target)) setOpen(false, false);
+        });
+        // Leaving the desktop (narrowed to a phone) closes it
+        new MutationObserver(() => {
+            if (isOpen() && !htmlEl.classList.contains('dv2')) setOpen(false, false);
+        }).observe(htmlEl, { attributes: true, attributeFilter: ['class'] });
+
+        // ---- A name or email saved in Settings reaches the menu and the label
+        function syncLabel() {
+            const name = nameEl ? nameEl.textContent.trim() : '';
+            const sub = subEl && !subEl.hidden ? subEl.textContent.trim() : '';
+            const who = name && name !== 'Your account' ? name : (sub || 'your account');
+            btn.setAttribute('aria-label', 'Account: ' + who);
+            btn.title = who;
+        }
+        const origName = window.mOnAccountName;
+        window.mOnAccountName = function (name) {
+            const out = typeof origName === 'function' ? origName.apply(this, arguments) : undefined;
+            const clean = String(name || '').trim();
+            if (clean && clean !== 'New member' && clean !== 'Spotify listener' && nameEl) nameEl.textContent = clean;
+            syncLabel();
+            return out;
+        };
+        const origEmail = window.mOnAccountEmail;
+        window.mOnAccountEmail = function (email) {
+            const out = typeof origEmail === 'function' ? origEmail.apply(this, arguments) : undefined;
+            const clean = String(email || '').trim();
+            if (clean && subEl) {
+                subEl.textContent = clean;
+                subEl.hidden = false;
+            }
+            syncLabel();
+            return out;
+        };
+    })();
+
     // ---- Leaving phone widths: strip mobile-only state so desktop is clean.
     mq.addEventListener('change', (e) => {
         if (!e.matches) {

@@ -78,8 +78,9 @@
             } catch (e) {}
             root.setAttribute('data-m-tab', tab);
             // The browser's install prompt can fire before script.js runs:
-            // keep it for the phone You page's Install row. Only phone-width
-            // pages swap the browser's own install UI for that row.
+            // keep it for the phone You page's Install row (and the desktop
+            // avatar menu's). Only phone-width pages swap the browser's own
+            // install UI for that row.
             window.addEventListener('beforeinstallprompt', function (e) {
                 if (window.matchMedia('(max-width: 600px)').matches) e.preventDefault();
                 window.__installPrompt = e;
@@ -146,6 +147,83 @@
     </nav>
 
     <main id="music-section">
+        @php
+            // The account (the phone Home avatar and You page, the desktop avatar menu)
+            // Avatar initial: the display name unless it's a signup
+            // placeholder, else the email, else a note.
+            $acctName = trim((string) auth()->user()->name);
+            if (in_array($acctName, ['New member', 'Spotify listener'], true)) $acctName = '';
+            $acctInitial = mb_strtoupper(mb_substr($acctName !== '' ? $acctName : (string) auth()->user()->email, 0, 1));
+            if ($acctInitial === '') $acctInitial = '♪';
+            // Under the name on the phone You page: the email, the member
+            // number, or how a Spotify-only account signs in.
+            $acctSub = (string) auth()->user()->email;
+            if ($acctSub === '' && auth()->user()->member_number !== null) $acctSub = 'Member ' . auth()->user()->formattedMemberNumber();
+            if ($acctSub === '' && auth()->user()->spotify_user_id) $acctSub = 'Signed in with Spotify';
+            // A password (or PIN) the user knows: Spotify-only accounts
+            // have none, so Settings offers them no password forms.
+            $acctHasLogin = auth()->user()->email || auth()->user()->member_number !== null;
+            // Spotify is offered only when this server is set up for it.
+            $spotifyOn = (bool) config('services.spotify.client_id');
+            // Record-cover recognition (the Song Scanner) needs a Gemini key.
+            $geminiOn = (bool) config('services.gemini.key');
+            // The desktop avatar's label: the name, else how the account signs in
+            $acctDisplay = $acctName !== '' ? $acctName : ($acctSub !== '' ? $acctSub : 'your account');
+        @endphp
+        {{-- Desktop avatar menu (desktop step 9; html.dv2 only, display:none
+             everywhere else): the top right of the page, whatever page shows.
+             script.js (desktopAccount) opens it; Log out submits the phone
+             You page's logout form. --}}
+        <div class="dv-acct" id="dvAcct">
+            <button type="button" class="dv-acct-btn" id="dvAcctBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="dvAcctMenu" aria-label="Account: {{ $acctDisplay }}" title="{{ $acctDisplay }}">
+                <span class="m-avatar" aria-hidden="true">{{ $acctInitial }}</span>
+            </button>
+            <div class="dv-acct-pop" id="dvAcctPop" hidden>
+                <div class="dv-acct-who">
+                    <span class="m-avatar" aria-hidden="true">{{ $acctInitial }}</span>
+                    <span class="dv-acct-id">
+                        <b id="dvAcctName">{{ $acctName !== '' ? $acctName : 'Your account' }}</b>
+                        <small id="dvAcctSub"@if ($acctSub === '') hidden @endif>{{ $acctSub }}</small>
+                    </span>
+                </div>
+                <div class="dv-acct-menu" id="dvAcctMenu" role="menu" aria-label="Account">
+                    <button type="button" role="menuitem" data-dv-acct="stats" aria-haspopup="dialog">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V13"/><path d="M10 20V6"/><path d="M16 20V10"/><path d="M3 20h18"/></svg>
+                        <span>Your listening</span>
+                    </button>
+                    <button type="button" role="menuitem" data-dv-acct="bring" aria-haspopup="dialog">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg>
+                        <span>Bring your music over</span>
+                    </button>
+                    <div class="dv-acct-sep" role="separator"></div>
+                    <div class="dv-acct-group" role="group" aria-label="Settings">
+                        <div class="dv-acct-label" aria-hidden="true">Settings</div>
+                        <button type="button" role="menuitem" data-dv-acct="playback" aria-haspopup="dialog">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+                            <span>Playback</span>
+                        </button>
+                        <button type="button" role="menuitem" data-dv-acct="appearance" aria-haspopup="dialog">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>
+                            <span>Appearance</span>
+                        </button>
+                        <button type="button" role="menuitem" data-dv-acct="account" aria-haspopup="dialog">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>
+                            <span>Account</span>
+                        </button>
+                    </div>
+                    {{-- Only while the browser offers to install (beforeinstallprompt) --}}
+                    <button type="button" role="menuitem" data-dv-acct="install" hidden>
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 7.5v6M9.4 11.2 12 13.8l2.6-2.6M8 20.5h8"/></svg>
+                        <span>Install the app</span>
+                    </button>
+                    <div class="dv-acct-sep" role="separator"></div>
+                    <button type="button" role="menuitem" data-dv-acct="logout">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 16.5 5.5 12 10 7.5M5.5 12H15"/></svg>
+                        <span>Log out</span>
+                    </button>
+                </div>
+            </div>
+        </div>
         <!-- Vinyl Collection Room -->
         @if (session('status'))
         <div class="app-flash" id="appFlash">{{ session('status') }}</div>
@@ -378,26 +456,6 @@
 
                 <!-- Center - Records -->
                 <div class="room-center" id="roomCenter">
-                    @php
-                        // Avatar initial: the display name unless it's a signup
-                        // placeholder, else the email, else a note.
-                        $acctName = trim((string) auth()->user()->name);
-                        if (in_array($acctName, ['New member', 'Spotify listener'], true)) $acctName = '';
-                        $acctInitial = mb_strtoupper(mb_substr($acctName !== '' ? $acctName : (string) auth()->user()->email, 0, 1));
-                        if ($acctInitial === '') $acctInitial = '♪';
-                        // Under the name on the phone You page: the email, the member
-                        // number, or how a Spotify-only account signs in.
-                        $acctSub = (string) auth()->user()->email;
-                        if ($acctSub === '' && auth()->user()->member_number !== null) $acctSub = 'Member ' . auth()->user()->formattedMemberNumber();
-                        if ($acctSub === '' && auth()->user()->spotify_user_id) $acctSub = 'Signed in with Spotify';
-                        // A password (or PIN) the user knows: Spotify-only accounts
-                        // have none, so Settings offers them no password forms.
-                        $acctHasLogin = auth()->user()->email || auth()->user()->member_number !== null;
-                        // Spotify is offered only when this server is set up for it.
-                        $spotifyOn = (bool) config('services.spotify.client_id');
-                        // Record-cover recognition (the Song Scanner) needs a Gemini key.
-                        $geminiOn = (bool) config('services.gemini.key');
-                    @endphp
                     {{-- Phone tabs: Home and Library headers over the same crate
                          (shown per tab by the phone CSS; .m-only keeps them off
                          desktop, landscape and the app) --}}

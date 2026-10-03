@@ -3,8 +3,9 @@
 // Checks that the room's scenery, the VINYLS crate, the marquee, the old
 // toolbar's Search and + New, the crate's own All / Local / Spotify filter
 // (except at 601-900px, where the rail has no chips) and any monospace LCD
-// text are gone; the greeting; quiet Stats and Settings that still open
-// their windows; "Jump back in" as one row of song cards that play in
+// text are gone; the greeting; no Stats or Settings buttons (since desktop
+// step 9 they live in the avatar menu, which sits on the greeting's line:
+// desktop-avatar-check tests the menu); "Jump back in" as one row of song cards that play in
 // place (Home stays); "Your playlists" as a grid of square cover cards that
 // open the playlist without touching playback, mark the playing one, and
 // keep the edit button and keyboard access; the New playlist / Bring your
@@ -108,6 +109,8 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
                 rail: shown(q('#vinylCrateView .room-left')), oldTitle: shown(q('#vinylCrateView .greeting-text')), counts: shown(q('#vinylCrateView .collection-stats')),
                 search: shown(q('#vinylCrateView .crate-search-btn')),
                 newBtn: shown(q('#vinylCrateView .collection-toolbar .new-playlist-btn:not(.crate-search-btn):not(.crate-stats-btn):not(.crate-settings-btn)')),
+                // Stats and Settings: in the avatar menu since desktop step 9
+                pills: shown(q('#vinylCrateView .crate-stats-btn')) || shown(q('#vinylCrateView .crate-settings-btn')),
                 dupes: [...crate.querySelectorAll('.conveyor-dupes')].some(shown),
                 pencil: [...crate.querySelectorAll('.playlist-edit-btn')].some(shown),
                 badge: [...crate.querySelectorAll('.cover-badge')].some(shown),
@@ -119,8 +122,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             filter: shown(q('#sourceFilter')),
             greeting: { shown: shown(q('#mGreeting')), text: (q('#mGreeting') || {}).textContent, tag: (q('#mGreeting') || {}).tagName, box: box(q('#mGreeting')) },
             h1s: [...crate.querySelectorAll('h1')].filter(shown).length,
-            stats: shown(q('#vinylCrateView .crate-stats-btn')) ? box(q('#vinylCrateView .crate-stats-btn')) : null,
-            settings: shown(q('#vinylCrateView .crate-settings-btn')) ? box(q('#vinylCrateView .crate-settings-btn')) : null,
+            avatar: shown(q('#dvAcctBtn')) ? box(q('#dvAcctBtn')) : null,
             recentShelf: shown(q('#recentSongsShelf')),
             recentN: Array.isArray(recentSongs) ? recentSongs.length : 0,
             recent: recent.map(r => ({ box: box(r), art: box(r.querySelector('.recent-song-art')), title: (r.querySelector('.recent-song-title') || {}).textContent, artist: shown(r.querySelector('.recent-song-artist')) })),
@@ -158,28 +160,33 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         const tag = `${vp.width}x${vp.height}`;
         const rail = vp.width <= 900;
 
-        // ---- A. What's gone, the greeting, the panel, Stats and Settings
+        // ---- A. What's gone, the greeting, the panel, the avatar
         {
             const { ctx, p } = await open({ vp });
             const h = await home(p);
             const g = h.gone;
-            check(`${tag} A the room, the VINYLS crate, the console rail, the old title and counts, Search / + New, the marquee and its clones, the sleeve's record, badge, pencil and pill, and LCD text are gone`,
-                h.dv2 && !g.roomBg && !g.roomRight && !g.crateBox && !g.rail && !g.oldTitle && !g.counts && !g.search && !g.newBtn && !g.dupes && !g.pencil && !g.badge && !g.vinyl && !g.pill && g.marquee.length === 0 && g.mono.length === 0, g);
+            check(`${tag} A the room, the VINYLS crate, the console rail, the old title and counts, Search / + New / Stats / Settings, the marquee and its clones, the sleeve's record, badge, pencil and pill, and LCD text are gone`,
+                h.dv2 && !g.roomBg && !g.roomRight && !g.crateBox && !g.rail && !g.oldTitle && !g.counts && !g.search && !g.newBtn && !g.pills && !g.dupes && !g.pencil && !g.badge && !g.vinyl && !g.pill && g.marquee.length === 0 && g.mono.length === 0, g);
             check(`${tag} A the crate's All / Local / Spotify filter ${rail ? 'shows on Home (the rail has no chips)' : 'is gone (the sidebar has it)'}`, h.filter === rail, h.filter);
             const hr = new Date().getHours();
             const want = hr >= 5 && hr < 12 ? 'Good morning' : (hr >= 12 && hr < 18 ? 'Good afternoon' : 'Good evening');
             check(`${tag} A the greeting heads the page ("${want}"), the only heading of its level`, h.greeting.shown && h.greeting.text === want && h.greeting.tag === 'H1' && h.h1s === 1, { g: h.greeting, h1s: h.h1s });
             check(`${tag} A Home is a rounded panel beside the sidebar, with no sideways overflow`,
                 h.panel.l >= h.side.r && h.panel.l - h.side.r <= 12 && h.panelRadius === '12px' && h.panelSW <= h.panelCW && h.docW <= h.vw, { panel: h.panel, side: h.side, sw: h.panelSW, cw: h.panelCW, docW: h.docW, vw: h.vw, r: h.panelRadius });
-            check(`${tag} A Stats and Settings sit at the top right, on the greeting's line`,
-                h.stats && h.settings && h.stats.l > h.greeting.box.r && h.settings.l > h.stats.r - 1 && h.settings.r <= h.panel.r && Math.abs((h.stats.t + h.stats.b) / 2 - (h.greeting.box.t + h.greeting.box.b) / 2) <= 8, { stats: h.stats, settings: h.settings, g: h.greeting.box });
-            await p.click('#vinylCrateView .crate-stats-btn'); await p.waitForTimeout(500);
+            // Desktop step 9: the Stats and Settings buttons gave way to the
+            // avatar menu (desktop-avatar-check); the avatar sits at the top
+            // right on the greeting's line, clear of it
+            check(`${tag} A the avatar sits at the top right, on the greeting's line, clear of it`,
+                h.avatar && h.avatar.l > h.greeting.box.r && h.avatar.r <= h.panel.r && Math.abs((h.avatar.t + h.avatar.b) / 2 - (h.greeting.box.t + h.greeting.box.b) / 2) <= 8, { avatar: h.avatar, g: h.greeting.box, panel: h.panel });
+            await p.click('#dvAcctBtn'); await p.waitForTimeout(200);
+            await p.click('#dvAcctMenu [data-dv-acct="stats"]'); await p.waitForTimeout(500);
             const stats = await modalOpen(p, 'statsModal');
             await p.evaluate(() => hideStatsModal()); await p.waitForTimeout(300);
-            await p.click('#vinylCrateView .crate-settings-btn'); await p.waitForTimeout(400);
+            await p.click('#dvAcctBtn'); await p.waitForTimeout(200);
+            await p.click('#dvAcctMenu [data-dv-acct="playback"]'); await p.waitForTimeout(400);
             const settings = await modalOpen(p, 'settingsModal');
             await p.evaluate(() => hideSettingsModal()); await p.waitForTimeout(300);
-            check(`${tag} A Stats and Settings still open their windows`, stats && settings, { stats, settings });
+            check(`${tag} A Stats and Settings still open their windows (from the avatar menu)`, stats && settings, { stats, settings });
             check(`${tag} A errors`, p.__errs.length === 0, p.__errs);
             await ctx.close();
         }
@@ -204,14 +211,15 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             const st = await playState(p);
             check(`${tag} B clicking it plays that song and Home stays on screen (the bar shows it)`,
                 st.played[st.played.length - 1] === want && st.crate && !st.player, { st, want });
-            // Keyboard: Tab from Settings reaches the first card, Enter plays it
-            await p.focus('#vinylCrateView .crate-settings-btn');
+            // Keyboard: Tab from the avatar (what comes before the cards since
+            // desktop step 9 took Settings away) reaches the first card, Enter plays it
+            await p.focus('#dvAcctBtn');
             await p.keyboard.press('Tab'); await p.waitForTimeout(400);
             const ring = await p.evaluate(() => { const a = document.activeElement; const pl = a.querySelector('.recent-song-play'); return { cls: a.className, first: a === document.querySelector('#recentSongsTrack .recent-song'), play: pl ? getComputedStyle(pl).opacity : null, outline: getComputedStyle(a).outlineStyle }; });
             await p.keyboard.press('Enter'); await p.waitForTimeout(1600);
             const want0 = await p.evaluate(() => recentSongs[0].title);
             const st2 = await playState(p);
-            check(`${tag} B keyboard: Tab from Settings reaches the first card (focus ring, play button shown); Enter plays it`, ring.cls === 'recent-song' && ring.first && ring.play === '1' && ring.outline === 'solid' && st2.played[st2.played.length - 1] === want0 && st2.crate, { ring, st2, want0 });
+            check(`${tag} B keyboard: Tab from the avatar reaches the first card (focus ring, play button shown); Enter plays it`, ring.cls === 'recent-song' && ring.first && ring.play === '1' && ring.outline === 'solid' && st2.played[st2.played.length - 1] === want0 && st2.crate, { ring, st2, want0 });
             check(`${tag} B errors`, p.__errs.length === 0, p.__errs);
             await ctx.close();
         }
