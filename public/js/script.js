@@ -2444,6 +2444,8 @@ function dvBarProgress(current, duration) {
     const totalEl = document.getElementById('dvBarTotal');
     if (fill) fill.style.width = pct + '%';
     if (knob) knob.style.left = pct + '%';
+    // (the desktop draws the fill as a scale of this: a smooth, composited move)
+    seek.style.setProperty('--dv-p', (pct / 100).toFixed(4));
     if (elapsedEl) elapsedEl.textContent = formatTime(current);
     if (totalEl) totalEl.textContent = formatTime(duration);
     const max = String(Math.round(duration || 0));
@@ -6744,6 +6746,34 @@ function showImportPreview(data) {
     renderImportChecklist(data.name || 'Playlist', true, note);
 }
 
+// One pasted line: { artist, title, query }.
+// Songs copied from Apple Music on a Mac paste as tab-separated columns:
+// Name, Time, Artist, Album, … (some views put the track number first).
+// They're read by position, so a title that is a number ("1979", "22")
+// stays: only a leading track-number column and the Time column go.
+function parsePasteLine(line) {
+    if (line.includes('\t')) {
+        const cols = line.split('\t').map(c => c.trim());
+        const isTime = (c) => /^\d+:\d{2}(:\d{2})?$/.test(c);
+        const t = cols.findIndex(isTime);
+        // A leading number is the track number in "#, Name, Time, …" (and,
+        // with no Time column, when more columns follow it); in "Name,
+        // Time, …" it's the name
+        const trackNo = /^\d+$/.test(cols[0]) && (t === 2 || (t === -1 && cols.filter(Boolean).length > 2));
+        const rest = cols.filter((c, i) => c && !(trackNo && i === 0) && !isTime(c));
+        const title = rest[0] || '';
+        const artist = rest[1] || '';
+        if (title) {
+            return artist
+                ? { artist, title, query: `${artist} - ${title}` }
+                : { artist: '', title, query: title };
+        }
+    }
+    const m = line.split(/\s+[-–—]\s+/); // "Artist - Title" (hyphen/en/em dash)
+    if (m.length >= 2) return { artist: m[0].trim(), title: m.slice(1).join(' - ').trim(), query: line };
+    return { artist: '', title: line, query: line };
+}
+
 // Paste list: parse "Artist - Title" lines, resolve each to a YouTube video
 // so the user can review matches before adding.
 async function resolvePasteList() {
@@ -6757,18 +6787,7 @@ async function resolvePasteList() {
         ? `Matched the first ${PASTE_MAX} of ${allLines.length} lines: paste the rest as a second import.`
         : '';
 
-    const parsed = lines.map(line => {
-        // Songs copied from Apple Music on a Mac paste as tab-separated
-        // columns: Name, Time, Artist, Album, … (times and counts dropped)
-        if (line.includes('\t')) {
-            const cols = line.split('\t').map(c => c.trim()).filter(c => c && !/^\d+(:\d{2}){0,2}$/.test(c));
-            if (cols.length >= 2) return { artist: cols[1], title: cols[0], query: `${cols[1]} - ${cols[0]}` };
-            if (cols.length === 1) return { artist: '', title: cols[0], query: cols[0] };
-        }
-        const m = line.split(/\s+[-–—]\s+/); // "Artist - Title" (hyphen/en/em dash)
-        if (m.length >= 2) return { artist: m[0].trim(), title: m.slice(1).join(' - ').trim(), query: line };
-        return { artist: '', title: line, query: line };
-    });
+    const parsed = lines.map(parsePasteLine);
 
     const loading = document.getElementById('spotifyImportLoading');
     const loadingText = document.getElementById('spotifyImportLoadingText');
@@ -9484,8 +9503,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function dvSyncBarVisibility() {
         const root = document.documentElement;
+        // A preview or a queued song (the radio path) counts too: paused
+        // while the playing list is empty, the bar is its only transport.
+        // (A playing list emptied with nothing playing still hides it.) The
+        // phone dock keeps its own rule.
+        const radio = typeof currentRadioSong !== 'undefined' && !!currentRadioSong;
         const empty = (typeof songsData === 'undefined' || songsData.length === 0)
-            && !document.body.classList.contains('m-playing');
+            && !document.body.classList.contains('m-playing') && !radio;
         root.classList.toggle('dv2-bar', root.classList.contains('dv2') && !empty);
     }
     document.addEventListener('focusin', (e) => {
@@ -10045,6 +10069,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (viewOpening && viewOpening.id === id && viewOpening.gen === viewGen && viewedId === id
             && listLoading() && !viewFailed && playerViewActive()) {
             return viewOpening.promise;
+        }
+        // (desktop) It's already the page on screen, loaded: nothing to do
+        // (no refetch, no flicker, the scroll stays)
+        if (!inShell() && viewedId === id && Array.isArray(viewedSongs) && !viewFailed && playerViewActive()) {
+            return Promise.resolve(true);
         }
         viewGen++;
         viewedId = id;
@@ -12786,6 +12815,50 @@ document.addEventListener('DOMContentLoaded', () => {
     // updateSleepLabel, updateQueueBadge, updateLyricsControls and
     // dvBarProgress (the sleeve's progress tick).
     // ============================================================
+    // ---- Desktop menus (desktop step 11): one open at a time. Each menu
+    // (the sleep timer, the sidebar's +, the playlist's ⋯, Now Playing's ⋯,
+    // the avatar's and a song row's ⋯) registers how it closes; opening one
+    // closes the others (their buttons no longer stop the click either, so
+    // each one's outside-click close sees it too). Focus stays where it is.
+    const dvMenuClosers = new Set();
+    const dvMenuOpening = (self) => dvMenuClosers.forEach((close) => { if (close !== self) close(); });
+
+    // ---- Desktop motion (desktop step 11): none when the system asks for
+    // less. dvStagger fades the first dozen cards or rows of a page in, one
+    // after another (opacity only: nothing moves, nothing reflows); the
+    // pages, menus and the rest animate in CSS.
+    const dvCalm = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const dvMotion = () => htmlEl.classList.contains('dv2') && !dvCalm.matches;
+    const DV_STAGGER_MAX = 12;
+    const DV_STAGGER_STEP = 24; // ms between items (matches styles.css)
+    const DV_STAGGER_DUR = 220;
+    function dvStagger(els) {
+        if (!dvMotion()) return;
+        const items = els.filter((el) => el.getClientRects().length > 0).slice(0, DV_STAGGER_MAX);
+        items.forEach((el, k) => {
+            el.style.setProperty('--dv-i', String(k));
+            el.classList.add('dv-in');
+        });
+        setTimeout(() => items.forEach((el) => {
+            el.classList.remove('dv-in');
+            el.style.removeProperty('--dv-i');
+        }), DV_STAGGER_MAX * DV_STAGGER_STEP + DV_STAGGER_DUR + 120);
+    }
+    // In reading order (a grid's CSS order can differ from the DOM's)
+    const inReadingOrder = (els) => els
+        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        .filter((x) => x.r.width > 0)
+        .sort((a, b) => (Math.abs(a.r.top - b.r.top) > 4 ? a.r.top - b.r.top : a.r.left - b.r.left))
+        .map((x) => x.el);
+    // A heart that's just been liked pops
+    function dvPop(el) {
+        if (!el || !dvMotion()) return;
+        el.classList.remove('dv-pop');
+        void el.offsetWidth; // (restart it)
+        el.classList.add('dv-pop');
+        setTimeout(() => el.classList.remove('dv-pop'), 400);
+    }
+
     (function desktopBar() {
         const bar = document.getElementById('dvBar');
         if (!bar) return;
@@ -12797,6 +12870,15 @@ document.addEventListener('DOMContentLoaded', () => {
         click('dvBarNext', () => nextSong());
         click('dvBarShuffle', () => { toggleShuffle(); mSyncModes(); });
         click('dvBarLoop', () => { toggleLoopMode(); mSyncModes(); });
+        // ♥ pops when it likes (the like itself is syncNpLike's handler, first)
+        const likeBtn = $('dvBarLike');
+        if (likeBtn) {
+            let wasOn = false;
+            likeBtn.addEventListener('click', () => { wasOn = likeBtn.classList.contains('is-on'); }, true);
+            likeBtn.addEventListener('click', () => {
+                if (!wasOn && likeBtn.classList.contains('is-on')) dvPop(likeBtn);
+            });
+        }
         // Up next opens the side panel on its Up next tab (desktop step 8)
         click('dvBarQueue', () => {
             if (window.dvSidePanel) window.dvSidePanel.toggle('queue');
@@ -12914,8 +12996,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const sleepBtn = $('dvBarSleep');
         const sleepMenu = $('dvBarSleepMenu');
         const sleepItems = () => [...sleepMenu.querySelectorAll('[data-dv-sleep]')].filter((b) => !b.hidden);
+        const closeSleepMenu = () => { if (sleepMenu && !sleepMenu.hidden) setSleepMenu(false, false); };
+        dvMenuClosers.add(closeSleepMenu);
         function setSleepMenu(open, focusBtn) {
             if (!sleepMenu || !sleepBtn) return;
+            if (open) dvMenuOpening(closeSleepMenu);
             sleepMenu.hidden = !open;
             sleepBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
             if (open) {
@@ -12927,10 +13012,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         if (sleepBtn && sleepMenu) {
-            sleepBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                setSleepMenu(sleepMenu.hidden, false);
-            });
+            sleepBtn.addEventListener('click', () => setSleepMenu(sleepMenu.hidden, false));
             sleepMenu.addEventListener('click', (e) => {
                 const opt = e.target.closest('[data-dv-sleep]');
                 if (!opt) return;
@@ -13230,18 +13312,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const addBtn = $('dvSideAdd');
         const addMenu = $('dvSideAddMenu');
         const addItems = () => [...addMenu.querySelectorAll('[role="menuitem"]')];
+        const closeAddMenu = () => { if (addMenu && !addMenu.hidden) setAddMenu(false, false); };
+        dvMenuClosers.add(closeAddMenu);
         function setAddMenu(open, focusBtn) {
             if (!addBtn || !addMenu) return;
+            if (open) dvMenuOpening(closeAddMenu);
             addMenu.hidden = !open;
             addBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
             if (open) addItems()[0].focus({ preventScroll: true });
             else if (focusBtn) addBtn.focus({ preventScroll: true });
         }
         if (addBtn && addMenu) {
-            addBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                setAddMenu(addMenu.hidden, false);
-            });
+            addBtn.addEventListener('click', () => setAddMenu(addMenu.hidden, false));
             addMenu.addEventListener('click', (e) => {
                 const item = e.target.closest('[data-dv-add]');
                 if (!item) return;
@@ -13570,6 +13652,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // ---- Rows: one in the Tab order (a roving tabindex), its buttons
         // too; the playing one is aria-current. Desktop only.
         let currentRow = null; // data-index of the row in the Tab order
+        let tabRow = null; // that row's element, as last set
+        const setRowTab = (r, on) => {
+            const v = on ? 0 : -1;
+            if (r.tabIndex !== v) r.tabIndex = v;
+            r.querySelectorAll('button').forEach((b) => { if (b.tabIndex !== v) b.tabIndex = v; });
+        };
         function syncRows() {
             if (!isDesk()) return;
             const rows = songRows();
@@ -13577,13 +13665,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const keep = shown.find((r) => r.dataset.index === currentRow)
                 || shown.find((r) => r.classList.contains('active')) || shown[0] || null;
             rows.forEach((r) => {
-                const on = r === keep;
-                r.tabIndex = on ? 0 : -1;
-                r.querySelectorAll('button').forEach((b) => { b.tabIndex = on ? 0 : -1; });
+                setRowTab(r, r === keep);
                 if (r.classList.contains('active')) r.setAttribute('aria-current', 'true');
                 else r.removeAttribute('aria-current');
             });
+            tabRow = keep;
             list.setAttribute('aria-label', 'Songs');
+        }
+        // Focus moving between rows: only the row leaving the Tab order and
+        // the one entering it change (not every row of a long list)
+        function moveTabStop(row) {
+            currentRow = row.dataset.index;
+            if (tabRow === row) return;
+            if (tabRow && tabRow.isConnected) setRowTab(tabRow, false);
+            else songRows().forEach((r) => { if (r !== row && r.tabIndex === 0) setRowTab(r, false); });
+            setRowTab(row, true);
+            tabRow = row;
         }
         // The playing row moves without a redraw (setActiveSongRow): follow it
         let rowsQueued = false;
@@ -13596,15 +13693,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isDesk()) return;
             const row = e.target.closest(ROWS);
             if (!row || !list.contains(row) || (row.dataset.index === currentRow && row.tabIndex === 0)) return;
-            currentRow = row.dataset.index;
-            syncRows();
+            moveTabStop(row);
         });
         // A find query can hide the row in the Tab order: another takes it
         if (filterInput) filterInput.addEventListener('input', () => syncRows());
         function focusRow(row) {
             if (!row) return;
-            currentRow = row.dataset.index;
-            syncRows();
+            moveTabStop(row);
             row.focus();
         }
 
@@ -13726,13 +13821,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const name = nameEl ? nameEl.textContent : '';
             if (moreBtn) moreBtn.setAttribute('aria-label', name ? `More options for ${name}` : 'More options for this playlist');
         }
+        const closePlMenu = () => setMenu(false, false);
+        dvMenuClosers.add(closePlMenu);
         function setMenu(open, focusBtn) {
             if (!menu || !moreBtn) return;
             if (open === !menu.hidden) {
                 if (!open && focusBtn) moreBtn.focus({ preventScroll: true });
                 return;
             }
-            if (open) syncMenu();
+            if (open) {
+                dvMenuOpening(closePlMenu);
+                syncMenu();
+            }
             disarmDelete();
             menu.hidden = !open;
             moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -13744,10 +13844,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         if (moreBtn && menu) {
-            moreBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                setMenu(menu.hidden, false);
-            });
+            moreBtn.addEventListener('click', () => setMenu(menu.hidden, false));
             menu.addEventListener('click', (e) => {
                 const row = e.target.closest('[data-dv-pl]');
                 if (!row || row.disabled) return;
@@ -13810,7 +13907,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // ---- A row's ⋯ on the desktop: the anchored popover becomes a
         // keyboard menu (focus in, arrows, Esc back to the ⋯)
         const prevShowSendMenu = window.showSendMenu;
+        const closeSendMenuHere = () => { if (activeSendMenu && isDesk()) window.closeSendMenu(); };
+        dvMenuClosers.add(closeSendMenuHere);
         window.showSendMenu = function (btn) {
+            if (isDesk()) dvMenuOpening(closeSendMenuHere);
             const out = prevShowSendMenu.apply(this, arguments);
             const pop = activeSendMenu;
             if (!isDesk() || !pop || pop.classList.contains('send-menu-sheet')) return out;
@@ -14134,9 +14234,12 @@ document.addEventListener('DOMContentLoaded', () => {
             menu.style.left = Math.round(left) + 'px';
             menu.style.top = Math.round(top) + 'px';
         }
+        const closeNpMenu = () => setMenu(false, false);
+        dvMenuClosers.add(closeNpMenu);
         function setMenu(open, focusBtn) {
             if (!menu || !moreBtn) return;
             if (!open && menu.hidden) return;
+            if (open) dvMenuOpening(closeNpMenu);
             menu.hidden = !open;
             moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
             if (open) {
@@ -14166,10 +14269,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }));
         }
         if (menu && moreBtn) {
-            moreBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                setMenu(menu.hidden, false);
-            });
+            moreBtn.addEventListener('click', () => setMenu(menu.hidden, false));
             menu.addEventListener('click', (e) => {
                 const it = e.target.closest('[data-dv-np]');
                 if (!it) return;
@@ -14404,14 +14504,18 @@ document.addEventListener('DOMContentLoaded', () => {
             return meta && meta.name ? meta.name : '';
         };
         // The playing list's next songs as Next plays them (no shuffle): from
-        // the row after the playing one (the row itself while it hasn't
+        // the row after the current one (the row itself while it hasn't
         // started), round to the top unless repeat is off, and never back
-        // round to the playing row
+        // round to the playing row. The same rule as nextSong: while a queued
+        // or radio song plays, the list resumes after its current row
+        // (currentRowStarted is true then), not on it.
         function nextIndices() {
             if (!Array.isArray(songsData) || !songsData.length || shuffleMode !== 'off') return [];
             const n = songsData.length;
-            const started = currentRowStarted() && !currentRadioSong;
+            const started = currentRowStarted();
             const first = started ? currentSongIndex + 1 : currentSongIndex;
+            // (the current row only plays when no queued or radio song does)
+            const rowPlaying = started && !currentRadioSong;
             const out = [];
             for (let k = 0; out.length < NEXT_MAX && k < n; k++) {
                 let i = first + k;
@@ -14419,7 +14523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (loopMode === 'off') break;
                     i %= n;
                 }
-                if (started && i === currentSongIndex) break;
+                if (rowPlaying && i === currentSongIndex) break;
                 if (songsData[i]) out.push(i);
             }
             return out;
@@ -14587,7 +14691,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const items = () => [...menu.querySelectorAll('[role="menuitem"]')].filter((b) => !b.hidden);
         const isOpen = () => !pop.hidden;
 
+        const closeAcct = () => { if (isOpen()) setOpen(false, false); };
+        dvMenuClosers.add(closeAcct);
         function setOpen(open, focusBtn) {
+            if (open) dvMenuOpening(closeAcct);
             if (open && installItem) installItem.hidden = !window.__installPrompt || installed || !inBrowserTab.matches;
             pop.hidden = !open;
             btn.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -14609,10 +14716,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         window.addEventListener('appinstalled', () => { installed = true; });
 
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            setOpen(!isOpen(), false);
-        });
+        btn.addEventListener('click', () => setOpen(!isOpen(), false));
         // Arrow down / up on the avatar opens the menu on its first / last item
         btn.addEventListener('keydown', (e) => {
             if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -14775,15 +14879,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
         }
+        // A window's body that scrolls with nothing focusable in it (Your
+        // listening's list, ...) is a Tab stop, so the keyboard can scroll
+        // it: a labelled region (the window's title). Desktop step 11; only
+        // while it scrolls, only on the desktop (the attributes go again
+        // otherwise, so phones and the app are as before).
+        const SCROLLS = /(auto|scroll)/;
+        function markScrollers() {
+            const desk = isDesk();
+            document.querySelectorAll(WINDOWS).forEach((win) => {
+                const open = desk && win.matches(OPEN);
+                const title = win.querySelector('.add-song-modal-title, h2, h1');
+                win.querySelectorAll(open ? '*' : '[data-dv-scrollstop]').forEach((el) => {
+                    const marked = el.hasAttribute('data-dv-scrollstop');
+                    let want = false;
+                    if (open && el.clientHeight > 0 && el.scrollHeight > el.clientHeight + 1) {
+                        want = SCROLLS.test(getComputedStyle(el).overflowY)
+                            && ![...el.querySelectorAll(FOCUSABLE)].some((f) => f.getClientRects().length > 0);
+                    }
+                    if (want && !marked) {
+                        el.setAttribute('data-dv-scrollstop', '');
+                        el.tabIndex = 0;
+                        el.setAttribute('role', 'region');
+                        if (title && title.id) el.setAttribute('aria-labelledby', title.id);
+                        else el.setAttribute('aria-label', (title && title.textContent.trim()) || 'Window content');
+                    } else if (!want && marked) {
+                        ['data-dv-scrollstop', 'tabindex', 'role', 'aria-labelledby', 'aria-label'].forEach((a) => el.removeAttribute(a));
+                    }
+                });
+            });
+        }
         let queued = false;
         const queue = () => {
             if (queued) return;
             queued = true;
-            queueMicrotask(() => { queued = false; sync(); });
+            queueMicrotask(() => { queued = false; sync(); markScrollers(); });
         };
         const watch = new MutationObserver(queue);
         document.querySelectorAll(WINDOWS).forEach((w) => watch.observe(w, { attributes: true, attributeFilter: ['class'] }));
         watch.observe(htmlEl, { attributes: true, attributeFilter: ['class'] });
+        // Their content arriving (the stats loading, a search's results)
+        let contentQueued = false;
+        const contentWatch = new MutationObserver(() => {
+            if (contentQueued || !document.querySelector(OPEN)) return;
+            contentQueued = true;
+            requestAnimationFrame(() => { contentQueued = false; markScrollers(); });
+        });
+        document.querySelectorAll(WINDOWS).forEach((w) => contentWatch.observe(w, { childList: true, subtree: true }));
+        window.addEventListener('resize', () => { if (document.querySelector(OPEN)) markScrollers(); });
 
         // Esc closes the top window (after its own Esc, if it has one)
         document.addEventListener('keydown', (e) => {
@@ -14952,6 +15095,207 @@ document.addEventListener('DOMContentLoaded', () => {
             if (LETTERS[key] && press(LETTERS[key])) e.preventDefault();
         });
     })();
+
+    // ============================================================
+    // DESKTOP MOTION AND POLISH (desktop step 11): what CSS can't do alone.
+    // The first dozen cards or rows of a page fade in one after another
+    // when the page is first shown (Home, a playlist page once its songs
+    // are there, the Search page), not on every redraw; the turntable's
+    // platter spins up and down instead of starting and stopping dead; the
+    // blurred cover behind Now Playing cross-fades to the next song's; a
+    // liked song row's ♥ pops; the playlist page's column labels, stuck at
+    // the top, get a band of their own under the avatar. Nothing here runs
+    // with less motion asked for (the band excepted: it isn't motion).
+    // ============================================================
+    (function desktopPolish() {
+        const $ = (id) => document.getElementById(id);
+        const isDesk = () => htmlEl.classList.contains('dv2');
+        const crate = $('vinylCrateView');
+        const view = $('musicPlayerView');
+        const page = $('musicSidebar');
+        const list = $('songList');
+        const deckOpen = () => !!view && view.classList.contains('active') && view.classList.contains('dv-deck');
+        const ROWS = '.song-list-item:not(.discover-item):not(.radio-song-item)';
+
+        // ---- Home: its cards, each time it comes back (and on load)
+        const homeShown = () => !!crate && !crate.classList.contains('hidden') && !htmlEl.classList.contains('dv-search');
+        const staggerHome = () => {
+            if (!crate || !homeShown()) return;
+            dvStagger(inReadingOrder([...crate.querySelectorAll('.recent-song:not([hidden]), .record-card, .crate-new-tile')]));
+        };
+        if (crate) {
+            let was = homeShown();
+            const onHome = () => {
+                const now = homeShown();
+                if (now && !was) staggerHome();
+                was = now;
+            };
+            new MutationObserver(onHome).observe(crate, { attributes: true, attributeFilter: ['class'] });
+            new MutationObserver(onHome).observe(htmlEl, { attributes: true, attributeFilter: ['class'] });
+            if (isDesk()) requestAnimationFrame(staggerHome);
+        }
+
+        // ---- A playlist page: its rows, once its songs are on screen
+        let rowsFor = null; // the list whose rows have faded in on this showing
+        const plShown = () => !!view && view.classList.contains('active') && !view.classList.contains('dv-deck');
+        function staggerRows() {
+            if (!list || !plShown() || listLoading() || !isDesk()) return;
+            const id = String(listId());
+            if (rowsFor === id) return;
+            rowsFor = id;
+            dvStagger([...list.querySelectorAll(ROWS)].filter((r) => !r.classList.contains('m-filtered-out')));
+        }
+        if (view) {
+            new MutationObserver(() => {
+                if (!plShown()) rowsFor = null;
+                else staggerRows();
+            }).observe(view, { attributes: true, attributeFilter: ['class'] });
+        }
+        const prevRebuild = window.rebuildSongList;
+        if (typeof prevRebuild === 'function') {
+            window.rebuildSongList = function () {
+                const out = prevRebuild.apply(this, arguments);
+                staggerRows();
+                return out;
+            };
+        }
+
+        // ---- The Search page: its first screen (recent searches, playlists)
+        if (searchPage) {
+            let was = htmlEl.classList.contains('dv-search');
+            new MutationObserver(() => {
+                const now = htmlEl.classList.contains('dv-search');
+                if (now && !was) {
+                    requestAnimationFrame(() => dvStagger([...searchPage.querySelectorAll('.m-recent-row, .m-rp-tile, .m-sr-row')]));
+                }
+                was = now;
+            }).observe(htmlEl, { attributes: true, attributeFilter: ['class'] });
+        }
+
+        // ---- A song row's ♥ pops when it likes (the row's own handler first)
+        if (list) {
+            list.addEventListener('click', (e) => {
+                const fav = e.target.closest && e.target.closest('.song-fav-btn');
+                if (!fav || !isDesk()) return;
+                const was = fav.classList.contains('is-fav');
+                setTimeout(() => {
+                    if (!was && fav.isConnected && fav.classList.contains('is-fav')) dvPop(fav);
+                }, 0);
+            }, true);
+        }
+
+        // ---- The platter spins up and down (Now Playing): the CSS runs the
+        // spin while .playing; this eases its speed in, and out (keeping it
+        // running a moment longer with .dv-spin-down)
+        const vinylEl = $('vinyl');
+        if (vinylEl && typeof vinylEl.getAnimations === 'function') {
+            const SPIN_MS = 320;
+            let raf = 0;
+            let rate = vinylEl.classList.contains('playing') ? 1 : 0;
+            const spin = () => vinylEl.getAnimations().find((a) => a.animationName === 'spin') || null;
+            const settle = () => {
+                cancelAnimationFrame(raf);
+                raf = 0;
+                vinylEl.classList.remove('dv-spin-down');
+                const a = spin();
+                if (a && a.playbackRate !== 1) a.playbackRate = 1;
+            };
+            const ramp = (up) => {
+                cancelAnimationFrame(raf);
+                if (!up) vinylEl.classList.add('dv-spin-down');
+                const from = Math.max(0, Math.min(1, rate));
+                const start = performance.now();
+                const tick = (now) => {
+                    const a = spin();
+                    const t = Math.min(1, (now - start) / SPIN_MS);
+                    const k = 1 - (1 - t) * (1 - t); // ease out
+                    rate = up ? from + (1 - from) * k : from * (1 - k);
+                    if (a) a.playbackRate = rate;
+                    if (t < 1) { raf = requestAnimationFrame(tick); return; }
+                    raf = 0;
+                    if (!up) {
+                        vinylEl.classList.remove('dv-spin-down');
+                        if (a) a.playbackRate = 1; // (paused by then)
+                    }
+                };
+                const a = spin();
+                if (a) a.playbackRate = from;
+                raf = requestAnimationFrame(tick);
+            };
+            let playing = vinylEl.classList.contains('playing');
+            new MutationObserver(() => {
+                const now = vinylEl.classList.contains('playing');
+                if (now === playing) return;
+                playing = now;
+                if (!dvMotion() || !deckOpen()) { rate = now ? 1 : 0; settle(); return; }
+                ramp(now);
+            }).observe(vinylEl, { attributes: true, attributeFilter: ['class'] });
+        }
+
+        // ---- Now Playing's backdrop: the old cover fades out over the new one
+        const backdrop = $('backdropImg');
+        if (backdrop && backdrop.parentElement) {
+            new MutationObserver((records) => {
+                const old = records[0] && records[0].oldValue;
+                if (!old || old === backdrop.getAttribute('src') || !dvMotion() || !deckOpen()) return;
+                if (backdrop.style.display === 'none') return;
+                backdrop.parentElement.querySelectorAll('.dv-backdrop-old').forEach((x) => x.remove());
+                const ghost = document.createElement('img');
+                ghost.className = 'dv-backdrop-old';
+                ghost.alt = '';
+                ghost.setAttribute('aria-hidden', 'true');
+                ghost.src = old;
+                backdrop.parentElement.appendChild(ghost);
+                // It fades once the new cover is there (not over nothing)
+                const go = () => ghost.classList.add('is-going');
+                if (backdrop.complete && backdrop.naturalWidth) requestAnimationFrame(go);
+                else {
+                    backdrop.addEventListener('load', go, { once: true });
+                    backdrop.addEventListener('error', go, { once: true });
+                    setTimeout(go, 600);
+                }
+                const done = () => ghost.remove();
+                ghost.addEventListener('animationend', done, { once: true });
+                setTimeout(done, 1500);
+            }).observe(backdrop, { attributes: true, attributeFilter: ['src'], attributeOldValue: true });
+        }
+
+        // ---- The column labels, stuck at the top of a scrolled playlist
+        // page: a band under them (the avatar sits in it, clear of the labels)
+        const cols = $('dvPlCols');
+        if (page && cols) {
+            let queued = false;
+            const sync = () => {
+                queued = false;
+                if (!isDesk() || !plShown()) { cols.classList.remove('is-stuck'); return; }
+                const top = parseFloat(getComputedStyle(cols).top) || 0;
+                const port = page.getBoundingClientRect().top + page.clientTop;
+                const stuck = page.scrollTop > 0 && cols.getBoundingClientRect().top - port <= top + 0.5;
+                if (cols.classList.contains('is-stuck') !== stuck) cols.classList.toggle('is-stuck', stuck);
+            };
+            const queue = () => { if (!queued) { queued = true; requestAnimationFrame(sync); } };
+            page.addEventListener('scroll', queue, { passive: true });
+            window.addEventListener('resize', queue);
+            if (view) new MutationObserver(queue).observe(view, { attributes: true, attributeFilter: ['class'] });
+            const prev = window.rebuildSongList;
+            window.rebuildSongList = function () {
+                const out = prev.apply(this, arguments);
+                queue();
+                return out;
+            };
+        }
+    })();
+
+    // ---- Leaving a short landscape phone for the desktop layout without
+    // crossing 600px (a resize past 500px tall, a mouse plugged in): its
+    // windows close as on leaving portrait (the queue window would stay open
+    // and empty: on the desktop its list lives in the side panel).
+    shellMq.addEventListener('change', (e) => {
+        if (e.matches || mq.matches) return;
+        teardownPhoneLayers();
+        const queueModal = document.getElementById('queueModal');
+        if (queueModal && queueModal.classList.contains('active')) window.hideQueueModal();
+    });
 
     // ---- Leaving phone widths: strip mobile-only state so desktop is clean.
     mq.addEventListener('change', (e) => {

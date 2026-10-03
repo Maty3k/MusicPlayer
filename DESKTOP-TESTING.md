@@ -9,7 +9,8 @@ Search page, `desktop-panel-check.js` the side panel and
 `desktop-avatar-check.js` the avatar menu at the same three sizes (all six
 with axe scans), and `desktop-a11y-check.js` the keyboard shortcuts, the
 windows, Skip to content, the Tab order and focus rings and an axe scan of
-every page, menu and window at 1440×900 and 1024×768. All nine check that
+every page, menu and window at 1440×900 and 1024×768, and
+`desktop-polish-check.js` the step 11 fixes, polish and motion. All ten check that
 phones (390×844, 844×390) and the app (`?app=1`) don't get them. The items below need a person at a
 real desktop browser. Run them in Chrome and in Firefox or Safari.
 
@@ -481,7 +482,8 @@ The media keys (keyboard, headset) work as before.
   (when open), then the player bar. Nothing from a page that isn't showing
   (Home's cards behind a playlist page, a playlist's rows behind Home)
   takes focus.
-- [ ] Every stop shows the same amber 2px ring (menus and rows: inside the
+- [ ] Every stop shows the same amber 2px ring (amber buttons, since step
+  11: a cream one, set further out; menus and rows: inside the
   item; the Search field: round the field; Now Playing's lyrics: round
   their panel).
 
@@ -504,3 +506,75 @@ The media keys (keyboard, headset) work as before.
 
 - [ ] A phone, a short landscape phone and the app (`?app=1`) look and
   behave exactly as before: no skip link, the keys above do nothing there.
+
+## Polish, motion and review fixes (step 11)
+
+`tests/browser/suites/desktop-polish-check.js` covers the review fixes, the
+polish (type scale, focus ring, the column band, the greeting, the
+windows), the motion (present by default, none with reduced motion,
+nothing shifting once it ends), axe on every page, menu and window in all
+five room themes, and that phones and the app get none of it.
+
+### Fixes
+
+- [ ] A touch tablet (an iPad or a Surface in landscape, no mouse): a
+  playlist's rows show their ♥, ⋯, × and drag handle without hovering.
+- [ ] With a song from the queue (or a radio song) playing, the side
+  panel's "Next from <playlist>" starts with the song Next will play.
+- [ ] A new account (empty Favorites): play a song from Search's YouTube
+  results, then pause it. The bar stays (it's the only way to resume).
+- [ ] Import → Paste a list: songs copied from Apple Music on a Mac (Name,
+  Time, Artist… columns) keep titles that are numbers ("1979", "22").
+- [ ] Open the avatar menu, then click + in the sidebar (or the sleep
+  timer, a playlist's ⋯, a song's ⋯, Now Playing's ⋯): only the new menu
+  is open.
+- [ ] On a phone in landscape (short window) open Up next, then make the
+  window taller (or turn a tablet) so the desktop layout shows: the Up next
+  window is gone and the side panel has the queue.
+- [ ] Click the playlist that's already on screen in the sidebar: nothing
+  reloads, nothing flickers, the scroll stays.
+- [ ] A playlist of a few hundred songs: arrowing up and down the rows
+  stays smooth.
+- [ ] Your listening with lots of history (its list scrolls): Tab reaches
+  the list (a ring round it) and the arrow keys scroll it; a screen reader
+  reads it as "Your listening". The same in any window whose content
+  scrolls in a short browser window.
+
+### Look
+
+- [ ] Text sizes are consistent: section headings, card and row titles,
+  their artists and counts, menu items, the same size on every page.
+- [ ] Tab to the round Play button on a playlist page: its ring is cream
+  and clearly apart from the button (not amber on amber). The same on Skip
+  to content and on a window's main (amber) button.
+- [ ] Scroll a long playlist: the "# Title" labels stick under a band at
+  the top; the avatar sits in the band, clear of them. Back at the top,
+  the header looks as before.
+- [ ] Narrow the window to about 800px and open the side panel: Home's
+  greeting ("Good afternoon") wraps or shrinks; it never ends in "…".
+- [ ] Settings, Your listening, Import, Add songs and Edit playlist: a
+  rounded card with the title and × at the top, pill tabs (the chosen one
+  cream) and pill buttons.
+- [ ] Scrollbars are thin and faint, and firm up when the pointer is over
+  the list.
+- [ ] Each room theme (Blue Hour, Golden Hour, After Hours, Velvet,
+  Greenroom): text and controls stay easy to read on every page and window.
+
+### Motion
+
+All of it is short (150-350ms) and none of it shows with reduce motion on.
+
+- [ ] Home, a playlist, Search and Now Playing fade in, rising a little.
+- [ ] Opening a page, its first cards (Home) or rows (a playlist) fade in
+  one after another; liking a song or adding one doesn't replay it.
+- [ ] Hovering a card on Home lifts its cover with a deeper shadow.
+- [ ] Menus drop in from their button (the sleep timer's rises); the side
+  panel slides in from the right; windows rise into place.
+- [ ] Play/pause: the icon swaps with a small pop. The seek bar moves
+  smoothly. Liking a song pops the ♥ (unliking doesn't). Buttons give a
+  little when pressed.
+- [ ] Now Playing: pressing play, the platter spins up and the tonearm
+  swings onto the record; pausing, the platter slows to a stop and the arm
+  swings off. The next song's cover fades in behind the turntable.
+- [ ] None of it gets in the way: a row or card can be clicked while its
+  page fades in, and nothing jumps when the motion ends.

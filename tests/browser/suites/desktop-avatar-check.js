@@ -176,14 +176,17 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             await openList(p, await otherWithSongs(p));
             const pl = await acctState(p);
             check(`${tag} A a playlist page: the avatar at the top right, clear of its header`, pl.page === 'playlist' && placedOk(pl) && pl.initial === want, placed(pl));
-            // Scrolled to the end: the column labels stick to the top (when the
-            // list is long enough), under the avatar's row; it stays clear of them
+            // Scrolled to the end: the column labels stick near the top (when
+            // the list is long enough), under the avatar's row; it stays clear
+            // of them. (Desktop step 11: they stick below a band of their own,
+            // their sticky top, with the avatar in the band.)
             await openList(p, await longest(p));
             await p.evaluate(() => { const sb = document.getElementById('musicSidebar'); sb.scrollTop = sb.scrollHeight; }); await p.waitForTimeout(300);
             const pl2 = await acctState(p);
             const stick = await p.evaluate(() => {
                 const sb = document.getElementById('musicSidebar'), c = document.getElementById('dvPlCols');
-                return { stuck: c.getBoundingClientRect().top - sb.getBoundingClientRect().top < 4, canScroll: sb.scrollHeight - sb.clientHeight >= c.offsetTop };
+                const top = parseFloat(getComputedStyle(c).top) || 0;
+                return { stuck: c.getBoundingClientRect().top - sb.getBoundingClientRect().top < top + 4, canScroll: sb.scrollHeight - sb.clientHeight >= c.offsetTop };
             });
             check(`${tag} A a scrolled playlist page: the avatar stays put, clear of the column labels stuck at the top`, pl2.page === 'playlist' && (stick.stuck || !stick.canScroll) && placedOk(pl2) && Math.abs(pl2.box.t - pl.box.t) < 1, { stick, p: placed(pl2) });
             await openSearch(p);

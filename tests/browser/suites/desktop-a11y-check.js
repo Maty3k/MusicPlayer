@@ -163,13 +163,18 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         const ringEl = a.id === 'mSearchInput' ? a.closest('.m-search-field')
             : a.id === 'sleeveLyrics' ? (a.closest('.vinyl-sleeve') && a.closest('.dv-deck') ? a.closest('.vinyl-sleeve') : a) : a;
         const c = getComputedStyle(ringEl);
+        // (desktop step 11: an amber button's ring is cream, an amber one
+        // vanished into it)
+        const tone = (v) => { const d = document.createElement('i'); d.style.color = v; document.body.appendChild(d); const x = getComputedStyle(d).color; d.remove(); return x; };
         return {
             zone, visible,
             id: a.id || (a.getAttribute('aria-label') || a.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40) || a.className,
             ring: { style: c.outlineStyle, width: parseFloat(c.outlineWidth), color: c.outlineColor },
+            onAmber: c.backgroundColor === tone('var(--amber)'), cream: tone('var(--cream)'),
         };
     });
-    const ringOk = (w, amber) => w.ring.style === 'solid' && w.ring.width >= 1.5 && w.ring.color === amber;
+    // A 2px amber ring; cream on an amber button (desktop step 11)
+    const ringOk = (w, amber) => w.ring.style === 'solid' && w.ring.width >= 1.5 && w.ring.color === (w.onAmber ? w.cream : amber);
     // Tab from the skip link round to it again: the zones in order, and
     // every stop shown with its ring
     async function tabWalk(p) {
