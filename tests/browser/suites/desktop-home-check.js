@@ -363,10 +363,12 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
     }
     {
         const { ctx, p } = await open({ acct: 'empty', vp: { width: 1024, height: 768 } });
-        const chooser = await modalOpen(p, 'bringMusicModal');
-        await p.evaluate(() => hideBringMusicModal()); await p.waitForTimeout(400);
+        // Since the setup wizard, a new account opens on it (it was the
+        // chooser; the wizard's "where" step shows the same rows)
+        const chooser = await modalOpen(p, 'setupWizard') && !(await modalOpen(p, 'bringMusicModal'));
+        await p.evaluate(() => hideSetupWizard()); await p.waitForTimeout(400);
         const h = await home(p);
-        check('G empty (no playlists): the chooser on load (as before); behind it the greeting, the first-run card and the two tiles, no cards, no overflow',
+        check('G empty (no playlists): the setup wizard on load; behind it the greeting, the first-run card and the two tiles, no cards, no overflow',
             chooser && h.greeting.shown && h.hint && h.cards.length === 0 && h.tiles.length === 2 && h.docW <= h.vw && h.panelSW <= h.panelCW, { chooser, hint: h.hint, cards: h.cards.length, tiles: h.tiles.length });
         check('G empty errors', p.__errs.length === 0, p.__errs);
         await ctx.close();
