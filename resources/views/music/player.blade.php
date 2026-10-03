@@ -1412,6 +1412,120 @@
         </button>
     </nav>
 
+    {{-- First-run setup: a brand-new account's (no playlists) first load.
+         Welcome, your name, "Where's your music now?" (the chooser's own
+         rows, moved in from #bringMusicModal while that step shows), and on
+         Start fresh your first playlist, your first song, then You're all
+         set. Before the other sheets in the page on purpose: Add songs opens
+         over it from the first-song step. script.js (showSetupWizard); the
+         phone shell gives every step a back layer. --}}
+    <div class="add-song-modal m-menu-sheet bring-modal setup-modal" id="setupWizard" role="dialog" aria-modal="true" aria-labelledby="setupTitleWelcome">
+        <div class="add-song-modal-backdrop"></div>
+        <div class="add-song-modal-panel setup-panel">
+            <div class="setup-top">
+                <button type="button" class="setup-back" id="setupBack" hidden>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 5.5-6.5 6.5 6.5 6.5"/></svg>
+                    Back
+                </button>
+                <div class="setup-progress">
+                    <span class="setup-dots" id="setupDots" aria-hidden="true"></span>
+                    <span class="setup-count" id="setupCount"></span>
+                </div>
+                <button type="button" class="add-song-modal-close setup-close" id="setupClose" aria-label="Close setup">&times;</button>
+            </div>
+
+            <section class="setup-step" data-step="welcome" aria-labelledby="setupTitleWelcome">
+                <div class="setup-disc" aria-hidden="true"><span class="setup-disc-label"><b>33&#8531;</b><small>side A</small></span></div>
+                <h2 class="setup-title" id="setupTitleWelcome" tabindex="-1">Welcome to Music Player</h2>
+                <p class="setup-lede">Your records in one room: play anything on YouTube, your own files, or the playlists you bring over.</p>
+                <div class="setup-actions">
+                    <button type="button" class="setup-primary" data-setup-next>Get started</button>
+                </div>
+            </section>
+
+            <section class="setup-step" data-step="name" aria-labelledby="setupTitleName" hidden>
+                <span class="m-avatar m-avatar-xl setup-avatar" id="setupAvatar" aria-hidden="true">&#9834;</span>
+                <h2 class="setup-title" id="setupTitleName" tabindex="-1">What should we call you?</h2>
+                <p class="setup-lede">It goes on your profile. You can change it any time in Settings.</p>
+                <form class="setup-form" id="setupNameForm" novalidate>
+                    <div class="add-song-form-group">
+                        <label for="setupName">Your name</label>
+                        <input type="text" id="setupName" maxlength="100" placeholder="Your name" autocomplete="name" aria-describedby="setupNameStatus">
+                    </div>
+                    <p class="setup-status" id="setupNameStatus" role="status" aria-live="polite"></p>
+                    <div class="setup-actions">
+                        <button type="button" class="setup-quiet" data-setup-skip>Skip</button>
+                        <button type="submit" class="setup-primary" id="setupNameSave">Continue</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="setup-step" data-step="where" aria-labelledby="setupTitleWhere" hidden>
+                <h2 class="setup-title" id="setupTitleWhere" tabindex="-1">Where&rsquo;s your music now?</h2>
+                <div class="setup-bring" id="setupBringSlot"></div>
+            </section>
+
+            <section class="setup-step" data-step="playlist" aria-labelledby="setupTitlePlaylist" hidden>
+                <div class="setup-sleeve" id="setupSleeve" aria-hidden="true">
+                    <span class="setup-sleeve-disc"></span>
+                    <span class="setup-sleeve-face"><span class="setup-sleeve-name" id="setupSleeveName">Favorites</span></span>
+                </div>
+                <h2 class="setup-title" id="setupTitlePlaylist" tabindex="-1">Name your first playlist</h2>
+                <p class="setup-lede">Every collection starts with one. Pick a sleeve colour too; you can make more playlists any time.</p>
+                <form class="setup-form" id="setupPlaylistForm" novalidate>
+                    <div class="add-song-form-group">
+                        <label for="setupPlName">Playlist name</label>
+                        <input type="text" id="setupPlName" maxlength="30" placeholder="Playlist name" autocomplete="off" aria-describedby="setupPlStatus">
+                    </div>
+                    <div class="add-song-form-group">
+                        <span class="setup-label" id="setupColorLabel">Sleeve colour</span>
+                        <div class="setup-colors" id="setupColors" role="radiogroup" aria-labelledby="setupColorLabel"></div>
+                    </div>
+                    <p class="setup-status" id="setupPlStatus" role="status" aria-live="polite"></p>
+                    <div class="setup-actions">
+                        <button type="submit" class="setup-primary" id="setupPlSave">Create playlist</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="setup-step" data-step="song" aria-labelledby="setupTitleSong" hidden>
+                <h2 class="setup-title" id="setupTitleSong" tabindex="-1">Add your first song</h2>
+                <p class="setup-lede">What do you love? Search it, tap it, and the needle drops.</p>
+                <form class="setup-search" id="setupSongForm" role="search" aria-label="Find your first song">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m20 20-4.4-4.4"/></svg>
+                    <label for="setupSongQuery" class="m-sr-only">Search for a song, an artist or paste a link</label>
+                    <input type="search" id="setupSongQuery" placeholder="A song, an artist or a link" autocomplete="off" enterkeyhint="search">
+                    <button type="submit" class="setup-primary setup-search-go" id="setupSongGo">Search</button>
+                </form>
+                <div class="setup-actions">
+                    <button type="button" class="setup-quiet" data-setup-skip>Skip for now</button>
+                </div>
+            </section>
+
+            <section class="setup-step" data-step="done" aria-labelledby="setupTitleDone" hidden>
+                <div class="setup-done-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+                </div>
+                <h2 class="setup-title" id="setupTitleDone" tabindex="-1">You&rsquo;re all set</h2>
+                <p class="setup-lede">Here&rsquo;s where everything lives.</p>
+                <ul class="setup-tips setup-tips-phone">
+                    <li><b>Home</b><span>Your playlists and what you played last</span></li>
+                    <li><b>Search</b><span>Find any song and add it in a tap</span></li>
+                    <li><b>Library</b><span>All your playlists; + makes a new one or brings music over</span></li>
+                </ul>
+                <ul class="setup-tips setup-tips-desk">
+                    <li><b>Home</b><span>Your playlists and what you played last, in the sidebar</span></li>
+                    <li><b>Search</b><span>Find any song and add it (press / from anywhere)</span></li>
+                    <li><b>Your Library</b><span>Every playlist in the sidebar; + makes a new one or brings music over</span></li>
+                    <li><b>Your avatar</b><span>Top right: settings, your listening and your account</span></li>
+                </ul>
+                <div class="setup-actions">
+                    <button type="button" class="setup-primary" data-setup-finish>Start listening</button>
+                </div>
+            </section>
+        </div>
+    </div>
+
     <!-- Add Song Modal -->
     <div class="add-song-modal m-menu-sheet" id="addSongModal" role="dialog" aria-modal="true" aria-labelledby="addSongModalTitle">
         <div class="add-song-modal-backdrop" onclick="hideAddSongModal()"></div>
@@ -1533,6 +1647,8 @@
                 <h2 class="add-song-modal-title" id="playlistEditModalTitle">Edit Playlist</h2>
             </div>
             <input type="hidden" id="playlistEditId" value="">
+            {{-- The app (?app=1) keeps its first-run wizard here: name the
+                 first playlist, then the first song (the web has #setupWizard) --}}
             <div class="wizard-step-chip" id="playlistWizardStep" style="display:none">Step 2 of 3 &middot; Your first playlist</div>
             <p class="playlist-wizard-hint" id="playlistWizardHint" style="display:none">
                 Every collection starts with one playlist — name yours and pick
@@ -1581,8 +1697,11 @@
 
     @if (session('member_card'))
     <!-- Member Welcome: the one page-load right after instant signup. The
-         PIN is only ever visible here, so there's no backdrop-dismiss — the
-         wizard chains into the first-run playlist wizard from its button. -->
+         PIN is only ever visible here, so there's no backdrop-dismiss. It is
+         the setup's first step for a member: its button goes on into the
+         setup wizard (#setupWizard) at "Where's your music now?" (in the
+         app, into its first-run playlist wizard; script.js sets the chip's
+         step count for each). -->
     <div class="add-song-modal" id="memberWelcomeModal">
         <div class="add-song-modal-backdrop"></div>
         <div class="add-song-modal-panel">
@@ -1590,7 +1709,7 @@
                 <div class="add-song-modal-icon">&#127911;</div>
                 <h2 class="add-song-modal-title">Welcome to the club</h2>
             </div>
-            <div class="wizard-step-chip">Step 1 of 3 &middot; Your member card</div>
+            <div class="wizard-step-chip" id="memberWelcomeStep">Step 1 of 3 &middot; Your member card</div>
             <div class="member-card">
                 <div class="member-card-label">Music Player &middot; Member card</div>
                 <div class="member-card-number" id="memberCardNumber">{{ session('member_card')['number'] }}</div>
@@ -1809,12 +1928,12 @@
     </div>
     {{-- "Where's your music now?": the ways to bring a library over from
          another app, each straight into the import path that fits it (the
-         rows that need a few steps first open them here). Opens on a
-         brand-new account's first load, before the first-playlist wizard
-         (Start fresh leads on to it); any time from the empty Home card, the
-         phone's You page and Library +, and the desktop crate's sleeve tile.
-         showBringMusicModal() in script.js; the phone shell registers it
-         for back. --}}
+         rows that need a few steps first open them here). Any time from the
+         empty Home card, the phone's You page and Library +, and the desktop
+         crate's sleeve tile; a brand-new account meets the same rows as the
+         setup wizard's third step (#setupWizard borrows the panes below while
+         that step shows). showBringMusicModal() in script.js; the phone shell
+         registers it for back. --}}
     <div class="add-song-modal m-menu-sheet bring-modal" id="bringMusicModal" role="dialog" aria-modal="true" aria-labelledby="bringMusicTitle">
         <div class="add-song-modal-backdrop" data-bring-close></div>
         <div class="add-song-modal-panel">

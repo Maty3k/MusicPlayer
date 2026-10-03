@@ -3127,8 +3127,9 @@ setPitch(0);
 // SONG ADD / DELETE
 // ============================================================
 
-// opts.wizard: opened as the setup wizard's last step (first song);
-// opts.chip shows the "Step 3 of 3" indicator (member signup flow only).
+// opts.wizard: opened as a first-run wizard's first song (the web's setup
+// wizard, or the app's playlist wizard after its reload); opts.chip shows
+// the app's "Step 3 of 3" indicator (member signup flow only).
 function showAddSongModal(opts = {}) {
     updateAddSongFormForSource();
     const title = document.getElementById('addSongModalTitle');
@@ -3152,6 +3153,8 @@ function hideAddSongModal() {
     const manual = document.getElementById('addSongManualDetails');
     if (manual) manual.open = false;
     lastFetchedYtId = '';
+    // Closed over the setup's first-song step with a song added: on to Done
+    setupAfterAddSongs();
 }
 
 // ---- Search-first add: type a song, tap a result, needle drops. ----
@@ -4057,10 +4060,11 @@ async function saveAndPlaySong(song) {
     updateTrackCount();
     hideAddSongModal();
 
-    // Adding from the crate (e.g. the wizard's first-song step): pull the
-    // active record onto the deck first, then drop the needle.
+    // Adding from the crate: pull the active record onto the deck first,
+    // then drop the needle. Not under the setup wizard: its Done step says
+    // what's where, and finishing it opens the record (setupFinish).
     const playerView = document.getElementById('musicPlayerView');
-    if (playerView && !playerView.classList.contains('active')) {
+    if (playerView && !playerView.classList.contains('active') && !setupIsOpen()) {
         await selectPlaylistFromCrate(activePlaylistId);
     }
     updateSongDisplay(song);
@@ -4345,8 +4349,16 @@ function hidePlaylistEditModal() {
     editingPlaylistId = '';
 }
 
-// First run: a brand-new account has no playlists — greet the user and walk
-// them straight into naming their first one (prefilled so one tap works).
+// The React Native app's WebView (?app=1): it keeps its first-run playlist
+// wizard (showFirstRunWizard), not the web's setup wizard or the chooser on
+// load (whose Files row needs a file input the WebView may not have).
+function setupInApp() {
+    return !!window.ReactNativeWebView || new URLSearchParams(window.location.search).has('app');
+}
+
+// The app's first run: a brand-new account has no playlists, so greet the
+// user and walk them straight into naming their first one (prefilled so one
+// tap works); after its reload, Add songs as the first song.
 // asStepTwo: arriving from the member welcome card, so show the step chip.
 function showFirstRunWizard(asStepTwo = false) {
     showPlaylistCreateModal();
@@ -4363,18 +4375,22 @@ function showFirstRunWizard(asStepTwo = false) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // Enter in the playlist-name field saves — one keystroke through the
-    // wizard, and a nicety for regular renames too.
+    // app's wizard, and a nicety for regular renames too.
     const plName = document.getElementById('playlistEditName');
     if (plName) {
         plName.addEventListener('keydown', e => {
             if (e.key === 'Enter') savePlaylistEdit();
         });
     }
+    const inApp = setupInApp();
 
     // Fresh member signup: the welcome card (number + PIN, shown only once)
-    // goes first; finishMemberWelcome() chains into the playlist wizard.
+    // goes first; finishMemberWelcome() chains into the setup wizard (the
+    // app's playlist wizard in the app).
     const memberWelcome = document.getElementById('memberWelcomeModal');
     if (memberWelcome) {
+        const chip = document.getElementById('memberWelcomeStep');
+        if (chip && !inApp && document.getElementById('setupWizard')) chip.textContent = 'Step 1 of 5 · Your member card';
         memberWelcome.classList.add('active');
         const nameInput = document.getElementById('memberWelcomeName');
         if (nameInput) {
@@ -4385,25 +4401,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return;
     }
-    if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
-        && document.getElementById('playlistEditModal') && !arrivedFromSpotifySignIn) {
-        // "Where's your music now?" first; its Start fresh leads on to the
-        // wizard (straight to the wizard if the chooser isn't on the page)
-        if (document.getElementById('bringMusicModal')) showBringMusicModal();
-        else showFirstRunWizard();
+
+    if (inApp) {
+        if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
+            && document.getElementById('playlistEditModal') && !arrivedFromSpotifySignIn) {
+            showFirstRunWizard();
+            return;
+        }
+        // The app wizard's finale, straight after the first playlist's
+        // reload: Add songs, so the first session ends with music playing.
+        let firstRunAddSong = null;
+        try { firstRunAddSong = localStorage.getItem('firstRunAddSong'); } catch (e) {}
+        if (firstRunAddSong) {
+            try { localStorage.removeItem('firstRunAddSong'); } catch (e) {}
+            if (typeof songsData !== 'undefined' && songsData.length === 0
+                && document.getElementById('addSongModal')) {
+                showAddSongModal({ wizard: true, chip: firstRunAddSong === 'chip' });
+            }
+        }
         return;
     }
 
-    // Wizard finale, straight after the first playlist's reload: open the
-    // add-music search so the first session ends with music playing.
-    let firstRunAddSong = null;
-    try { firstRunAddSong = localStorage.getItem('firstRunAddSong'); } catch (e) {}
-    if (firstRunAddSong) {
-        try { localStorage.removeItem('firstRunAddSong'); } catch (e) {}
-        if (typeof songsData !== 'undefined' && songsData.length === 0
-            && document.getElementById('addSongModal')) {
-            showAddSongModal({ wizard: true, chip: firstRunAddSong === 'chip' });
-        }
+    // The setup's first playlist was just made (that reloads the page): on
+    // to its first song, while the library is still empty.
+    let resume = null;
+    try {
+        resume = JSON.parse(localStorage.getItem('setupResume') || 'null');
+        localStorage.removeItem('setupResume');
+        localStorage.removeItem('firstRunAddSong'); // the app wizard's flag
+    } catch (e) { resume = null; }
+    if (resume && typeof resume === 'object' && document.getElementById('setupWizard')
+        && setupSongTotal() === 0 && !arrivedFromSpotifySignIn) {
+        showSetupWizard({ flow: resume.flow, at: 'song', playlist: resume.playlist });
+        return;
+    }
+
+    // A brand-new account (no playlists): the setup wizard (the chooser on
+    // its own where the wizard isn't on the page)
+    if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
+        && document.getElementById('playlistEditModal') && !arrivedFromSpotifySignIn) {
+        if (document.getElementById('setupWizard')) showSetupWizard({ flow: 'full' });
+        else if (document.getElementById('bringMusicModal')) showBringMusicModal();
     }
 });
 
@@ -4411,20 +4449,17 @@ document.addEventListener('DOMContentLoaded', () => {
 // One chooser (#bringMusicModal): Spotify, Apple Music, YouTube, files on
 // this device, or start fresh. Each row goes straight into the existing
 // import path that fits it; Spotify without this server's Spotify app, and
-// Apple Music, first show their few steps in the same sheet. Opened on a
-// brand-new account's first load (before the first-playlist wizard, which
-// Start fresh leads on to) and any time from the empty Home card, the
-// phone's You page and Library +, and the desktop crate's sleeve tile.
-let bringOpts = {};
+// Apple Music, first show their few steps in the same sheet. Opened any time
+// from the empty Home card, the phone's You page and Library +, and the
+// desktop crate's sleeve tile; a brand-new account meets its rows as the
+// setup wizard's "where" step (which borrows its panes, see setupBorrowBring).
 let bringOpener = null;
 let bringStepOpener = null;
 
-// opts.wizardStep: after the member welcome card (Start fresh's wizard then
-// shows its "Step 2 of 3" chip).
-function showBringMusicModal(opts) {
+function showBringMusicModal() {
     const modal = document.getElementById('bringMusicModal');
     if (!modal) return;
-    bringOpts = opts && typeof opts === 'object' && !(opts instanceof Event) ? opts : {};
+    setupReturnBring(); // the panes are home (the setup has them while its step shows)
     const a = document.activeElement;
     bringOpener = a && a !== document.body && !modal.contains(a) ? a : null;
     setBringStep(null);
@@ -4492,17 +4527,34 @@ function chooseBringMusic(kind, row) {
             input.click();
         }
     } else if (kind === 'fresh') {
-        const asStepTwo = !!bringOpts.wizardStep;
         hideBringMusicModal();
-        // No playlist yet: the first-run wizard (name one, then the first
-        // song); otherwise search and add songs
-        if (typeof playlistsMeta === 'object' && Object.keys(playlistsMeta).length === 0
-            && document.getElementById('playlistEditModal')) {
-            showFirstRunWizard(asStepTwo);
+        // No playlist yet: the setup's first playlist, then the first song
+        // (the app's playlist wizard in the app); otherwise search and add songs
+        const noPlaylists = typeof playlistsMeta === 'object' && Object.keys(playlistsMeta).length === 0;
+        if (noPlaylists && setupInApp() && document.getElementById('playlistEditModal')) {
+            showFirstRunWizard();
+        } else if (noPlaylists && document.getElementById('setupWizard')) {
+            showSetupWizard({ flow: 'fresh' });
         } else {
             showAddSongModal();
         }
     }
+}
+
+// A way's steps (Spotify, Apple Music) back to the list of ways, focus on
+// the way that opened them. scope: the chooser, or the setup's "where" step.
+function bringBackToList(scope) {
+    setBringStep(null);
+    const back = bringStepOpener && bringStepOpener.isConnected && scope.contains(bringStepOpener) ? bringStepOpener
+        : scope.querySelector('#bringMusicList .m-sheet-row');
+    if (back) back.focus({ preventScroll: true });
+}
+
+function bringStepShown() {
+    return ['bringStepSpotify', 'bringStepApple'].some((id) => {
+        const el = document.getElementById(id);
+        return !!el && !el.hidden;
+    });
 }
 
 // Picked files: the batch importer, into the playing playlist. A new
@@ -4512,6 +4564,7 @@ async function onBringFilesPicked(input) {
     if (input) input.value = '';
     if (files.length === 0) return;
     hideBringMusicModal();
+    if (setupIsOpen()) hideSetupWizard(); // picked from the setup's "where" step
     const hadNoPlaylists = typeof playlistsMeta === 'object' && Object.keys(playlistsMeta).length === 0;
     await importAudioFiles(files);
     if (hadNoPlaylists && typeof songsData !== 'undefined' && songsData.length > 0) {
@@ -4528,10 +4581,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (e.target.closest('[data-bring-back]')) {
-            setBringStep(null);
-            const back = bringStepOpener && bringStepOpener.isConnected ? bringStepOpener
-                : modal.querySelector('#bringMusicList .m-sheet-row');
-            if (back) back.focus({ preventScroll: true });
+            bringBackToList(modal);
             return;
         }
         const row = e.target.closest('[data-bring]');
@@ -4545,6 +4595,460 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const files = document.getElementById('bringFilesInput');
     if (files) files.addEventListener('change', () => onBringFilesPicked(files));
+});
+
+// ---- First-run setup (#setupWizard): one short wizard, phone and desktop.
+// A brand-new account (no playlists) opens on it: Welcome → your name →
+// "Where's your music now?" (the chooser's own panes, borrowed from
+// #bringMusicModal while that step shows) → Start fresh: your first
+// playlist → your first song → you're all set. Any other way out of "where"
+// hands over to that way's import path (chooseBringMusic) and the setup
+// closes. Creating the playlist reloads the page (its cards are
+// server-rendered); the setup comes back on the song step. A member signup
+// has had its welcome and name on the member card, so its setup starts at
+// "where" (the card counts as step 1); the chooser's own Start fresh on an
+// account without playlists runs just the playlist and song steps.
+// The phone shell (MOBILE V2) wraps showSetupWizard / hideSetupWizard /
+// setupNext / setupPrev so every step forward is a back layer.
+const SETUP_FLOWS = {
+    full: { steps: ['welcome', 'name', 'where', 'playlist', 'song', 'done'], before: 0 },
+    member: { steps: ['where', 'playlist', 'song', 'done'], before: 1 },
+    fresh: { steps: ['playlist', 'song', 'done'], before: 0 },
+};
+// Names for the sleeve colours (#colorSwatchGrid holds the colours)
+const SETUP_COLOR_NAMES = {
+    '#d4a574': 'Tan', '#e85d75': 'Rose', '#7eb8da': 'Sky', '#9b7ed9': 'Violet', '#5cba5c': 'Green',
+    '#e8a838': 'Amber', '#e86d5e': 'Coral', '#d474b4': 'Orchid', '#5bbfbf': 'Teal', '#8b9dc3': 'Slate',
+};
+const SETUP_BRING_PANES = ['bringMusicList', 'bringStepSpotify', 'bringStepApple'];
+let setupFlow = 'full';
+let setupStep = null;
+let setupSongBase = 0;     // songs in the library when the song step showed
+let setupPlaylistId = '';  // the playlist this setup made (after its reload)
+let setupColor = '#d4a574';
+let setupOpener = null;
+let setupBusy = false;
+
+function setupIsOpen() {
+    const el = document.getElementById('setupWizard');
+    return !!el && el.classList.contains('active');
+}
+
+function setupCurrentStep() {
+    return setupIsOpen() ? setupStep : null;
+}
+
+// Songs across the library (the playing list counts as it grows)
+function setupSongTotal() {
+    let n = 0;
+    if (typeof playlistsMeta === 'object' && playlistsMeta) {
+        Object.keys(playlistsMeta).forEach((id) => { n += Number(playlistsMeta[id] && playlistsMeta[id].songCount) || 0; });
+    }
+    const playing = typeof songsData !== 'undefined' && Array.isArray(songsData) ? songsData.length : 0;
+    return Math.max(n, playing);
+}
+
+// The account's name as the page shows it ('' for a signup placeholder)
+function setupAccountName() {
+    const el = document.getElementById('mAccountName') || document.getElementById('dvAcctName');
+    const name = el ? el.textContent.trim() : '';
+    return name === 'Your account' ? '' : name;
+}
+
+// The "where" step borrows the chooser's panes (one set of rows and
+// routes), and gives them back when it's left or the setup closes.
+function setupBorrowBring() {
+    const slot = document.getElementById('setupBringSlot');
+    if (!slot) return;
+    SETUP_BRING_PANES.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && el.parentNode !== slot) slot.appendChild(el);
+    });
+    setBringStep(null);
+}
+
+function setupReturnBring() {
+    const slot = document.getElementById('setupBringSlot');
+    const modal = document.getElementById('bringMusicModal');
+    const panel = modal && modal.querySelector('.add-song-modal-panel');
+    if (!slot || !panel) return;
+    const files = document.getElementById('bringFilesInput');
+    let moved = false;
+    SETUP_BRING_PANES.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el || !slot.contains(el)) return;
+        panel.insertBefore(el, files && files.parentNode === panel ? files : null);
+        moved = true;
+    });
+    if (moved) setBringStep(null);
+}
+
+function setupSyncAvatar() {
+    const input = document.getElementById('setupName');
+    const avatar = document.getElementById('setupAvatar');
+    if (!input || !avatar) return;
+    const name = input.value.trim();
+    avatar.textContent = name ? Array.from(name)[0].toUpperCase() : '♪';
+}
+
+function setupSyncSleeve() {
+    const sleeve = document.getElementById('setupSleeve');
+    const label = document.getElementById('setupSleeveName');
+    const input = document.getElementById('setupPlName');
+    if (sleeve) sleeve.style.setProperty('--setup-sleeve', setupColor);
+    if (label && input) label.textContent = input.value.trim() || 'Your playlist';
+}
+
+// The sleeve colours as a radio group: one tab stop, arrows move and pick
+function setupRenderColors() {
+    const box = document.getElementById('setupColors');
+    if (!box) return;
+    const colors = [...document.querySelectorAll('#colorSwatchGrid .color-swatch')].map((s) => s.dataset.color);
+    if (!colors.includes(setupColor)) setupColor = colors[0] || '#d4a574';
+    box.innerHTML = colors.map((c, i) => {
+        const on = c === setupColor;
+        const name = SETUP_COLOR_NAMES[c.toLowerCase()] || `Colour ${i + 1}`;
+        return `<button type="button" class="setup-color" role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}" aria-label="${escapeHtml(name)}" data-color="${escapeHtml(c)}" style="--swatch: ${escapeHtml(c)}"></button>`;
+    }).join('');
+}
+
+function setupPickColor(btn, focus) {
+    if (!btn || !btn.dataset.color) return;
+    setupColor = btn.dataset.color;
+    document.querySelectorAll('#setupColors .setup-color').forEach((b) => {
+        const on = b === btn;
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+        b.tabIndex = on ? 0 : -1;
+    });
+    if (focus) btn.focus();
+    setupSyncSleeve();
+}
+
+function setupSetStatus(id, text, isError) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('is-error', !!isError);
+}
+
+function setupPrepPlaylist() {
+    const input = document.getElementById('setupPlName');
+    const save = document.getElementById('setupPlSave');
+    const made = setupPlaylistId && typeof playlistsMeta === 'object' && playlistsMeta && playlistsMeta[setupPlaylistId];
+    if (made) {
+        // Back from the song step: the playlist is made, so this renames it
+        if (input) input.value = made.name;
+        if (made.color) setupColor = made.color;
+        if (save) save.textContent = 'Save and continue';
+    } else {
+        if (input && !input.value.trim()) input.value = 'Favorites';
+        if (save) save.textContent = 'Create playlist';
+    }
+    setupRenderColors();
+    setupSyncSleeve();
+}
+
+// Show one step. dir: 'fwd' / 'back' slides it in from that side; null
+// (opening) doesn't. Focus goes to the step's heading.
+function setupShowStep(step, dir) {
+    const wizard = document.getElementById('setupWizard');
+    if (!wizard) return;
+    const flow = SETUP_FLOWS[setupFlow];
+    if (!flow.steps.includes(step)) step = flow.steps[0];
+    const prev = setupStep;
+    setupStep = step;
+    if (step === 'where') setupBorrowBring();
+    else if (prev === 'where') setupReturnBring();
+    let heading = null;
+    wizard.querySelectorAll('.setup-step').forEach((sec) => {
+        const on = sec.dataset.step === step;
+        sec.hidden = !on;
+        sec.classList.remove('setup-in-fwd', 'setup-in-back');
+        if (!on) return;
+        heading = sec.querySelector('.setup-title');
+        if (dir) {
+            void sec.offsetWidth; // restart the slide
+            sec.classList.add(dir === 'back' ? 'setup-in-back' : 'setup-in-fwd');
+        }
+    });
+    const i = flow.steps.indexOf(step);
+    const total = flow.steps.length + flow.before;
+    const at = i + flow.before + 1;
+    const dots = document.getElementById('setupDots');
+    if (dots) {
+        let html = '';
+        for (let k = 1; k <= total; k++) html += `<i class="setup-dot${k < at ? ' is-done' : ''}${k === at ? ' is-now' : ''}"></i>`;
+        dots.innerHTML = html;
+    }
+    const count = document.getElementById('setupCount');
+    if (count) count.textContent = `Step ${at} of ${total}`;
+    const back = document.getElementById('setupBack');
+    if (back) back.hidden = i <= 0;
+    wizard.classList.toggle('setup-on-first', i <= 0);
+    if (heading) wizard.setAttribute('aria-labelledby', heading.id);
+    setupSetStatus('setupNameStatus', '');
+    setupSetStatus('setupPlStatus', '');
+    if (step === 'name') setupSyncAvatar();
+    if (step === 'playlist') setupPrepPlaylist();
+    if (step === 'song') setupSongBase = setupSongTotal();
+    const panel = wizard.querySelector('.add-song-modal-panel');
+    if (panel) panel.scrollTop = 0;
+    if (heading) {
+        heading.focus({ preventScroll: true });
+        // Still inert under a sheet that's closing (Add songs, on the
+        // phone): once that's settled
+        if (document.activeElement !== heading) {
+            requestAnimationFrame(() => {
+                if (setupStep === step && setupIsOpen()) heading.focus({ preventScroll: true });
+            });
+        }
+    }
+}
+
+// opts.flow: 'full' (a new account's first load), 'member' (after the
+// member card), 'fresh' (the chooser's Start fresh); opts.at: the step to
+// open on (the song step after the playlist's reload); opts.playlist: the
+// playlist that reload made.
+function showSetupWizard(opts) {
+    const wizard = document.getElementById('setupWizard');
+    if (!wizard) return;
+    const o = opts && typeof opts === 'object' && !(opts instanceof Event) ? opts : {};
+    setupFlow = SETUP_FLOWS[o.flow] ? o.flow : 'full';
+    setupPlaylistId = typeof o.playlist === 'string' ? o.playlist : '';
+    setupBusy = false;
+    setupColor = '#d4a574';
+    const a = document.activeElement;
+    setupOpener = a && a !== document.body && !wizard.contains(a) ? a : null;
+    const name = document.getElementById('setupName');
+    if (name) name.value = setupAccountName();
+    const plName = document.getElementById('setupPlName');
+    if (plName) plName.value = '';
+    const query = document.getElementById('setupSongQuery');
+    if (query) query.value = '';
+    ['setupNameSave', 'setupPlSave'].forEach((id) => { const b = document.getElementById(id); if (b) b.disabled = false; });
+    setupStep = null;
+    wizard.classList.add('active');
+    setupShowStep(o.at || SETUP_FLOWS[setupFlow].steps[0], null);
+}
+
+function hideSetupWizard() {
+    const wizard = document.getElementById('setupWizard');
+    if (!wizard) return;
+    const hadFocus = wizard.contains(document.activeElement);
+    setupReturnBring();
+    wizard.classList.remove('active');
+    setupStep = null;
+    if (hadFocus && setupOpener && setupOpener.isConnected && setupOpener.getClientRects().length
+        && !document.querySelector('.add-song-modal.active')) {
+        setupOpener.focus({ preventScroll: true });
+    }
+}
+
+// Forward: the next step of this flow, or the named one
+function setupNext(step) {
+    if (!setupIsOpen()) return;
+    const steps = SETUP_FLOWS[setupFlow].steps;
+    const to = typeof step === 'string' ? step : steps[steps.indexOf(setupStep) + 1];
+    if (!to || to === setupStep || !steps.includes(to)) return;
+    setupShowStep(to, 'fwd');
+}
+
+// Back within the step first: a way's steps (Spotify, Apple Music) go back
+// to the list of ways. True when that's what back did.
+function setupBackWithinStep() {
+    if (!setupIsOpen() || setupStep !== 'where' || !bringStepShown()) return false;
+    bringBackToList(document.getElementById('setupBringSlot'));
+    return true;
+}
+
+function setupPrev() {
+    if (!setupIsOpen() || setupBackWithinStep()) return;
+    const steps = SETUP_FLOWS[setupFlow].steps;
+    const i = steps.indexOf(setupStep);
+    if (i > 0) setupShowStep(steps[i - 1], 'back');
+}
+
+// The name step: save a changed name (the Settings save path), then on.
+async function setupSaveName() {
+    if (setupBusy) return;
+    const input = document.getElementById('setupName');
+    const name = input ? input.value.trim() : '';
+    if (!name || name === setupAccountName()) {
+        window.setupNext();
+        return;
+    }
+    const btn = document.getElementById('setupNameSave');
+    setupBusy = true;
+    if (btn) btn.disabled = true;
+    setupSetStatus('setupNameStatus', 'Saving…');
+    const saved = await postAccountName(name);
+    setupBusy = false;
+    if (btn) btn.disabled = false;
+    if (!setupIsOpen() || setupStep !== 'name') return;
+    if (saved.ok) {
+        setupSetStatus('setupNameStatus', '');
+        window.setupNext();
+    } else {
+        setupSetStatus('setupNameStatus', saved.error, true);
+        if (input) input.focus();
+    }
+}
+
+// The playlist step: create it (then the page reloads onto the song step),
+// or, coming back to it once it's made, rename / recolour it through the
+// playlist window's own save.
+async function setupSavePlaylist() {
+    if (setupBusy) return;
+    const input = document.getElementById('setupPlName');
+    const name = input ? input.value.trim() : '';
+    if (!name) {
+        setupSetStatus('setupPlStatus', 'Give your playlist a name.', true);
+        if (input) input.focus();
+        return;
+    }
+    const btn = document.getElementById('setupPlSave');
+    const made = setupPlaylistId && typeof playlistsMeta === 'object' && playlistsMeta && playlistsMeta[setupPlaylistId];
+    setupBusy = true;
+    if (btn) btn.disabled = true;
+    if (made) {
+        creatingPlaylist = false;
+        editingPlaylistId = setupPlaylistId;
+        document.getElementById('playlistEditName').value = name;
+        selectedEditColor = setupColor;
+        selectedCoverIndex = made.coverSongIndex ?? null;
+        try { await savePlaylistEdit(); } catch (e) { /* the names stay as they were */ }
+        setupBusy = false;
+        if (btn) btn.disabled = false;
+        window.setupNext();
+        return;
+    }
+    setupSetStatus('setupPlStatus', 'Making your playlist…');
+    let result = null;
+    try { result = await requestCreatePlaylist(name, setupColor); } catch (e) { result = null; }
+    if (result && result.success) {
+        try { localStorage.setItem('setupResume', JSON.stringify({ flow: setupFlow, playlist: result.playlistId || '' })); } catch (e) {}
+        location.reload();
+        return;
+    }
+    setupBusy = false;
+    if (btn) btn.disabled = false;
+    setupSetStatus('setupPlStatus', (result && result.error) || 'Couldn’t make the playlist. Check your connection and try again.', true);
+}
+
+// The song step: Add songs (in its first-song guise) over the setup, with
+// whatever was typed here already searched.
+function setupFindSong() {
+    const query = document.getElementById('setupSongQuery');
+    const q = query ? query.value.trim() : '';
+    window.showAddSongModal({ wizard: true });
+    const search = document.getElementById('addSongSearch');
+    if (search && q) {
+        search.value = q;
+        onAddSearchInput();
+    }
+}
+
+// Add songs closed (hideAddSongModal): a song added from the song step
+// moves the setup on to Done.
+function setupAfterAddSongs() {
+    if (setupCurrentStep() !== 'song' || setupSongTotal() <= setupSongBase) return;
+    window.setupNext('done');
+}
+
+// A way picked on the "where" step: Start fresh goes on to the playlist; a
+// way with steps shows them here; the file picker opens from the tap (the
+// setup closes once files are picked); an import takes over from the setup.
+function setupChooseBring(kind, row) {
+    if (kind === 'fresh') {
+        window.setupNext('playlist');
+        return;
+    }
+    const spotifyApp = typeof spotifyOn !== 'undefined' && !!spotifyOn;
+    if (kind === 'files' || kind === 'apple' || (kind === 'spotify' && !spotifyApp)) {
+        chooseBringMusic(kind, row);
+        return;
+    }
+    window.hideSetupWizard();
+    chooseBringMusic(kind, row);
+}
+
+// Start listening: close, and put a first song's record on the deck
+function setupFinish() {
+    const added = setupSongTotal() > 0;
+    window.hideSetupWizard();
+    const view = document.getElementById('musicPlayerView');
+    if (added && typeof activePlaylistId !== 'undefined' && activePlaylistId && view && !view.classList.contains('active')) {
+        selectPlaylistFromCrate(activePlaylistId);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const wizard = document.getElementById('setupWizard');
+    if (!wizard) return;
+    wizard.addEventListener('click', (e) => {
+        const t = e.target;
+        if (t.closest('#setupClose')) { window.hideSetupWizard(); return; }
+        if (t.closest('#setupBack')) { window.setupPrev(); return; }
+        if (t.closest('[data-setup-next], [data-setup-skip]')) { window.setupNext(); return; }
+        if (t.closest('[data-setup-finish]')) { setupFinish(); return; }
+        const color = t.closest('.setup-color');
+        if (color) { setupPickColor(color, false); return; }
+        const slot = document.getElementById('setupBringSlot');
+        if (slot && slot.contains(t)) {
+            if (t.closest('[data-bring-back]')) { bringBackToList(slot); return; }
+            const row = t.closest('[data-bring]');
+            if (row) setupChooseBring(row.dataset.bring, row);
+        }
+    });
+    const nameForm = document.getElementById('setupNameForm');
+    if (nameForm) nameForm.addEventListener('submit', (e) => { e.preventDefault(); setupSaveName(); });
+    const nameInput = document.getElementById('setupName');
+    if (nameInput) nameInput.addEventListener('input', setupSyncAvatar);
+    const plForm = document.getElementById('setupPlaylistForm');
+    if (plForm) plForm.addEventListener('submit', (e) => { e.preventDefault(); setupSavePlaylist(); });
+    const plName = document.getElementById('setupPlName');
+    if (plName) plName.addEventListener('input', setupSyncSleeve);
+    const songForm = document.getElementById('setupSongForm');
+    if (songForm) songForm.addEventListener('submit', (e) => { e.preventDefault(); setupFindSong(); });
+    const colors = document.getElementById('setupColors');
+    if (colors) {
+        colors.addEventListener('keydown', (e) => {
+            const all = [...colors.querySelectorAll('.setup-color')];
+            const i = all.indexOf(document.activeElement);
+            if (i < 0) return;
+            let to = -1;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') to = (i + 1) % all.length;
+            else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') to = (i - 1 + all.length) % all.length;
+            else if (e.key === 'Home') to = 0;
+            else if (e.key === 'End') to = all.length - 1;
+            if (to < 0) return;
+            e.preventDefault();
+            setupPickColor(all[to], true);
+        });
+    }
+    // Esc closes it like the other sheets; Tab stays inside it
+    wizard.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            window.hideSetupWizard();
+            return;
+        }
+        if (e.key !== 'Tab') return;
+        const focusable = [...wizard.querySelectorAll('button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), [tabindex]:not([tabindex="-1"])')]
+            .filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const a = document.activeElement;
+        if (e.shiftKey && (a === first || !wizard.contains(a))) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && (a === last || !wizard.contains(a))) {
+            e.preventDefault();
+            first.focus();
+        }
+    });
 });
 
 // The song menu's Like row: close the menu, toggle, say what happened (the
@@ -4611,9 +5115,12 @@ async function finishMemberWelcome() {
     if (modal) modal.classList.remove('active');
     if (typeof playlistsMeta !== 'undefined' && Object.keys(playlistsMeta).length === 0
         && document.getElementById('playlistEditModal')) {
-        // The chooser, then (Start fresh) the wizard as step 2 of 3
-        if (document.getElementById('bringMusicModal')) showBringMusicModal({ wizardStep: true });
-        else showFirstRunWizard(true);
+        // The card was the setup's welcome and name: on at "Where's your
+        // music now?" (the chooser on its own without the wizard). The app:
+        // its playlist wizard as step 2 of 3.
+        if (setupInApp()) showFirstRunWizard(true);
+        else if (document.getElementById('setupWizard')) showSetupWizard({ flow: 'member' });
+        else if (document.getElementById('bringMusicModal')) showBringMusicModal();
     }
 }
 
@@ -4630,6 +5137,17 @@ function selectCoverSong(el) {
     selectedCoverIndex = idx === -1 ? null : idx;
 }
 
+// A new, empty playlist (the server picks its id). Shared by the playlist
+// window's Create and the setup wizard's first playlist; each reloads after.
+async function requestCreatePlaylist(name, color) {
+    const response = await fetch('/save-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'createPlaylist', name, color })
+    });
+    return response.json();
+}
+
 async function savePlaylistEdit() {
     const name = document.getElementById('playlistEditName').value.trim();
 
@@ -4641,16 +5159,11 @@ async function savePlaylistEdit() {
         if (saveBtn && saveBtn.disabled) return;
         if (saveBtn) saveBtn.disabled = true;
         try {
-            const response = await fetch('/save-music', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'createPlaylist', name, color: selectedEditColor })
-            });
-            const result = await response.json();
+            const result = await requestCreatePlaylist(name, selectedEditColor);
             if (result.success) {
-                // First-run wizard: after the reload, chain into the final
-                // "add your first song" step ('chip' keeps the step badges
-                // from the member-signup flow; '1' = plain first run).
+                // The app's first-run wizard: after the reload, chain into its
+                // final "add your first song" step ('chip' keeps the step
+                // badges from the member-signup flow; '1' = plain first run).
                 const wizardHint = document.getElementById('playlistWizardHint');
                 if (wizardHint && wizardHint.style.display !== 'none') {
                     const stepChip = document.getElementById('playlistWizardStep');
@@ -5745,6 +6258,29 @@ function firstValidationError(data, fallback) {
     return (data && data.message) || fallback;
 }
 
+// Save the display name (Settings' Save, the setup wizard's name step):
+// { ok } or { ok: false, error }. The avatar, the You page and Settings'
+// field follow a saved one.
+async function postAccountName(name) {
+    try {
+        const resp = await fetch('/settings/name', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ name }),
+        });
+        const data = await resp.json().catch(() => null);
+        if (resp.ok && data && data.success) {
+            const field = document.getElementById('settingsNameInput');
+            if (field) field.value = name;
+            if (window.mOnAccountName) window.mOnAccountName(name);
+            return { ok: true };
+        }
+        return { ok: false, error: firstValidationError(data, 'Could not save the name.') };
+    } catch (e) {
+        return { ok: false, error: 'Network error — try again.' };
+    }
+}
+
 async function saveAccountName() {
     const input = document.getElementById('settingsNameInput');
     if (!input) return;
@@ -5753,22 +6289,9 @@ async function saveAccountName() {
         setSettingsStatus('settingsNameStatus', 'Name cannot be empty.', false);
         return;
     }
-    try {
-        const resp = await fetch('/settings/name', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ name }),
-        });
-        const data = await resp.json();
-        if (resp.ok && data.success) {
-            setSettingsStatus('settingsNameStatus', 'Name saved.', true);
-            if (window.mOnAccountName) window.mOnAccountName(name);
-        } else {
-            setSettingsStatus('settingsNameStatus', firstValidationError(data, 'Could not save the name.'), false);
-        }
-    } catch (e) {
-        setSettingsStatus('settingsNameStatus', 'Network error — try again.', false);
-    }
+    const saved = await postAccountName(name);
+    if (saved.ok) setSettingsStatus('settingsNameStatus', 'Name saved.', true);
+    else setSettingsStatus('settingsNameStatus', saved.error, false);
 }
 
 async function attachAccountEmail() {
@@ -9826,7 +10349,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Width-change teardown (rotation to landscape, or a desktop-width
     // window): close the portrait-only surfaces (NP, lyrics, song sheet,
     // modals) but keep the playlist screen — a rotation must not kick the
-    // user back to the crate — and the welcome guard. A bare tab layer
+    // user back to the crate — the welcome guard and the setup wizard (it
+    // works at every width, its steps' layers with it). A bare tab layer
     // folds (no tab bar there). The closed entries are consumed with one
     // history.go(); the depth-reconciling popstate makes that a no-op pop.
     function teardownPhoneLayers() {
@@ -9834,7 +10358,8 @@ document.addEventListener('DOMContentLoaded', () => {
             afterBack.push(teardownPhoneLayers);
             return;
         }
-        const keep = (name) => name === 'playlist' || name === 'tab' || name === 'memberWelcome';
+        const keep = (name) => name === 'playlist' || name === 'tab' || name === 'memberWelcome'
+            || name === 'modal:setup' || name === 'setupStep';
         let d = layerStack.length;
         while (d > 0 && !keep(layerStack[d - 1].name)) d--;
         if (d > 0 && layerStack[d - 1].name === 'tab') d--;
@@ -10751,6 +11276,57 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapModalPair('openVinylGifModal', 'closeVinylGifModal', 'vinylGif');
     wrapModalPair('mShowAddSheet', 'mHideAddSheet', 'libraryAdd');
     wrapModalPair('showBringMusicModal', 'hideBringMusicModal', 'bringMusic');
+    wrapModalPair('showSetupWizard', 'hideSetupWizard', 'setup');
+
+    // ---- The first-run setup's steps: each step forward is a back layer
+    // over the setup's own (modal:setup), so back goes one step back and,
+    // from the first step, closes it. Closing from any step (the ×, Esc,
+    // Start listening, an import taking over) pops them all in one go.
+    let setupClosing = false;
+    const setupShowWrapped = window.showSetupWizard;
+    window.showSetupWizard = function () {
+        setupClosing = false;
+        return setupShowWrapped.apply(this, arguments);
+    };
+    const setupHideWrapped = window.hideSetupWizard;
+    window.hideSetupWizard = function () {
+        const at = layerStack.findIndex((l) => l.name === 'modal:setup');
+        if (at >= 0 && modalOpen.setup) {
+            if (pendingBack) {
+                afterBack.push(() => window.hideSetupWizard());
+                return;
+            }
+            setupClosing = true;
+            popToDepth(at);
+            return;
+        }
+        return setupHideWrapped.apply(this, arguments);
+    };
+    const setupNextOrig = window.setupNext;
+    window.setupNext = function () {
+        const from = setupCurrentStep();
+        const out = setupNextOrig.apply(this, arguments);
+        const to = setupCurrentStep();
+        if (from && to && to !== from && modalOpen.setup) {
+            const push = () => {
+                if (!setupIsOpen()) return;
+                openLayer('setupStep', () => {
+                    if (!setupClosing && setupIsOpen()) setupShowStep(from, 'back');
+                });
+            };
+            if (pendingBack) afterBack.push(push); else push();
+        }
+        return out;
+    };
+    const setupPrevOrig = window.setupPrev;
+    window.setupPrev = function () {
+        if (setupBackWithinStep()) return;
+        if (topLayerIs('setupStep')) {
+            backOneLayer();
+            return;
+        }
+        return setupPrevOrig.apply(this, arguments);
+    };
 
     // Portrait phones search on the Search tab; the modal is for landscape
     // and desktop (the crate's Search button is hidden on the Home tab).
@@ -12092,14 +12668,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const dropWelcomeGuard = () => {
             if (topLayerIs('memberWelcome') && !welcomeCardUp()) backOneLayer();
         };
-        const origWizard = window.showFirstRunWizard;
-        if (typeof origWizard === 'function') {
-            window.showFirstRunWizard = function () {
-                dropWelcomeGuard(); // the wizard's modal layer then waits for it
-                return origWizard.apply(this, arguments);
+        const origSetup = window.showSetupWizard;
+        if (typeof origSetup === 'function') {
+            window.showSetupWizard = function () {
+                dropWelcomeGuard(); // the setup's modal layer then waits for it
+                return origSetup.apply(this, arguments);
             };
         }
-        // The welcome card chains into the chooser too (then the wizard)
+        // The chooser on its own, where the setup wizard isn't on the page
         const origBring = window.showBringMusicModal;
         if (typeof origBring === 'function') {
             window.showBringMusicModal = function () {

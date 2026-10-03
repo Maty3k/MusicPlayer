@@ -16708,6 +16708,449 @@ button.send-menu-cancel {
     #crateEmptyHint .crate-empty-actions button { flex: 0 0 auto; }
 }
 
+/* ============================================================
+   FIRST-RUN SETUP (#setupWizard): Welcome, your name, where's your music
+   now (the chooser's own rows, borrowed), your first playlist, your first
+   song, you're all set. A centred card on desktop, a tall bottom sheet on
+   phones; one step shows at a time and slides in from the side it came
+   from (no motion when motion is reduced).
+   ============================================================ */
+#setupWizard .setup-panel {
+    display: flex;
+    flex-direction: column;
+    width: 560px;
+    max-width: calc(100vw - 32px);
+    min-height: min(600px, calc(100vh - 32px));
+    min-height: min(600px, calc(100dvh - 32px));
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 18px 32px 28px;
+    background:
+        radial-gradient(120% 55% at 50% -12%, rgba(var(--amber-rgb), 0.16), transparent 62%),
+        var(--sleeve);
+    border-radius: 26px;
+}
+
+.setup-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    min-height: 44px;
+    margin: 0 -10px 6px;
+}
+
+.setup-back {
+    grid-column: 1;
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 44px;
+    padding: 0 12px 0 6px;
+    border: 0;
+    border-radius: 22px;
+    background: none;
+    color: var(--cream-60);
+    font: 500 0.92rem/1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    cursor: pointer;
+}
+
+.setup-back[hidden] { display: none; }
+.setup-back:hover { color: var(--cream); background: rgba(255, 245, 233, 0.06); }
+
+.setup-progress {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.setup-dots { display: flex; gap: 6px; }
+
+.setup-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(251, 245, 234, 0.24);
+    transition: width 240ms ease, background-color 240ms ease;
+}
+
+.setup-dot.is-done { background: rgba(var(--amber-rgb), 0.6); }
+.setup-dot.is-now { width: 22px; background: var(--amber); }
+
+.setup-count {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--cream-60);
+}
+
+#setupWizard .setup-close {
+    position: static;
+    grid-column: 3;
+    justify-self: end;
+    width: 44px;
+    height: 44px;
+}
+
+.setup-step {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    text-align: center;
+}
+
+.setup-step[hidden] { display: none; }
+
+/* Welcome and Done sit in the middle, their button at the foot */
+.setup-step[data-step="welcome"] .setup-disc,
+.setup-step[data-step="done"] .setup-done-mark { margin-top: auto; }
+
+.setup-title {
+    margin: 6px 0 8px;
+    font: 600 1.8rem/1.15 var(--display);
+    letter-spacing: -0.01em;
+    color: var(--cream);
+    overflow-wrap: anywhere;
+}
+
+.setup-title:focus { outline: none; }
+
+.setup-lede {
+    max-width: 30em;
+    margin: 0 auto 22px;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--cream-60);
+}
+
+.setup-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    text-align: left;
+}
+
+.setup-form .add-song-form-group input { font-size: 1rem; }
+
+.setup-status {
+    min-height: 1.4em;
+    margin: -4px 0 0;
+    font-size: 0.88rem;
+    color: var(--cream-60);
+}
+
+.setup-status.is-error { color: #f5aab5; }
+
+.setup-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 20px;
+}
+
+.setup-primary,
+.setup-quiet {
+    min-height: 48px;
+    padding: 0 28px;
+    border-radius: 24px;
+    font: 600 1rem/1.1 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    cursor: pointer;
+}
+
+.setup-primary {
+    border: 1px solid var(--amber);
+    background: var(--amber);
+    color: var(--on-amber);
+}
+
+.setup-primary:hover { background: var(--amber-hi); border-color: var(--amber-hi); }
+.setup-primary:disabled { opacity: 0.6; cursor: progress; }
+
+.setup-quiet {
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--cream);
+}
+
+.setup-quiet:hover { background: rgba(255, 245, 233, 0.06); }
+
+#setupWizard button:focus-visible,
+#setupWizard a:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+}
+
+/* Welcome: a record turning on the room's lamp-light */
+.setup-disc {
+    position: relative;
+    width: 148px;
+    height: 148px;
+    margin: 12px auto 18px;
+    border-radius: 50%;
+    background:
+        repeating-radial-gradient(circle at center, #131110 0 1.5px, #1d1915 1.5px 3.5px),
+        #151210;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(242, 232, 216, 0.06);
+    animation: setupSpin 9s linear infinite;
+}
+
+.setup-disc::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 210deg, transparent 0 60%, rgba(255, 255, 255, 0.08) 69%, transparent 78%);
+}
+
+.setup-disc-label {
+    position: absolute;
+    inset: 32%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: 50%;
+    background: var(--amber);
+    color: var(--on-amber);
+    font-family: var(--display);
+}
+
+.setup-disc-label b { font-size: 0.95rem; line-height: 1; }
+
+.setup-disc-label small {
+    font-size: 0.45rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+/* Your name: the avatar coin follows what's typed */
+#setupWizard .setup-avatar { margin: 10px auto 10px; }
+
+/* Where's your music now?: the chooser's rows, left-aligned */
+.setup-bring {
+    margin: 0 -6px;
+    text-align: left;
+}
+
+/* Your first playlist: a sleeve in the picked colour, its record peeking */
+.setup-sleeve {
+    --setup-sleeve: #d4a574;
+    position: relative;
+    width: 128px;
+    height: 128px;
+    margin: 6px auto 12px;
+    transform: translateX(-14px);
+}
+
+.setup-sleeve-disc {
+    position: absolute;
+    top: 8px;
+    right: -30px;
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at center, var(--setup-sleeve) 0 17%, #100e0c 17.5% 19%, transparent 19.5%),
+        repeating-radial-gradient(circle at center, #131110 0 1.5px, #1d1915 1.5px 3.5px);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+
+.setup-sleeve-face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    padding: 12px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--setup-sleeve) 0%, color-mix(in srgb, var(--setup-sleeve) 55%, #120d09) 100%);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    transition: background 240ms ease;
+}
+
+.setup-sleeve-name {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    font: 600 0.95rem/1.15 var(--display);
+    color: #fff;
+    text-align: left;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    overflow-wrap: anywhere;
+}
+
+.setup-label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 0.78rem;
+    color: var(--cream-60);
+}
+
+.setup-colors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.setup-color {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--swatch);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+}
+
+.setup-color[aria-checked="true"] {
+    box-shadow: 0 0 0 2px var(--sleeve), 0 0 0 4px var(--cream);
+}
+
+.setup-color[aria-checked="true"]::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: center / 18px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23241a0f' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+}
+
+#setupWizard .setup-color:focus-visible { outline-offset: 5px; }
+
+/* Your first song: one field, straight into Add songs' search */
+.setup-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 5px 5px 16px;
+    border: 1px solid var(--line);
+    border-radius: 30px;
+    background: rgba(0, 0, 0, 0.18);
+    text-align: left;
+}
+
+.setup-search:focus-within {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 3px rgba(var(--amber-rgb), 0.18);
+}
+
+.setup-search > svg { flex: 0 0 auto; color: var(--cream-60); }
+
+.setup-search input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--cream);
+    font: 400 1rem/1.2 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    outline: none;
+}
+
+.setup-search input::placeholder { color: var(--cream-60); }
+#setupWizard .setup-search-go { min-height: 44px; padding: 0 20px; }
+
+/* Done */
+.setup-done-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    margin: 6px auto 12px;
+    border-radius: 50%;
+    background: var(--amber);
+    color: var(--on-amber);
+    box-shadow: 0 0 0 10px rgba(var(--amber-rgb), 0.14), 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+
+.setup-tips {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+}
+
+.setup-tips li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 245, 233, 0.05);
+}
+
+.setup-tips b { font-weight: 600; color: var(--cream); }
+.setup-tips span { font-size: 0.9rem; line-height: 1.4; color: var(--cream-60); }
+
+/* What's where: the tab bar on phones, the sidebar and avatar on desktop */
+.setup-tips-desk { display: none; }
+html.dv2 .setup-tips-phone { display: none; }
+html.dv2 .setup-tips-desk { display: grid; }
+
+/* Between steps: in from the side it came from */
+.setup-step.setup-in-fwd { animation: setupInFwd 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.setup-step.setup-in-back { animation: setupInBack 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+@keyframes setupInFwd {
+    from { opacity: 0; transform: translateX(28px); }
+}
+
+@keyframes setupInBack {
+    from { opacity: 0; transform: translateX(-28px); }
+}
+
+@keyframes setupSpin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 600px) {
+    #setupWizard .setup-panel {
+        width: 100%;
+        max-width: 100%;
+        min-height: min(720px, calc(100vh - 24px));
+        min-height: min(720px, calc(100dvh - 24px));
+        max-height: calc(100vh - 24px);
+        max-height: calc(100dvh - 24px);
+        padding: 22px 20px calc(20px + var(--m-safe-b, 0px));
+        border-radius: 22px 22px 0 0;
+    }
+
+    .setup-top { margin: 0 -8px 4px; }
+    .setup-title { font-size: 1.6rem; }
+    .setup-actions > * { flex: 1 1 0; padding: 0 16px; }
+    .setup-disc { width: 132px; height: 132px; }
+}
+
+/* Short windows (a landscape phone): the pictures shrink */
+@media (max-height: 560px) {
+    .setup-disc { width: 92px; height: 92px; margin: 4px auto 10px; }
+    .setup-sleeve { width: 96px; height: 96px; }
+    .setup-sleeve-disc { width: 84px; height: 84px; right: -24px; }
+    .setup-done-mark { width: 56px; height: 56px; }
+    .setup-title { font-size: 1.45rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .setup-step.setup-in-fwd,
+    .setup-step.setup-in-back,
+    .setup-disc { animation: none; }
+    .setup-dot,
+    .setup-sleeve-face { transition: none; }
+}
+
 /* ==========================================================================
    DESKTOP V2 — the desktop redesign (steps in the desktop redesign plan).
    Everything below is scoped to html.dv2, which script.js (and the head

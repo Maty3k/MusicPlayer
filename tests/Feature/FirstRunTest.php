@@ -33,9 +33,13 @@ class FirstRunTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        // The crate renders with the wizard's empty state instead of erroring
+        // The crate renders with the wizard's empty state instead of erroring:
+        // the web's setup wizard (script.js opens it) and the app's old
+        // playlist wizard hint
         $this->actingAs($user)->get('/')
             ->assertOk()
+            ->assertSee('id="setupWizard"', false)
+            ->assertSee('Welcome to Music Player')
             ->assertSee('playlistWizardHint');
     }
 
