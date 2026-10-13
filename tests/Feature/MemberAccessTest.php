@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -197,9 +198,14 @@ class MemberAccessTest extends TestCase
     /** What the login page would show after the last attempt. */
     private function loginError(): string
     {
+        // Once a request has ended, the session holds its errors as a plain
+        // array; the next request (or an assertion on them) makes a bag again.
         $errors = session('errors');
+        if ($errors instanceof ViewErrorBag) {
+            return (string) $errors->first('member_number');
+        }
 
-        return $errors ? (string) $errors->first('member_number') : '';
+        return (string) ($errors['default']['messages']['member_number'][0] ?? '');
     }
 
     public function test_member_skips_the_email_verification_wall(): void
