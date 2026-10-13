@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use RuntimeException;
 
 /**
  * The five accounts the phone browser suites (tests/browser) log in as:
@@ -41,6 +42,12 @@ class BrowserTestSeeder extends Seeder
 
     public function run(): void
     {
+        // These accounts share a password that is written in this repository.
+        // They belong on a test database, never on the live one.
+        if (app()->isProduction()) {
+            throw new RuntimeException('BrowserTestSeeder is for test databases only: it will not run in production.');
+        }
+
         $password = (string) env('BROWSER_TEST_PASSWORD', 'demo-pass-123');
         $now = Carbon::now();
 
