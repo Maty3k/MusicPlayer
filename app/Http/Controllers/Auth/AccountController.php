@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Password;
 
 /**
@@ -52,6 +53,11 @@ class AccountController extends Controller
 
         // The 'hashed' cast on the model hashes this on assignment.
         $request->user()->update(['password' => $validated['password']]);
+
+        // Every other device is signed out by the new hash (see
+        // EndSessionsOnPasswordChange); this refreshes the "stay signed in"
+        // cookie so the device that made the change keeps it.
+        Auth::logoutOtherDevices($validated['password']);
 
         return response()->json(['success' => true]);
     }

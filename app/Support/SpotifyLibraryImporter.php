@@ -319,7 +319,7 @@ class SpotifyLibraryImporter
     {
         $url = is_scalar($value) ? trim((string) $value) : '';
 
-        return preg_match('#^https?://[^\s<>"\']+$#i', $url) ? $url : '';
+        return preg_match('#^https?://[^\s<>"\']+$#i', $url) && LibraryLimits::fits($url) ? $url : '';
     }
 
     private function fetchPlaylistName(string $id, string $token): ?string

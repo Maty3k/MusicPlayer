@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Playlist;
 use App\Models\Song;
 use App\Models\User;
+use App\Support\LibraryLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -194,6 +195,10 @@ class MusicController extends Controller
             return ['success' => false, 'error' => 'No playable source: paste a YouTube link, a Spotify track link, or an MP3 URL'];
         }
 
+        if (LibraryLimits::songsLeft($user, $playlist) < 1) {
+            return ['success' => false, 'error' => LibraryLimits::songsFullMessage()];
+        }
+
         $newIndex = $playlist->songs()->count();
         $playlist->songs()->create([
             'position' => $newIndex,
@@ -237,6 +242,14 @@ class MusicController extends Controller
         }
 
         if ($request->has('newPlaylist')) {
+            // Asked before the playlist is made, so a refusal leaves no empty
+            // one behind.
+            if (LibraryLimits::playlistsLeft($user) < 1) {
+                return ['success' => false, 'error' => LibraryLimits::playlistsFullMessage()];
+            }
+            if (count($songs) > LibraryLimits::songsLeft($user, null)) {
+                return ['success' => false, 'error' => LibraryLimits::songsFullMessage()];
+            }
             $playlist = $this->createImportPlaylist($user, $this->strInput($request, 'newPlaylist'));
         } elseif ($request->has('playlist')) {
             $playlist = $this->findPlaylist($user, $this->strInput($request, 'playlist'));
@@ -261,6 +274,12 @@ class MusicController extends Controller
                     'position' => ((int) ($user->playlists()->max('position') ?? -1)) + 1,
                 ]);
             }
+        }
+
+        // A batch that would not fit is refused whole: an import is never cut
+        // short without saying so.
+        if (count($songs) > LibraryLimits::songsLeft($user, $playlist)) {
+            return ['success' => false, 'error' => LibraryLimits::songsFullMessage()];
         }
 
         // Existing songs, keyed for dedupe (by youtube_id and by title|artist).
@@ -421,6 +440,9 @@ class MusicController extends Controller
         if (! preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
             $color = '#d4a574';
         }
+        if (LibraryLimits::playlistsLeft($user) < 1) {
+            return ['success' => false, 'error' => LibraryLimits::playlistsFullMessage()];
+        }
 
         // A "Favorites" playlist (the welcome wizard's default) is the one the
         // heart button fills, so hearting a song later doesn't spawn a second
@@ -495,6 +517,9 @@ class MusicController extends Controller
             || ($song = $this->songAt($from, $songIndex)) === null) {
             return ['success' => false, 'error' => 'Invalid playlist or song index'];
         }
+        if ($to->songs()->count() >= LibraryLimits::max('playlist_songs')) {
+            return ['success' => false, 'error' => LibraryLimits::songsFullMessage()];
+        }
 
         // Append to target, remove from source.
         $song->playlist_id = $to->id;
@@ -537,6 +562,9 @@ class MusicController extends Controller
         if ($songIndex === false || $songIndex < 0 || $from === null || $to === null
             || ($song = $this->songAt($from, $songIndex)) === null) {
             return ['success' => false, 'error' => 'Invalid playlist or song index'];
+        }
+        if (LibraryLimits::songsLeft($user, $to) < 1) {
+            return ['success' => false, 'error' => LibraryLimits::songsFullMessage()];
         }
 
         $to->songs()->create([
@@ -742,6 +770,12 @@ class MusicController extends Controller
             if ($cutoffId !== null) {
                 $user->playEvents()->where('id', '<=', $cutoffId)->delete();
             }
+            // The per-song history too: a replay gets a fresh, higher id, so
+            // the lowest ids are the songs not heard for longest.
+            $oldestKept = $user->plays()->orderByDesc('id')->skip(LibraryLimits::max('plays'))->limit(1)->value('id');
+            if ($oldestKept !== null) {
+                $user->plays()->where('id', '<=', $oldestKept)->delete();
+            }
         }
 
         return ['success' => true];
@@ -826,6 +860,9 @@ class MusicController extends Controller
         }
 
         // Not a favorite yet — add it (creating the Favorites playlist if needed).
+        if (LibraryLimits::songsLeft($user, $fav) < 1) {
+            return ['success' => false, 'error' => LibraryLimits::songsFullMessage()];
+        }
         if ($fav === null) {
             $fav = $user->playlists()->create([
                 'slug' => self::FAVORITES_SLUG,
@@ -1222,7 +1259,7 @@ class MusicController extends Controller
             return '';
         }
         $str = trim((string) $value);
-        if ($str === '') {
+        if ($str === '' || ! LibraryLimits::fits($str)) {
             return '';
         }
         // Allow http(s) absolute URLs and root-relative paths only.

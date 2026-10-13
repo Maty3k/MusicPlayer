@@ -5,11 +5,18 @@ on:
   push:
   pull_request:
 
+# The repo is public and anyone can open a pull request: the job only ever
+# needs to read the code.
+permissions:
+  contents: read
+
 jobs:
   phpunit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: shivammathur/setup-php@v2
         with:

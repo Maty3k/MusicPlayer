@@ -6857,7 +6857,11 @@ function connectSpotify() {
 }
 
 function disconnectSpotify() {
-    fetch('/spotify?action=logout')
+    fetch('/spotify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logout' })
+    })
         .then(() => {
             spotifyConnected = false;
             spotifyPremium = false;
