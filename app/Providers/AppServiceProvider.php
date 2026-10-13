@@ -73,6 +73,13 @@ class AppServiceProvider extends ServiceProvider
             Limit::perDay(10)->by('verification-mail-day:'.$who($request)),
         ]);
 
+        // Attaching an e-mail address needs no proof that it is yours, and a
+        // reset mail can then be sent to it: a handful a day is plenty.
+        RateLimiter::for('attach-email', fn (Request $request) => [
+            Limit::perMinute(5)->by('attach-email:'.$who($request)),
+            Limit::perDay(5)->by('attach-email-day:'.$who($request)),
+        ]);
+
         // Calls that are paid for with the site's own Gemini key: per account
         // by the minute and by the day, and a daily total for everyone.
         RateLimiter::for('ai-suggestions', fn (Request $request) => [

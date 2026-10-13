@@ -51,6 +51,9 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        // Leave nothing of this account on the device: the offline copy of
+        // the player page, saved songs and covers, the queue and recent
+        // searches would otherwise stay for whoever uses the browser next.
+        return redirect()->route('login')->header('Clear-Site-Data', '"cache", "storage"');
     }
 }

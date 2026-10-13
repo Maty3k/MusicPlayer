@@ -114,7 +114,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Account settings (fetch/JSON from the Settings modal)
     Route::post('/settings/name', [AccountController::class, 'updateName'])->middleware('throttle:10,1,settings');
     Route::post('/settings/password', [AccountController::class, 'updatePassword'])->middleware('throttle:10,1,settings');
-    Route::post('/settings/email', [AccountController::class, 'attachEmail'])->middleware('throttle:10,1,settings');
+    Route::post('/settings/email', [AccountController::class, 'attachEmail'])->middleware('throttle:attach-email');
 
     Route::post('/spotify-resolve', SpotifyResolveController::class)->middleware('throttle:20,1,spotify-resolve');
     // Its own bucket: searching as you type mustn't use up the budget that
