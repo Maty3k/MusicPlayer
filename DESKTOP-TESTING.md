@@ -11,7 +11,10 @@ with axe scans), and `desktop-a11y-check.js` the keyboard shortcuts, the
 windows, Skip to content, the Tab order and focus rings and an axe scan of
 every page, menu and window at 1440×900 and 1024×768, and
 `desktop-polish-check.js` the step 11 fixes, polish and motion. All ten check that
-phones (390×844, 844×390) and the app (`?app=1`) don't get them. The items below need a person at a
+phones (390×844, 844×390) and the app (`?app=1`) don't get them.
+`cleanup-check.js` checks the step 12 cleanup: the removed markup and CSS are
+gone in every layout, and what the app and the short landscape phone still
+use is still there. The items below need a person at a
 real desktop browser. Run them in Chrome and in Firefox or Safari.
 
 ## Scope (step 1)
@@ -578,6 +581,43 @@ All of it is short (150-350ms) and none of it shows with reduce motion on.
   swings off. The next song's cover fades in behind the turntable.
 - [ ] None of it gets in the way: a row or card can be clicked while its
   page fades in, and nothing jumps when the motion ends.
+
+## Cleanup (step 12)
+
+Nothing should look or behave differently anywhere: this step only removed
+markup, CSS and code that no layout showed or ran any more.
+`tests/browser/suites/cleanup-check.js` checks that the removed pieces are gone
+on the desktop (1440×900, 1024×768, 800×600), a phone (390×844), a short
+landscape phone (844×390) and the app (`?app=1`), and that the pieces the app
+and the landscape phone still use are still there.
+
+Removed (they were hidden in every layout already):
+
+- the room's scenery behind Home (walls, floor, rug, wall art, poster,
+  shelf, clock, string and hanging lights, dust, speakers, floor records,
+  plant); `.room-bg` stays, empty, for its vignette;
+- the room's right side: the VINYLS crate (`#crateRecords`) and the cat.
+  `updateCrateRecords()` stays as the hook the phone and desktop views wrap;
+- the player view's aurora orbs and groove background, the deck's strobe
+  dots, rubber mat and feet, and the groove and hole in each song row's cover;
+- CSS for classes no page uses (the old coffee mug, inline stats chips,
+  `.section-hidden` and others), and in the desktop block, declarations that a
+  later rule for the same selector always overrode;
+- two unused volume helpers (`adjustVolume`, `angleToVol`).
+
+Kept, because the app (`?app=1`, which still uses the old desktop views on
+wide screens) or the short landscape phone shows them: the crate's left rail
+(mini turntable, display, loop / shuffle / crackle / make gif / sleep), the
+old toolbar (Search, Stats, Settings, + New playlist), the library search
+window (`#searchModal`), the marquee and its clones, and the sidebar's
+resize and collapse handles.
+
+- [ ] Desktop (1440, 1024 and 800px wide): Home, a playlist, Now Playing and
+  Search look exactly as before, in each room theme.
+- [ ] The app on a tablet (or `?app=1` in a wide window): Home still has the
+  left rail with its mini turntable and buttons, Search opens the search
+  window, and the player view shows the turntable and the song list.
+- [ ] A phone, portrait and landscape, looks exactly as before.
 
 ## First-run setup
 

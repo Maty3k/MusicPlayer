@@ -105,7 +105,9 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             panel: box(panel), panelSW: panel.scrollWidth, panelCW: panel.clientWidth, panelRadius: getComputedStyle(panel).borderTopLeftRadius,
             side: box(q('#dvSide')),
             gone: {
-                roomBg: shown(q('#vinylCrateView .room-bg')), roomRight: shown(q('#vinylCrateView .room-right')), crateBox: shown(q('#vinylCrateView .crate-box')),
+                roomBg: shown(q('#vinylCrateView .room-bg')),
+                // The VINYLS crate's markup is gone from every layout (desktop step 12)
+                roomRight: !!q('#vinylCrateView .room-right'), crateBox: !!q('#vinylCrateView .crate-box'),
                 rail: shown(q('#vinylCrateView .room-left')), oldTitle: shown(q('#vinylCrateView .greeting-text')), counts: shown(q('#vinylCrateView .collection-stats')),
                 search: shown(q('#vinylCrateView .crate-search-btn')),
                 newBtn: shown(q('#vinylCrateView .collection-toolbar .new-playlist-btn:not(.crate-search-btn):not(.crate-stats-btn):not(.crate-settings-btn)')),

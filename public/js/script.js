@@ -1278,12 +1278,10 @@ function addRadioSidebarItem(song) {
         : '<button class="song-save-btn" onclick="event.stopPropagation(); saveRadioSong()" title="Add to playlist">+</button>';
     li.innerHTML = `
         <div class="song-list-vinyl">
-            <div class="song-list-vinyl-groove"></div>
             ${radioCover
                 ? `<img class="song-list-cover" src="${escapeHtml(radioCover)}" alt="">`
                 : `<div class="song-list-cover song-list-cover-empty">&#9834;</div>`
             }
-            <div class="song-list-vinyl-hole"></div>
         </div>
         <div class="song-list-info">
             <div class="song-list-title">${escapeHtml(song.title)}</div>
@@ -1652,9 +1650,7 @@ function renderDiscoverSection() {
         return `
         <li class="song-list-item discover-item" onclick="discoverPlay(${i})">
             <div class="song-list-vinyl">
-                <div class="song-list-vinyl-groove"></div>
                 ${cover}
-                <div class="song-list-vinyl-hole"></div>
             </div>
             <div class="song-list-info">
                 <div class="song-list-title">${escapeHtml(item.title)}</div>
@@ -2951,7 +2947,6 @@ const volumeLabel = document.getElementById('volumeLabel');
 // Knob rotation: 0% = -130deg, 100% = 130deg (260deg total range)
 const KNOB_MIN = -130, KNOB_MAX = 130;
 function volToAngle(vol) { return KNOB_MIN + (vol / 100) * (KNOB_MAX - KNOB_MIN); }
-function angleToVol(angle) { return ((angle - KNOB_MIN) / (KNOB_MAX - KNOB_MIN)) * 100; }
 
 function setVolume(vol) {
     vol = Math.min(100, Math.max(0, Math.round(vol)));
@@ -3039,10 +3034,6 @@ if (volumeKnobWrapper) {
             setVolume(lastVolume);
         }
     });
-}
-
-function adjustVolume(delta) {
-    setVolume(currentVolume + delta);
 }
 
 // Pitch slider - controls playback rate (±25%)
@@ -3663,12 +3654,10 @@ function buildSongListItem(song, index) {
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>
             </span>
             <div class="song-list-vinyl">
-                <div class="song-list-vinyl-groove"></div>
                 ${itemCover
                     ? `<img class="song-list-cover" src="${escapeHtml(itemCover)}" alt="">`
                     : `<div class="song-list-cover song-list-cover-empty">&#9834;</div>`
                 }
-                <div class="song-list-vinyl-hole"></div>
             </div>
             <div class="song-list-info">
                 <div class="song-list-title">${escapeHtml(song.title)}</div>
@@ -5676,21 +5665,14 @@ async function moveSongTo(toPlaylist, songIndex, ctx) {
 }
 
 // ============================================================
-// DYNAMIC VINYL CRATE
+// PLAYLIST CHANGES HOOK
 // ============================================================
 
-function updateCrateRecords() {
-    const container = document.getElementById('crateRecords');
-    if (!container) return;
-    container.innerHTML = recentlyPlayed
-        .filter(id => playlistsMeta[id])
-        .map(id => {
-            const meta = playlistsMeta[id];
-            const colorAttr = /^#[0-9a-fA-F]{6}$/.test(meta.color || '') ? meta.color : '#888';
-            const idJs = JSON.stringify(String(id));
-            return `<div class="crate-record" data-crate-playlist="${escapeHtml(id)}" style="--r-color: ${colorAttr};" onclick="selectPlaylistFromCrate(${escapeHtml(idJs)})" title="${escapeHtml(meta.name)}"></div>`;
-        }).join('');
-}
+// Called after a playlist switch, rename, recolour, cover change or delete.
+// It used to repaint the room's VINYLS crate (gone with the old desktop
+// scenery); now it is only a hook: the phone and desktop views wrap it to
+// repaint their playlist tiles, rows and headers.
+function updateCrateRecords() {}
 
 
 // ============================================================

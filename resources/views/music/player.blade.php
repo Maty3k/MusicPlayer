@@ -250,116 +250,8 @@
         </form>
         @endif
         <div class="vinyl-crate-view" id="vinylCrateView">
-            <!-- Room Background -->
-            <div class="room-bg">
-                <div class="room-wall"></div>
-                <div class="room-floor"></div>
-
-                <!-- Floor rug -->
-                <div class="floor-rug"></div>
-
-                <!-- Wall decorations -->
-                <div class="wall-art">
-                    <div class="art-frame">
-                        <div class="art-content">&#9834;</div>
-                    </div>
-                </div>
-
-                <div class="wall-poster">
-                    <div class="poster-content">
-                        <div class="poster-text">LIVE<br>MUSIC</div>
-                    </div>
-                </div>
-
-                <div class="wall-shelf">
-                    <div class="shelf-board"></div>
-                    <div class="shelf-items">
-                        <div class="shelf-book"></div>
-                        <div class="shelf-book b2"></div>
-                        <div class="shelf-headphones"></div>
-                    </div>
-                </div>
-
-                <div class="wall-clock">
-                    <div class="clock-face">
-                        <div class="clock-marks">
-                            <div class="clock-mark major" style="transform:rotate(0deg)"></div>
-                            <div class="clock-mark" style="transform:rotate(30deg)"></div>
-                            <div class="clock-mark" style="transform:rotate(60deg)"></div>
-                            <div class="clock-mark major" style="transform:rotate(90deg)"></div>
-                            <div class="clock-mark" style="transform:rotate(120deg)"></div>
-                            <div class="clock-mark" style="transform:rotate(150deg)"></div>
-                            <div class="clock-mark major" style="transform:rotate(180deg)"></div>
-                            <div class="clock-mark" style="transform:rotate(210deg)"></div>
-                            <div class="clock-mark" style="transform:rotate(240deg)"></div>
-                            <div class="clock-mark major" style="transform:rotate(270deg)"></div>
-                            <div class="clock-mark" style="transform:rotate(300deg)"></div>
-                            <div class="clock-mark" style="transform:rotate(330deg)"></div>
-                        </div>
-                        <div class="clock-hand hour"></div>
-                        <div class="clock-hand minute"></div>
-                        <div class="clock-center"></div>
-                    </div>
-                </div>
-
-                <!-- String lights -->
-                <div class="string-lights">
-                    <svg class="string-wire" viewBox="0 0 800 60" preserveAspectRatio="none">
-                        <path d="M0,10 Q200,50 400,20 T800,30" fill="none" stroke="#333" stroke-width="2"/>
-                    </svg>
-                    <div class="string-bulb" style="left: 10%;"></div>
-                    <div class="string-bulb" style="left: 25%;"></div>
-                    <div class="string-bulb" style="left: 40%;"></div>
-                    <div class="string-bulb" style="left: 55%;"></div>
-                    <div class="string-bulb" style="left: 70%;"></div>
-                    <div class="string-bulb" style="left: 85%;"></div>
-                </div>
-
-                <!-- Hanging main lights -->
-                <div class="hanging-lights">
-                    <div class="light-bulb"><div class="bulb-glow"></div></div>
-                    <div class="light-bulb"><div class="bulb-glow"></div></div>
-                    <div class="light-bulb"><div class="bulb-glow"></div></div>
-                </div>
-
-                <!-- Floating dust particles -->
-                <div class="dust-particles">
-                    <span></span><span></span><span></span><span></span><span></span>
-                </div>
-
-                <!-- Ambient overlay -->
-                <div class="ambient-overlay"></div>
-
-                <!-- Floor decorations -->
-                <div class="floor-speaker left-speaker">
-                    <div class="speaker-body">
-                        <div class="speaker-cone large"></div>
-                        <div class="speaker-cone small"></div>
-                        <div class="speaker-led"></div>
-                    </div>
-                </div>
-                <div class="floor-speaker right-speaker">
-                    <div class="speaker-body">
-                        <div class="speaker-cone large"></div>
-                        <div class="speaker-cone small"></div>
-                        <div class="speaker-led"></div>
-                    </div>
-                </div>
-                <div class="floor-records">
-                    <div class="floor-vinyl v1"></div>
-                    <div class="floor-vinyl v2"></div>
-                    <div class="floor-vinyl v3"></div>
-                </div>
-                <div class="floor-plant">
-                    <div class="plant-pot"></div>
-                    <div class="plant-stem s1"></div>
-                    <div class="plant-stem s2"></div>
-                    <div class="plant-stem s3"></div>
-                    <div class="plant-leaf l1"></div>
-                    <div class="plant-leaf l2"></div>
-                    <div class="plant-leaf l3"></div>
-                </div>
-            </div>
+            <!-- Room background: only its vignette (.room-bg::after) is left -->
+            <div class="room-bg"></div>
 
             <!-- Main Content -->
             <div class="room-content">
@@ -715,34 +607,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Right Side - Decorations -->
-                <div class="room-right">
-                    <div class="vinyl-crate-decor">
-                        <div class="crate-box">
-                            <div class="crate-records" id="crateRecords">
-                                @foreach ($recentlyPlayed as $crateId)
-                                    @continue(!isset($playlists[$crateId]))
-                                    @php
-                                        $cratePlaylist = $playlists[$crateId];
-                                        $crateColor = nt_safe_css_color($cratePlaylist['color'] ?? '#d4a574');
-                                        $crateName = $cratePlaylist['name'] ?? $crateId;
-                                    @endphp
-                                <div class="crate-record" data-crate-playlist="{{ $crateId }}" style="--r-color: {{ $crateColor }};" onclick="selectPlaylistFromCrate('{{ $crateId }}')" title="{{ $crateName }}"></div>
-                                @endforeach
-                            </div>
-                        </div>
-                        <div class="crate-label">VINYLS</div>
-                    </div>
-                    <div class="cat-silhouette">
-                        <div class="cat-body"></div>
-                        <div class="cat-head">
-                            <div class="cat-ear left"></div>
-                            <div class="cat-ear right"></div>
-                        </div>
-                        <div class="cat-tail"></div>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -981,13 +845,11 @@
                     data-src="{{ !empty($song['mp3_url']) ? 'mp3' : (!empty($song['youtube_id']) ? 'yt' : 'spotify') }}"
                     onclick="switchSong({{ $index }})">
                     <div class="song-list-vinyl">
-                        <div class="song-list-vinyl-groove"></div>
                         @if (!empty($song['cover']))
                         <img class="song-list-cover" src="{{ $song['cover'] }}" alt="">
                         @else
                         <div class="song-list-cover song-list-cover-empty">&#9834;</div>
                         @endif
-                        <div class="song-list-vinyl-hole"></div>
                     </div>
                     <div class="song-list-info">
                         <div class="song-list-title">{{ $song['title'] }}</div>
@@ -1053,14 +915,6 @@
                 <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
                 <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
             </div>
-            <div class="aurora-orbs">
-                <div class="aurora-orb aurora-orb-1"></div>
-                <div class="aurora-orb aurora-orb-2"></div>
-                <div class="aurora-orb aurora-orb-3"></div>
-                <div class="aurora-orb aurora-orb-4"></div>
-                <div class="aurora-orb aurora-orb-5"></div>
-            </div>
-            <div class="vinyl-groove-bg"></div>
             <div class="turntable-area">
             <!-- Vinyl Sleeve - Song Info -->
             <div class="vinyl-sleeve" id="vinylSleeve">
@@ -1154,7 +1008,6 @@
             <div class="record-player">
                 <div class="record-player-body">
                     <div class="record-player-platter">
-                        <div class="strobe-dots"></div>
                         <div class="record" id="vinyl">
                             <div class="record-label">
                                 @if (!empty($current['cover']))
@@ -1164,7 +1017,6 @@
                                 @endif
                             </div>
                             <div class="record-hole"></div>
-                            <div class="rubber-mat"></div>
                         </div>
                     </div>
                     <div class="tonearm" id="tonearm"></div>
@@ -1212,10 +1064,6 @@
                             <span class="volume-label" id="volumeLabel">100</span>
                         </div>
                     </div>
-                    <div class="deck-foot deck-foot-tl"></div>
-                    <div class="deck-foot deck-foot-tr"></div>
-                    <div class="deck-foot deck-foot-bl"></div>
-                    <div class="deck-foot deck-foot-br"></div>
                     <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" style="display:none;">
                     <div class="record-player-led" id="bigPlayerLed"></div>
                 </div>
