@@ -20,8 +20,8 @@ with one exception:
 ## One-time setup
 
 1. **Create the app** at [cloud.laravel.com](https://cloud.laravel.com):
-   *New Application* → connect the `Maty3k/MusicPlayer` GitHub repo → pick the
-   branch to deploy (`laravel`, or `main` once merged). Runtime: **PHP 8.4**.
+   *New Application* → connect the `Maty3k/MusicPlayer` GitHub repo → pick
+   `main` as the branch to deploy. Runtime: **PHP 8.4**.
 
 2. **Attach a database**: add a **Postgres** database to the environment.
    Laravel Cloud injects the `DB_*` connection variables automatically —
@@ -52,8 +52,7 @@ with one exception:
 
 ## Custom domain (music4u.online)
 
-The production app runs on **https://music4u.online** (registered at GoDaddy,
-expires 2027-07-11 — auto-renew intentionally off, renew manually if keeping).
+The production app runs on **https://music4u.online** (registered at GoDaddy).
 
 1. **App DNS** — Laravel Cloud: *production → Domains → Add domain*
    (`music4u.online`). Add the records it shows in GoDaddy → domain → DNS.
@@ -104,5 +103,6 @@ account verified manually.
 - **MusicPlayerMobile** is not yet compatible with the Laravel backend — it
   still targets the legacy endpoints with a shared-secret header. It needs a
   Sanctum token flow before it works against this version.
-- User-added music is by URL (YouTube ID / MP3 URL / Spotify import) — nothing
-  is stored on disk, so no object storage is required.
+- Most music is added by link (a YouTube ID, an MP3 URL, a Spotify import) and
+  stores nothing. Uploaded audio files are the exception: they need the bucket
+  described at the top of this page.

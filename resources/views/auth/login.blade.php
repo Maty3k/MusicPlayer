@@ -43,7 +43,7 @@
             </label>
             <label class="auth-field auth-field-pin">
                 <span>PIN</span>
-                <input type="password" id="pin" name="pin" placeholder="&#8226;&#8226;&#8226;&#8226;" required autocomplete="current-password">
+                <input type="password" id="pin" name="pin" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required autocomplete="current-password">
             </label>
             <button type="submit" class="auth-btn auth-btn-ghost">Log in</button>
         </form>

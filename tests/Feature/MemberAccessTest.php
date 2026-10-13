@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\ViewErrorBag;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class MemberAccessTest extends TestCase
@@ -63,6 +65,147 @@ class MemberAccessTest extends TestCase
             ->assertRedirect('/login')
             ->assertSessionHasErrors('member_number');
         $this->assertGuest();
+    }
+
+    public function test_a_new_pin_has_six_digits(): void
+    {
+        $this->post('/member/start');
+
+        $this->assertMatchesRegularExpression('/^\d{6}$/', session('member_card')['pin']);
+    }
+
+    public function test_a_member_number_locks_after_five_wrong_pins(): void
+    {
+        $user = $this->member(42);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->tryPin('42', '9999')->assertSessionHasErrors('member_number');
+            $this->assertStringContainsString("don't match", $this->loginError());
+        }
+
+        // Locked: even the right PIN is refused, or the guessing could go on
+        $this->tryPin('42', '0137')->assertRedirect('/login');
+        $this->assertStringStartsWith('Too many wrong PINs. Try again in ', $this->loginError());
+        $this->assertGuest();
+
+        $this->travel(16)->minutes();
+
+        $this->tryPin('42', '0137')->assertRedirect(route('player'));
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_a_lock_holds_one_member_number_only(): void
+    {
+        $this->member(42);
+        $other = $this->member(43, '2468');
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->tryPin('42', '9999');
+        }
+
+        $this->tryPin('43', '2468')->assertRedirect(route('player'));
+        $this->assertAuthenticatedAs($other);
+    }
+
+    public function test_the_right_pin_starts_the_count_again(): void
+    {
+        $user = $this->member(42);
+
+        for ($i = 0; $i < 4; $i++) {
+            $this->tryPin('42', '9999');
+        }
+        $this->tryPin('42', '0137')->assertRedirect(route('player'));
+        auth()->logout();
+        $this->travel(2)->minutes();
+
+        // Four more: nine wrong in all, but only four since the right one
+        for ($i = 0; $i < 4; $i++) {
+            $this->tryPin('42', '9999');
+        }
+        $this->tryPin('42', '0137')->assertRedirect(route('player'));
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_a_number_nobody_has_locks_the_same_way(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->tryPin('999', '1234');
+            $this->assertStringContainsString("don't match", $this->loginError());
+        }
+
+        // The same answer a real member's number gives: a lock tells nothing
+        $this->tryPin('999', '1234');
+        $this->assertStringStartsWith('Too many wrong PINs. Try again in ', $this->loginError());
+    }
+
+    public function test_twenty_wrong_pins_lock_a_member_number_for_the_day(): void
+    {
+        $user = $this->member(42);
+
+        // Five at a time, waiting out the short lock in between
+        for ($round = 0; $round < 4; $round++) {
+            for ($i = 0; $i < 5; $i++) {
+                $this->tryPin('42', '9999');
+                $this->assertStringContainsString("don't match", $this->loginError());
+            }
+            $this->travel(16)->minutes();
+        }
+
+        $this->tryPin('42', '0137')->assertRedirect('/login');
+        $this->assertStringStartsWith('Too many wrong PINs. Try again in ', $this->loginError());
+        $this->assertStringEndsWith('hours.', $this->loginError());
+        $this->assertGuest();
+
+        $this->travel(24)->hours();
+
+        $this->tryPin('42', '0137')->assertRedirect(route('player'));
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_one_address_cannot_spread_wrong_pins_over_many_numbers(): void
+    {
+        $this->member(42);
+
+        // Thirty wrong PINs, each for a different number. (Ten a minute is
+        // all the route's own throttle lets through.)
+        for ($round = 0; $round < 3; $round++) {
+            for ($i = 0; $i < 10; $i++) {
+                $this->tryPin((string) (100 + $round * 10 + $i), '9999');
+                $this->assertStringContainsString("don't match", $this->loginError());
+            }
+            $this->travel(61)->seconds();
+        }
+
+        $this->tryPin('42', '0137')->assertRedirect('/login');
+        $this->assertStringStartsWith('Too many wrong PINs. Try again in ', $this->loginError());
+        $this->assertGuest();
+    }
+
+    private function member(int $number, string $pin = '0137'): User
+    {
+        return User::forceCreate([
+            'name' => 'Member',
+            'member_number' => $number,
+            'password' => bcrypt($pin),
+        ]);
+    }
+
+    private function tryPin(string $number, string $pin): TestResponse
+    {
+        return $this->from('/login')->post('/member/login', ['member_number' => $number, 'pin' => $pin]);
+    }
+
+    /** What the login page would show after the last attempt. */
+    private function loginError(): string
+    {
+        // Once a request has ended, the session holds its errors as a plain
+        // array; the next request (or an assertion on them) makes a bag again.
+        $errors = session('errors');
+        if ($errors instanceof ViewErrorBag) {
+            return (string) $errors->first('member_number');
+        }
+
+        return (string) ($errors['default']['messages']['member_number'][0] ?? '');
     }
 
     public function test_member_skips_the_email_verification_wall(): void
