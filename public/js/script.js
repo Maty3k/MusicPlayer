@@ -11665,6 +11665,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // The empty field: recent searches, then your playlists.
     function renderSearchHome() {
         if (!searchResultsEl) return;
+        // Source = Cloudflare: the empty field lists those songs instead. Here
+        // and not only in runPageSearch: the desktop Search page and playlist
+        // repaints draw the empty field without it (cloud-music.js).
+        if (window.cloudMusic && cloudMusic.searchActive()) {
+            cloudMusic.renderSearch('', searchResultsEl);
+            return;
+        }
         const recent = loadRecentSearches();
         let html = '';
         if (recent.length) {
@@ -11828,8 +11835,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ytResults = [];
         libDone = false;
         ytState = 'idle';
-        // Source = Cloudflare: search your own files instead (cloud-music.js)
-        if (window.cloudMusic && cloudMusic.searchActive()) {
+        // Source = Cloudflare: search your own files instead (cloud-music.js).
+        // A pasted YouTube or Spotify link still adds or imports as usual.
+        if (window.cloudMusic && cloudMusic.searchActive() && !linkKind(q)) {
             cloudMusic.renderSearch(q, searchResultsEl, announce);
             return;
         }
@@ -11933,7 +11941,8 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.addEventListener('input', runPageSearch);
         searchInput.addEventListener('keydown', (e) => {
             if (e.key !== 'Enter') return;
-            rememberSearch();
+            // A Cloudflare filter isn't a search to come back to (cloud-music.js)
+            if (!(window.cloudMusic && cloudMusic.searchActive())) rememberSearch();
             // Done typing: drop the keyboard (the desktop page keeps focus
             // in the field; arrow down goes into the results)
             if (!htmlEl.classList.contains('dv2')) searchInput.blur();

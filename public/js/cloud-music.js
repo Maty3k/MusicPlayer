@@ -119,8 +119,10 @@ window.cloudMusic = (() => {
                 loadedAt = Date.now();
             })
             .catch((e) => {
-                listState = 'error';
-                listError = (e && e.message) || 'network error';
+                // A TypeError is fetch itself failing: no connection
+                listError = e instanceof TypeError ? 'No connection to the server.' : ((e && e.message) || 'Something went wrong.');
+                // A failed refresh keeps the list it had; only the status line says so
+                listState = songs.length ? 'done' : 'error';
             })
             .finally(() => {
                 loading = null;
@@ -147,8 +149,11 @@ window.cloudMusic = (() => {
         if (el) {
             el.classList.remove('ok', 'err');
             if (listState === 'loading') el.textContent = 'Loading the list…';
-            else if (listState === 'error') { el.textContent = "Couldn't load the list: " + listError + '.'; el.classList.add('err'); }
-            else if (listState === 'done') { el.textContent = songs.length === 1 ? '1 song' : songs.length + ' songs'; el.classList.add('ok'); }
+            else if (listState === 'error') { el.textContent = "Couldn't load the list. " + listError; el.classList.add('err'); }
+            else if (listState === 'done') {
+                el.textContent = (songs.length === 1 ? '1 song' : songs.length + ' songs') + (listError ? ". Couldn't refresh the list. " + listError : '');
+                el.classList.add(listError ? 'err' : 'ok');
+            }
             else el.textContent = '';
         }
         const input = document.getElementById('mSearchInput');
@@ -180,13 +185,14 @@ window.cloudMusic = (() => {
     function renderSearch(q, el, announce) {
         if (!el) return;
         shown = [];
-        if (listState === 'idle' || listState === 'loading') {
+        // A refresh of a list already here keeps showing it meanwhile
+        if (!songs.length && (listState === 'idle' || listState === 'loading')) {
             el.innerHTML = hint('Loading your Cloudflare songs…');
             load(false);
             return;
         }
         if (listState === 'error') {
-            el.innerHTML = hint("Couldn't load your Cloudflare songs (" + listError + '). Settings → Source → Reload list.');
+            el.innerHTML = hint("Couldn't load your Cloudflare songs. " + listError + ' Try Settings → Source → Reload list.');
             if (announce) announce('Loading failed');
             return;
         }
@@ -212,7 +218,8 @@ window.cloudMusic = (() => {
                 + '</button></div>';
         }).join('');
         if (n > MAX_ROWS) html += '<div class="m-search-hint m-search-hint-sm">Showing ' + MAX_ROWS + ' of ' + n + '. Type to narrow it down; Play all plays every one.</div>';
-        el.innerHTML = html;
+        // The library results' wrapper: the desktop Search page styles its rows by it
+        el.innerHTML = '<div class="m-sr-lib">' + html + '</div>';
         if (announce) announce(n === 1 ? '1 song' : n + ' songs');
     }
 
@@ -427,6 +434,10 @@ window.cloudMusic = (() => {
     syncStatus();
     if (cfg && source === 'cloud') load(false);
     else if (source === 'cloud') setSource('library');
+    // A query restored after a reload was searched by script.js before this
+    // file existed (library and YouTube): search it again here, once
+    // window.cloudMusic is set, which also cancels those pending searches.
+    Promise.resolve().then(() => { if (searchActive()) rerunSearch(); });
 
     function searchActive() { return !!cfg && source === 'cloud'; }
 
