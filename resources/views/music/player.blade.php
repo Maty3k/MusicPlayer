@@ -214,10 +214,12 @@
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>
                             <span>Appearance</span>
                         </button>
+                        @if ($cloudOn)
                         <button type="button" role="menuitem" data-dv-acct="source" aria-haspopup="dialog">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/></svg>
                             <span>Music source</span>
                         </button>
+                        @endif
                         <button type="button" role="menuitem" data-dv-acct="account" aria-haspopup="dialog">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>
                             <span>Account</span>
@@ -681,11 +683,13 @@
                     <span class="m-you-text"><b>Appearance</b><small>Room colors</small></span>
                     <svg class="m-you-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>
                 </button>
+                @if ($cloudOn)
                 <button type="button" class="m-you-row" data-m-you="source">
                     <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/></svg></span>
                     <span class="m-you-text"><b>Music source</b><small id="mYouSourceSub">Your playlists or Cloudflare</small></span>
                     <svg class="m-you-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>
                 </button>
+                @endif
                 <button type="button" class="m-you-row" data-m-you="account">
                     <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg></span>
                     <span class="m-you-text"><b>Account</b><small>{{ $acctHasLogin ? 'Name and password' : 'Your name' }}{{ $spotifyOn ? ', Spotify' : '' }}</small></span>
@@ -1963,16 +1967,18 @@
                 <h2 class="add-song-modal-title" id="settingsModalTitle">Settings</h2>
             </div>
 
-            <div class="settings-tabs" id="settingsTabs">
+            <div class="settings-tabs{{ $cloudOn ? ' with-source' : '' }}" id="settingsTabs">
                 <button type="button" class="settings-tab active" data-tab="playback" onclick="setSettingsTab('playback')">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>Playback
                 </button>
                 <button type="button" class="settings-tab" data-tab="appearance" onclick="setSettingsTab('appearance')">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>Appearance
                 </button>
+                @if ($cloudOn)
                 <button type="button" class="settings-tab" data-tab="source" onclick="setSettingsTab('source')">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/></svg>Source
                 </button>
+                @endif
                 <button type="button" class="settings-tab" data-tab="account" onclick="setSettingsTab('account')">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>Account
                 </button>
@@ -2067,22 +2073,19 @@
             </div>
             </div>
 
+            {{-- Only where the Cloudflare source is set up, like the menu item, the You row and the tab --}}
+            @if ($cloudOn)
             <div class="settings-panel" data-panel="source">
             <div class="settings-panel-scroll">
             <div class="add-song-form-group">
                 <label>Where Search finds songs</label>
                 <div class="settings-source-options" id="cloudSourceOptions">
                     <button type="button" class="settings-source-btn active" data-song-source="library" onclick="cloudMusic.setSource('library')">Your playlists</button>
-                    <button type="button" class="settings-source-btn" data-song-source="cloud" onclick="cloudMusic.setSource('cloud')" @if (! $cloudOn) disabled @endif>Cloudflare</button>
+                    <button type="button" class="settings-source-btn" data-song-source="cloud" onclick="cloudMusic.setSource('cloud')">Cloudflare</button>
                 </div>
-                @if ($cloudOn)
-                    <p class="settings-hint">Cloudflare plays your own MP3 and M4A files. They keep playing when the phone is locked or you switch apps. Your playlists work as before.</p>
-                @else
-                    <p class="settings-hint">Cloudflare isn't set up on this server yet (CLOUD_MUSIC_URL and CLOUD_MUSIC_TOKEN in .env).</p>
-                @endif
+                <p class="settings-hint">Cloudflare plays your own MP3 and M4A files. They keep playing when the phone is locked or you switch apps. Your playlists work as before.</p>
             </div>
 
-            @if ($cloudOn)
             <div class="add-song-form-group">
                 <label>Cloudflare library</label>
                 <div class="settings-status" id="cloudListStatus" role="status"></div>
@@ -2094,9 +2097,9 @@
                 <div class="settings-status" id="cloudUploadStatus" role="status" aria-live="polite"></div>
                 <p class="settings-hint">Uploads go one after another. Files already in the bucket are skipped.</p>
             </div>
+            </div>
+            </div>
             @endif
-            </div>
-            </div>
 
             <div class="settings-panel" data-panel="account">
             <div class="settings-panel-scroll">
@@ -2505,7 +2508,9 @@
     <script src="{{ asset('vendor/gif.js/gif.js') }}?v={{ filemtime(public_path('vendor/gif.js/gif.js')) }}" defer></script>
     <script src="{{ asset('js/player-debug.js') }}?v={{ filemtime(public_path('js/player-debug.js')) }}"></script>
     <script src="{{ asset('js/script.js') }}?v={{ filemtime(public_path('js/script.js')) }}"></script>
+    @if ($cloudOn)
     <script src="{{ asset('js/cloud-music.js') }}?v={{ filemtime(public_path('js/cloud-music.js')) }}"></script>
+    @endif
     <!-- Spotify Web Playback SDK (Premium streaming). Loaded after script.js so
          window.onSpotifyWebPlaybackSDKReady is defined before the SDK fires it. -->
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
