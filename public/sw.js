@@ -4,13 +4,13 @@
    Four caches:
    - SHELL   : the last successful render of "/" (per-user HTML) so the
                app can boot with no network. Only 200 responses whose
-               final URL is "/" are stored (never login redirects).
+               final URL is "/" are stored (never login redirects). Also
+               the last copy of the Cloudflare list, for offline Search.
    - MEDIA   : uploaded audio + covers the user explicitly saved via a
                playlist's "available offline" toggle (page code writes
                into this cache directly with window.caches).
    - CLOUD   : Cloudflare songs the user downloaded (cloud-music.js writes
-               them, keyed by each song's strictly encoded address), plus
-               the last copy of the Cloudflare list for offline use.
+               them, keyed by each song's strictly encoded address).
    - RUNTIME : static assets (css/js/vendor/icons) and cover images,
                cached as they're used.
 
@@ -154,26 +154,45 @@ async function serveCloudFile(req, url) {
     return sliceForRange(cached, req.headers.get('range'));
 }
 
-/* The Cloudflare list: fresh from the network, and kept. With no network,
-   or the server failing, the last copy, marked so the page knows it is
-   offline and offers only the downloaded songs. */
+/* The Cloudflare list: fresh from the network, and its last copy kept with
+   the app's page (so Remove downloads, which empties CLOUD_CACHE, leaves
+   it). When nothing gets through, the network takes too long, or the server
+   fails, that copy answers instead, saying which, so the page can offer the
+   downloaded songs and tell "you're offline" from "the server is down". */
+const LIST_TIMEOUT_MS = 12000;
 async function serveCloudList(req) {
-    const cache = await caches.open(CLOUD_CACHE);
     let res = null;
+    let why = 'offline';
     try {
-        res = await fetch(req);
-        if (res.ok) {
-            await cache.put('/cloud-music/list', res.clone());
-            return res;
+        const stop = new AbortController();
+        const timer = setTimeout(() => stop.abort(), LIST_TIMEOUT_MS);
+        try {
+            res = await fetch(req, { signal: stop.signal });
+        } finally {
+            clearTimeout(timer);
         }
-        if (res.status < 500) return res; // e.g. signed out: the page must know
     } catch (e) {
-        // no network: the copy below
+        why = e && e.name === 'AbortError' ? 'slow' : 'offline';
     }
-    const copy = await cache.match('/cloud-music/list', { ignoreVary: true });
+    if (res && res.ok) {
+        // A copy that can't be written must not cost the fresh answer
+        try { await (await caches.open(SHELL_CACHE)).put('/cloud-music/list', res.clone()); } catch (e) {}
+        return res;
+    }
+    if (res && res.status < 500) return res; // e.g. signed out: the page must know
+    let copy = null;
+    try { copy = await (await caches.open(SHELL_CACHE)).match('/cloud-music/list', { ignoreVary: true }); } catch (e) {}
     if (!copy) return res || Response.error();
     const headers = new Headers(copy.headers);
-    headers.set('X-Offline-Copy', '1');
+    headers.set('X-Offline-Copy', res ? 'server' : why); // offline | slow | server
+    if (res) {
+        headers.set('X-Upstream-Status', String(res.status));
+        // The server's own words (its errors are JSON: { error: "…" })
+        try {
+            const body = await res.clone().json();
+            if (body && typeof body.error === 'string') headers.set('X-Upstream-Error', encodeURIComponent(body.error.slice(0, 300)));
+        } catch (e) {}
+    }
     return new Response(copy.body, { status: 200, headers });
 }
 

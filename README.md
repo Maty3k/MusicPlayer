@@ -59,8 +59,9 @@ Settings → Source → **On this device** (Download all), the button on each
 Search row, or a playlist's Save for offline. They sit in the service
 worker's `cloud-v1` cache under each song's exact address, and `public/sw.js`
 plays them from there, ranges and all, together with the last copy of the
-list. Offline, Search and Next offer only the kept songs. Logging out
-removes them, like everything else the app keeps on a device.
+list. With no connection, or the server failing, Search and Next offer
+only the kept songs. Logging out removes them, like everything else the app
+keeps on a device.
 
 ## Deployment
 

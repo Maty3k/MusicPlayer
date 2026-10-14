@@ -9858,7 +9858,7 @@ async function toggleOfflinePlaylist() {
     btn.classList.add('offline-saving');
     const cache = await caches.open(OFFLINE_MEDIA_CACHE);
     const total = urls.length + cloudKeys.length;
-    let done = 0, failed = 0;
+    let done = 0, failed = 0, reason = '';
     for (const url of urls) {
         try {
             // ?dl=1 forces a same-origin full-file stream when uploads live
@@ -9874,9 +9874,13 @@ async function toggleOfflinePlaylist() {
         btn.title = `Saving for offline… ${done}/${total}`;
     }
     if (cloudKeys.length) {
-        // Songs already on this device count as saved
-        const got = await cloudMusic.downloadKeys(cloudKeys, (n) => { btn.title = `Saving for offline… ${done + n}/${total}`; });
+        // Songs already on this device count as saved (cloud-music.js downloads
+        // them in its own queue, so its Stop and status line cover this too)
+        const kept = cloudKeys.filter(k => cloudMusic.isKept(k)).length;
+        btn.title = `Saving for offline… ${done + kept}/${total}`;
+        const got = await cloudMusic.downloadKeys(cloudKeys, (n) => { btn.title = `Saving for offline… ${done + kept + n}/${total}`; });
         failed += got.total - got.done;
+        if (got.total > got.done) reason = got.stopped ? 'the download was stopped' : got.error;
     }
     btn.classList.remove('offline-saving');
     offlineSaving = false;
@@ -9884,7 +9888,7 @@ async function toggleOfflinePlaylist() {
     if (failed === 0) {
         setOfflinePlaylists([...saved, id]);
     } else {
-        alert(`Some files failed to download (${failed}/${total}). Try again while online.`);
+        alert(`${failed} of ${total} files couldn't be saved${reason ? ' (' + reason + ')' : ''}. Try again later.`);
     }
     updateOfflineButton();
 }
@@ -11646,12 +11650,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // A re-render keeps keyboard / TalkBack focus on the same row where it
     // can, and in the results otherwise (not on <body>).
-    const FOCUS_KEYS = ['lib', 'open', 'yt', 'add', 'link', 'playlist'];
+    const FOCUS_KEYS = ['lib', 'open', 'yt', 'add', 'link', 'playlist', 'cloud', 'cloudDl'];
     function keepingFocus(render) {
         const el = document.activeElement;
         const had = !!searchResultsEl && !!el && searchResultsEl.contains(el);
         const key = had && el.dataset ? FOCUS_KEYS.find((k) => el.dataset[k] !== undefined) : null;
-        const sel = key ? `[data-${key}="${el.dataset[key]}"]` : null;
+        // dataset names are camelCase, attributes kebab-case (cloudDl: data-cloud-dl)
+        const sel = key ? `[data-${key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())}="${el.dataset[key]}"]` : null;
         render();
         if (!had || searchResultsEl.contains(document.activeElement)) return;
         const next = (sel && searchResultsEl.querySelector(sel)) || searchResultsEl;
@@ -11729,7 +11734,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // and not only in runPageSearch: the desktop Search page and playlist
         // repaints draw the empty field without it (cloud-music.js).
         if (window.cloudMusic && cloudMusic.searchActive()) {
-            cloudMusic.renderSearch('', searchResultsEl);
+            keepingFocus(() => cloudMusic.renderSearch('', searchResultsEl));
             return;
         }
         const recent = loadRecentSearches();
@@ -11898,7 +11903,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Source = Cloudflare: search your own files instead (cloud-music.js).
         // A pasted YouTube or Spotify link still adds or imports as usual.
         if (window.cloudMusic && cloudMusic.searchActive() && !linkKind(q)) {
-            cloudMusic.renderSearch(q, searchResultsEl, announce);
+            keepingFocus(() => cloudMusic.renderSearch(q, searchResultsEl, announce));
             return;
         }
         if (!q) {
@@ -12565,7 +12570,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const cloud = offlineCloudKeys(list).length > 0;
             const uploads = list.some((s) => s.mp3_url && s.mp3_url.startsWith('/media/'));
             if (sub) sub.textContent = saved ? 'Saved on this phone'
-                : (cloud ? (uploads ? 'Keep the uploaded and Cloudflare songs on this phone' : 'Keep the Cloudflare songs on this phone') : 'Keep the uploaded songs on this phone');
+                : (cloud ? (uploads ? 'Keep its uploads and Cloudflare songs' : 'Keep its Cloudflare songs here') : 'Keep the uploaded songs on this phone');
         }
         disarmPlDelete();
     }

@@ -19516,3 +19516,6 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded {
 }
 html.dv2 #mSearchResults .m-sr-dl:hover { background: var(--dv-hover); color: var(--cream); }
 html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
+/* Settings → Source → On this device: a button that can't act now looks it,
+   but stays focusable (aria-disabled, not disabled) */
+.settings-source-btn[aria-disabled="true"] { opacity: 0.45; pointer-events: none; }
