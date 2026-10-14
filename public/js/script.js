@@ -9923,12 +9923,12 @@ document.addEventListener('submit', (e) => {
     if (path !== '/logout') return;
     e.preventDefault();
     form.dataset.wiped = '1';
+    try { localStorage.clear(); } catch (err) {}
+    try { sessionStorage.clear(); } catch (err) {}
     const wipe = (async () => {
         try {
             if ('caches' in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
         } catch (err) {}
-        try { localStorage.clear(); } catch (err) {}
-        try { sessionStorage.clear(); } catch (err) {}
     })();
     Promise.race([wipe, new Promise((done) => setTimeout(done, 500))]).then(() => form.submit(), () => form.submit());
 }, true);
