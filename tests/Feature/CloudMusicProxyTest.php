@@ -137,6 +137,47 @@ class CloudMusicProxyTest extends TestCase
             && $request->hasHeader('Range', 'bytes=0-9'));
     }
 
+    public function test_a_whole_file_the_worker_labels_206_goes_on_as_200_when_no_range_was_asked(): void
+    {
+        // The friend's Worker does this, and a browser won't keep a 206 for offline use
+        Http::fake([self::WORKER.'/file/*' => Http::response('0123456789', 206, ['Content-Range' => 'bytes 0-9/10', 'Content-Length' => '10'])]);
+        $user = User::factory()->create();
+
+        $whole = $this->actingAs($user)->get('/cloud-music/file?key=song.mp3');
+
+        $whole->assertOk()->assertHeaderMissing('Content-Range')->assertHeader('Content-Length', '10');
+        $this->assertSame('0123456789', $whole->streamedContent());
+        // Asked for a range, the 206 stays
+        $this->actingAs($user)->get('/cloud-music/file?key=song.mp3', ['Range' => 'bytes=0-'])
+            ->assertStatus(206)->assertHeader('Content-Range', 'bytes 0-9/10');
+    }
+
+    public function test_a_whole_file_206_stays_a_206_when_a_range_came_even_one_that_was_dropped(): void
+    {
+        Http::fake([self::WORKER.'/file/*' => Http::response('0123456789', 206, ['Content-Range' => 'bytes 0-9/10', 'Content-Length' => '10'])]);
+
+        // Two ranges at once aren't passed on, but the answer is still to a Range request
+        $this->actingAs(User::factory()->create())->get('/cloud-music/file?key=song.mp3', ['Range' => 'bytes=0-1,5-9'])
+            ->assertStatus(206)->assertHeader('Content-Range', 'bytes 0-9/10');
+        Http::assertSent(fn (WorkerRequest $request) => ! $request->hasHeader('Range'));
+    }
+
+    public function test_a_206_whose_total_is_unknown_is_passed_on_as_it_is(): void
+    {
+        Http::fake([self::WORKER.'/file/*' => Http::response('0123456789', 206, ['Content-Range' => 'bytes 0-9/*'])]);
+
+        $this->actingAs(User::factory()->create())->get('/cloud-music/file?key=song.mp3')
+            ->assertStatus(206)->assertHeader('Content-Range', 'bytes 0-9/*');
+    }
+
+    public function test_a_206_for_only_part_of_the_file_is_passed_on_as_it_is(): void
+    {
+        Http::fake([self::WORKER.'/file/*' => Http::response('01234', 206, ['Content-Range' => 'bytes 0-4/10', 'Content-Length' => '5'])]);
+
+        $this->actingAs(User::factory()->create())->get('/cloud-music/file?key=song.mp3')
+            ->assertStatus(206)->assertHeader('Content-Range', 'bytes 0-4/10');
+    }
+
     public function test_an_odd_range_is_not_passed_on(): void
     {
         Http::fake([self::WORKER.'/file/*' => Http::response('whole file', 200, ['Content-Length' => '10'])]);

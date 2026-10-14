@@ -1280,6 +1280,8 @@ function addRadioSidebarItem(song) {
     if (!songList || !listIsPlaying()) return;
     const li = document.createElement('li');
     li.className = 'song-list-item radio-song-item active';
+    // As for the playlist's own rows: offline, only non-MP3 rows grey out
+    li.dataset.src = song.mp3_url ? 'mp3' : (song.youtube_id ? 'yt' : 'spotify');
     const radioCover = safeUrl(song.cover);
     // A Cloudflare song (cloud-music.js) gets no "add to playlist": that path
     // only stores YouTube songs. Here, so every re-render keeps it that way.
@@ -9803,6 +9805,38 @@ function offlineUrlsForActivePlaylist(songs = listSongs()) {
     return [...urls];
 }
 
+/** A playlist's Cloudflare songs, by key: cloud-music.js keeps those in its own cache. */
+function offlineCloudKeys(songs = listSongs()) {
+    if (!window.cloudMusic) return [];
+    return [...new Set(songs.map(s => (s && s.mp3_url ? cloudMusic.keyOf(s.mp3_url) : null)).filter(k => k !== null))];
+}
+
+/** How many of a playlist's Cloudflare songs aren't on this device: Remove
+    downloads, or a song let go of in Search, takes them away while the
+    playlist stays saved (and can still be removed). */
+function offlineMissing(songs = listSongs()) {
+    return offlineCloudKeys(songs).filter(k => !cloudMusic.isKept(k)).length;
+}
+
+/** After something is saved for offline: the app itself must start with no
+    connection too. sw.js stores the page and its files, which a first visit
+    (or the first after logging in) didn't go through it for. */
+function keepAppForOffline() {
+    try {
+        const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+        if (!sw) return;
+        const urls = [...document.querySelectorAll('script[src], link[rel="stylesheet"][href], link[rel="manifest"][href]')]
+            .map((el) => el.src || el.href);
+        sw.postMessage({ type: 'keep-app', urls });
+    } catch (e) {}
+}
+
+/** Whether a song can be kept for offline: an upload, or a Cloudflare song. */
+function songCanBeOffline(s) {
+    if (!s || !s.mp3_url) return false;
+    return s.mp3_url.startsWith('/media/') || !!(window.cloudMusic && cloudMusic.keyOf(s.mp3_url) !== null);
+}
+
 // A save in progress (the phone menu can be reopened meanwhile).
 let offlineSaving = false;
 
@@ -9826,41 +9860,59 @@ async function toggleOfflinePlaylist() {
         for (const url of offlineUrlsForActivePlaylist(songs)) {
             await cache.delete(url, { ignoreSearch: true });
         }
+        // Its Cloudflare songs stay: Download all, a Search row or another
+        // playlist may have kept them too. Settings → Source removes them.
         setOfflinePlaylists(saved.filter(x => x !== id));
         updateOfflineButton();
         return;
     }
 
     const urls = offlineUrlsForActivePlaylist(songs);
-    if (urls.length === 0) {
-        alert('Nothing here can be saved for offline.\n\nOnly uploaded songs (and MP3s hosted on this app) play offline — YouTube and Spotify tracks always need a connection.');
+    const cloudKeys = offlineCloudKeys(songs);
+    if (urls.length === 0 && cloudKeys.length === 0) {
+        alert('Nothing here can be saved for offline.\n\nOnly uploaded songs, Cloudflare songs and MP3s hosted on this app play offline — YouTube and Spotify tracks always need a connection.');
         return;
     }
 
     offlineSaving = true;
     btn.classList.add('offline-saving');
     const cache = await caches.open(OFFLINE_MEDIA_CACHE);
-    let done = 0, failed = 0;
+    const total = urls.length + cloudKeys.length;
+    let done = 0, failed = 0, reason = '';
     for (const url of urls) {
         try {
             // ?dl=1 forces a same-origin full-file stream when uploads live
             // on a bucket (normal playback 302s to a signed URL, which the
             // Cache API can't store usefully). Cache under the clean URL so
-            // the service worker matches <audio> requests.
+            // the service worker matches <audio> requests. A redirect means
+            // the session ended: that's the login page, not the song.
             const res = await fetch(url + '?dl=1');
-            if (res.ok) await cache.put(url, res);
+            if (res.ok && !res.redirected) await cache.put(url, res);
             else failed++;
         } catch (e) { failed++; }
         done++;
-        btn.title = `Saving for offline… ${done}/${urls.length}`;
+        btn.title = `Saving for offline… ${done}/${total}`;
+    }
+    if (cloudKeys.length) {
+        // Songs already on this device count as saved (cloud-music.js downloads
+        // them in its own queue, so its Stop and status line cover this too)
+        const kept = cloudKeys.filter(k => cloudMusic.isKept(k)).length;
+        btn.title = `Saving for offline… ${done + kept}/${total}`;
+        const got = await cloudMusic.downloadKeys(cloudKeys, (n) => { btn.title = `Saving for offline… ${done + kept + n}/${total}`; });
+        // What the device holds now, not the run's own count: Stop, Remove
+        // downloads or another run may have dropped some of these songs
+        const missing = cloudKeys.filter(k => !cloudMusic.isKept(k)).length;
+        failed += missing;
+        if (missing) reason = got.stopped ? 'the download was stopped' : got.error;
     }
     btn.classList.remove('offline-saving');
     offlineSaving = false;
 
     if (failed === 0) {
-        setOfflinePlaylists([...saved, id]);
+        setOfflinePlaylists([...saved.filter(x => x !== id), id]);
+        keepAppForOffline();
     } else {
-        alert(`Some files failed to download (${failed}/${urls.length}). Try again while online.`);
+        alert(`${failed} of ${total} files couldn't be saved${reason ? ' (' + reason + ')' : ''}. Try again later.`);
     }
     updateOfflineButton();
 }
@@ -9869,11 +9921,13 @@ function updateOfflineButton() {
     const btn = document.getElementById('offlineBtn');
     if (!btn) return;
     const isSaved = getOfflinePlaylists().includes(listId());
+    const missing = isSaved ? offlineMissing() : 0;
     btn.classList.toggle('offline-saved', isSaved);
-    btn.title = isSaved ? 'Saved for offline — tap to remove' : 'Save playlist for offline';
+    btn.title = !isSaved ? 'Save playlist for offline'
+        : (missing ? `Saved for offline, but ${missing === 1 ? '1 song is' : missing + ' songs are'} no longer on this device — tap to remove` : 'Saved for offline — tap to remove');
 
-    // Only meaningful for playlists that contain uploaded/MP3 songs
-    const hasOfflinable = listSongs().some(s => s.mp3_url && s.mp3_url.startsWith('/media/'));
+    // Only meaningful for playlists that contain uploaded or Cloudflare songs
+    const hasOfflinable = listSongs().some(songCanBeOffline);
     btn.style.display = (hasOfflinable || isSaved) ? '' : 'none';
 }
 
@@ -9883,6 +9937,27 @@ function applyOnlineState() {
 }
 window.addEventListener('online', applyOnlineState);
 window.addEventListener('offline', applyOnlineState);
+
+// Logging out: the server's Clear-Site-Data empties this device's caches and
+// storage (downloaded songs included). Where a browser ignores that header,
+// empty them here first, but never hold the logout up for long.
+document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement) || form.dataset.wiped) return;
+    let path = '';
+    try { path = new URL(form.action, location.href).pathname; } catch (err) { return; }
+    if (path !== '/logout') return;
+    e.preventDefault();
+    form.dataset.wiped = '1';
+    try { localStorage.clear(); } catch (err) {}
+    try { sessionStorage.clear(); } catch (err) {}
+    const wipe = (async () => {
+        try {
+            if ('caches' in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+        } catch (err) {}
+    })();
+    Promise.race([wipe, new Promise((done) => setTimeout(done, 500))]).then(() => form.submit(), () => form.submit());
+}, true);
 
 document.addEventListener('DOMContentLoaded', () => {
     applyOnlineState();
@@ -11601,12 +11676,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // A re-render keeps keyboard / TalkBack focus on the same row where it
     // can, and in the results otherwise (not on <body>).
-    const FOCUS_KEYS = ['lib', 'open', 'yt', 'add', 'link', 'playlist'];
+    const FOCUS_KEYS = ['lib', 'open', 'yt', 'add', 'link', 'playlist', 'cloud', 'cloudDl', 'cloudAll'];
+    const cssString = (v) => (window.CSS && CSS.escape ? CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&'));
     function keepingFocus(render) {
         const el = document.activeElement;
         const had = !!searchResultsEl && !!el && searchResultsEl.contains(el);
         const key = had && el.dataset ? FOCUS_KEYS.find((k) => el.dataset[k] !== undefined) : null;
-        const sel = key ? `[data-${key}="${el.dataset[key]}"]` : null;
+        // dataset names are camelCase, attributes kebab-case (cloudDl: data-cloud-dl)
+        const attr = key ? 'data-' + key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()) : '';
+        // A Cloudflare row by its song: its index changes when the list does
+        const sel = !key ? null
+            : (el.dataset.cloudKey !== undefined ? `[${attr}][data-cloud-key="${cssString(el.dataset.cloudKey)}"]`
+                : `[${attr}="${el.dataset[key]}"]`);
         render();
         if (!had || searchResultsEl.contains(document.activeElement)) return;
         const next = (sel && searchResultsEl.querySelector(sel)) || searchResultsEl;
@@ -11684,7 +11765,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // and not only in runPageSearch: the desktop Search page and playlist
         // repaints draw the empty field without it (cloud-music.js).
         if (window.cloudMusic && cloudMusic.searchActive()) {
-            cloudMusic.renderSearch('', searchResultsEl);
+            keepingFocus(() => cloudMusic.renderSearch('', searchResultsEl));
             return;
         }
         const recent = loadRecentSearches();
@@ -11853,7 +11934,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Source = Cloudflare: search your own files instead (cloud-music.js).
         // A pasted YouTube or Spotify link still adds or imports as usual.
         if (window.cloudMusic && cloudMusic.searchActive() && !linkKind(q)) {
-            cloudMusic.renderSearch(q, searchResultsEl, announce);
+            keepingFocus(() => cloudMusic.renderSearch(q, searchResultsEl, announce));
             return;
         }
         if (!q) {
@@ -12507,17 +12588,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const queueSub = document.getElementById('mPlSheetQueueSub');
         const queued = typeof playQueue !== 'undefined' && Array.isArray(playQueue) ? playQueue.length : 0;
         if (queueSub) queueSub.textContent = queued ? (queued === 1 ? '1 song queued' : queued + ' songs queued') : 'Nothing queued';
-        // Offline only works for uploaded songs (YouTube and Spotify always stream).
+        // Offline only works for uploaded and Cloudflare songs (YouTube and Spotify always stream).
         const offlineRow = plRow('offline');
         if (offlineRow) {
             const saved = getOfflinePlaylists().includes(listId());
-            const offlinable = count > 0 && list.some((s) => s.mp3_url && s.mp3_url.startsWith('/media/'));
+            const offlinable = count > 0 && list.some(songCanBeOffline);
             const saving = typeof offlineSaving !== 'undefined' && offlineSaving;
             offlineRow.hidden = !('caches' in window) || !(saved || offlinable || saving);
             offlineRow.disabled = saving;
             offlineRow.querySelector('b').textContent = saving ? 'Saving for offline…' : (saved ? 'Remove download' : 'Save for offline');
             const sub = document.getElementById('mPlSheetOfflineSub');
-            if (sub) sub.textContent = saved ? 'Saved on this phone' : 'Keep the uploaded songs on this phone';
+            const cloud = offlineCloudKeys(list).length > 0;
+            const uploads = list.some((s) => s.mp3_url && s.mp3_url.startsWith('/media/'));
+            if (sub) sub.textContent = saved ? (offlineMissing(list) ? 'Some songs are no longer on this phone' : 'Saved on this phone')
+                : (cloud ? (uploads ? 'Keep its uploads and Cloudflare songs' : 'Keep its Cloudflare songs here') : 'Keep the uploaded songs on this phone');
         }
         disarmPlDelete();
     }
@@ -12583,11 +12667,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function offlineFromMenu() {
         const id = listId();
+        const songs = listSongs(); // the playlist being saved, whatever is on screen when it ends
         const wasSaved = getOfflinePlaylists().includes(id);
         if (!wasSaved) window.mToast('Saving for offline…');
         await toggleOfflinePlaylist();
         const nowSaved = getOfflinePlaylists().includes(id);
-        if (nowSaved !== wasSaved) window.mToast(nowSaved ? 'Saved for offline' : 'Download removed');
+        if (nowSaved !== wasSaved) {
+            window.mToast(nowSaved ? 'Saved for offline'
+                : (offlineCloudKeys(songs).some(k => cloudMusic.isKept(k)) ? 'Download removed. Its Cloudflare songs stay on this phone (Settings → Source).' : 'Download removed'));
+        }
     }
 
     if (plSheet) {
@@ -14417,11 +14505,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const count = listLoading() ? 0 : songs.length;
             const reorder = item('reorder');
             if (reorder) reorder.hidden = count < 2;
-            // Offline only works for uploaded songs (YouTube and Spotify stream)
+            // Offline only works for uploaded and Cloudflare songs (YouTube and Spotify stream)
             const offline = item('offline');
             if (offline) {
                 const saved = getOfflinePlaylists().includes(listId());
-                const offlinable = count > 0 && songs.some((s) => s.mp3_url && s.mp3_url.startsWith('/media/'));
+                const offlinable = count > 0 && songs.some(songCanBeOffline);
                 const saving = typeof offlineSaving !== 'undefined' && offlineSaving;
                 offline.hidden = !('caches' in window) || !(saved || offlinable || saving);
                 offline.disabled = saving;

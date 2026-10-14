@@ -12,6 +12,11 @@
 // (playNextByLoop → step), which is what keeps a locked iPhone playing.
 // No crackle or record animation is awaited on that path.
 //
+// Songs can be kept on the device (Settings → Source, or the button on each
+// Search row): they go into the service worker's 'cloud-v1' cache, and
+// sw.js plays them from there, also with no connection. Offline, or with
+// the songs out of reach, Search and Next offer only those.
+//
 // Loaded after script.js and uses its globals (ytPlayer, currentRadioSong,
 // playSongSource, …).
 // ============================================================
@@ -21,6 +26,9 @@ window.cloudMusic = (() => {
     const SOURCE_KEY = 'songSource';
     const MAX_ROWS = 200;
     const NOTE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>';
+    const DOWN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>';
+    const CHECK = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    const SPIN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>';
 
     let source = 'library';
     try { if (localStorage.getItem(SOURCE_KEY) === 'cloud' && cfg) source = 'cloud'; } catch (e) {}
@@ -36,6 +44,25 @@ window.cloudMusic = (() => {
     let history = [];        // indexes played before (Back while shuffled)
     let shown = [];          // the rows on screen in Search
     let audioHooked = false;
+
+    // On this device (see "On this device" below)
+    const OFFLINE_CACHE = 'cloud-v1';          // sw.js serves it
+    const RETRY_FIRST = 30 * 1000;             // asking again for a list out of reach…
+    const RETRY_MAX = 15 * 60 * 1000;          // …backing off up to this
+    const canKeep = typeof caches !== 'undefined' && 'serviceWorker' in navigator;
+    let downloaded = new Set();  // keys kept on this device
+    let runs = new Set();        // download runs waiting or going: { want, keys, stopped, why }
+    let batch = null;            // the run going: { run, done, total, current }
+    let queue = Promise.resolve(); // runs go one after another
+    let reach = 'network';       // where the list came from: network | offline | server
+    let reachError = '';         // why the server couldn't be reached (reach = server)
+    let lastTry = 0;             // when the list was last asked for, or answered
+    let retryTimer = null;
+    let retryDelay = RETRY_FIRST;
+    let note = '';               // how the last run ended, one sentence
+    let noteIsError = false;
+    // The app's other tabs: Remove downloads there stops a run here
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('cloud-music') : null;
 
     // ---- URLs ----
     // A song's address: the same for the same file, and no token in it, so
@@ -91,6 +118,7 @@ window.cloudMusic = (() => {
             mp3_url: fileUrl(item.key),
             cloud_key: item.key,
             _search: String(item.key).toLowerCase(),
+            _size: Number(item.size) || 0,
         };
     }
 
@@ -100,6 +128,7 @@ window.cloudMusic = (() => {
         if (loading) return loading;
         if (!force && listState === 'done') return Promise.resolve(songs);
         listState = 'loading';
+        lastTry = Date.now();
         syncStatus();
         loading = fetch('/cloud-music/list', { cache: 'no-store', headers: { Accept: 'application/json' } })
             .then((res) => res.json().catch(() => null).then((data) => {
@@ -107,25 +136,53 @@ window.cloudMusic = (() => {
                 if (!res.ok || !data || !Array.isArray(data.songs)) {
                     throw new Error((data && (data.error || data.message)) || 'The server answered ' + res.status + '.');
                 }
-                return data.songs;
+                // When nothing gets through, the network is too slow or the
+                // server fails, the service worker answers with its last copy
+                // and says which (sw.js)
+                const copy = res.headers.get('X-Offline-Copy');
+                // Nothing reached the server (the device's own connection failed): such
+                // tries cost none of the day's allowance, so no long back-off for them
+                if (copy === 'offline') retryDelay = Math.min(retryDelay, RETRY_FIRST);
+                let why = '';
+                if (copy === 'server') {
+                    try { why = decodeURIComponent(res.headers.get('X-Upstream-Error') || ''); } catch (e) {}
+                    if (!why) why = 'The server answered ' + (res.headers.get('X-Upstream-Status') || 'with an error') + '.';
+                } else if (copy === 'slow') {
+                    why = "The server didn't answer in time.";
+                } else if (copy === 'offline' && navigator.onLine !== false) {
+                    // Nothing got through, but the phone has a connection: the site is out of reach
+                    why = 'No connection to the server.';
+                }
+                const from = !copy ? 'network' : (copy === 'offline' && navigator.onLine === false ? 'offline' : 'server');
+                return { list: data.songs, from, why };
             }))
-            .then((list) => {
+            .then(({ list, from, why }) => {
                 songs = list
                     .filter((it) => it && typeof it.key === 'string' && Number(it.size) > 0) // size 0 = failed upload
                     .map(toSong)
                     .sort((a, b) => (a.artist + ' ' + a.title).localeCompare(b.artist + ' ' + b.title, undefined, { sensitivity: 'base' }));
                 listState = 'done';
                 listError = '';
-                loadedAt = Date.now();
+                reach = from;
+                reachError = why;
+                loadedAt = from === 'network' ? Date.now() : 0; // a copy is replaced at the first chance
             })
             .catch((e) => {
                 // A TypeError is fetch itself failing: no connection
                 listError = e instanceof TypeError ? 'No connection to the server.' : ((e && e.message) || 'Something went wrong.');
-                // A failed refresh keeps the list it had; only the status line says so
+                if (e instanceof TypeError) retryDelay = Math.min(retryDelay, RETRY_FIRST);
+                // A failed refresh keeps the list it had; only the status line
+                // says so. Its songs can't stream now, though: offer the kept ones
                 listState = songs.length ? 'done' : 'error';
+                if (songs.length) {
+                    reach = navigator.onLine === false ? 'offline' : 'server';
+                    reachError = listError;
+                }
             })
+            .then(scheduleRetry)
             .finally(() => {
                 loading = null;
+                lastTry = Date.now(); // a retry counts from the answer, however long it took
                 syncStatus();
                 if (searchActive()) rerunSearch();
             })
@@ -161,6 +218,7 @@ window.cloudMusic = (() => {
             input.placeholder = source === 'cloud' ? 'Search your Cloudflare songs' : 'Songs, artists or a link';
             input.setAttribute('aria-label', source === 'cloud' ? 'Search your Cloudflare songs' : 'Search your library and YouTube');
         }
+        syncOffline();
     }
 
     function setSource(next) {
@@ -196,26 +254,45 @@ window.cloudMusic = (() => {
             if (announce) announce('Loading failed');
             return;
         }
-        const hits = filter(q);
+        // The server can't be reached and the phone says it's online: try again now and then
+        if (reach !== 'network' && navigator.onLine !== false && listState !== 'loading' && Date.now() - lastTry > 15000) load(true);
+        // Offline, or with the server failing, only the songs on this device can play
+        const limited = cantStream();
+        const why = isOffline() ? "You're offline" : "The Cloudflare songs can't be reached right now" + (reachError ? ' (' + reachError.replace(/\.$/, '') + ')' : '');
+        const hits = limited ? filter(q).filter((s) => downloaded.has(s.cloud_key)) : filter(q);
         shown = hits;
         if (!hits.length) {
-            el.innerHTML = hint(q ? 'No Cloudflare song matches “' + q + '”.' : 'No songs in the bucket yet.');
+            let text = q ? 'No Cloudflare song matches “' + q + '”.' : 'No songs in the bucket yet.';
+            if (limited && !downloaded.size) text = why + ', and no Cloudflare songs are on this device. Download them in Settings → Source when they can be reached.';
+            else if (limited) text = q ? 'No song on this device matches “' + q + '”.' : 'No Cloudflare songs on this device.';
+            el.innerHTML = hint(text);
             if (announce) announce('No songs found');
             return;
         }
         const n = hits.length;
         const playing = currentRadioSong && currentRadioSong.cloud_key;
-        let html = '<div class="m-search-section"><h2 class="m-search-heading">' + (q ? 'From Cloudflare' : 'Your Cloudflare songs') + '</h2>'
+        let html = (limited ? '<div class="m-search-hint m-search-hint-sm">' + escapeHtml(why + ': these are the songs on this device.') + '</div>' : '')
+            + '<div class="m-search-section"><h2 class="m-search-heading">' + (limited ? 'On this device' : (q ? 'From Cloudflare' : 'Your Cloudflare songs')) + '</h2>'
             + '<span class="m-search-count" aria-hidden="true">' + (n === 1 ? '1 song' : n + ' songs') + '</span>'
             + '<button type="button" class="m-search-clear-all" data-cloud-all>Play all</button></div>';
         html += hits.slice(0, MAX_ROWS).map((s, i) => {
             const artist = s.artist ? '<span class="search-result-artist">' + escapeHtml(s.artist) + '</span>' : '';
             const active = playing === s.cloud_key ? ' is-playing' : '';
+            const here = downloaded.has(s.cloud_key);
+            const busy = isPending(s.cloud_key);
+            // Which song, so focus stays on its row when the list is drawn again (script.js keepingFocus)
+            const key = ' data-cloud-key="' + escapeHtml(s.cloud_key) + '"';
+            // Keep it on this device: a toggle (pressed = kept, or on its way)
+            const keep = canKeep
+                ? '<button type="button" class="m-sr-dl' + (here ? ' is-downloaded' : '') + (busy ? ' is-busy' : '') + '" data-cloud-dl="' + i + '"' + key + ' data-icon="' + (busy ? 'busy' : (here ? 'kept' : 'get')) + '"'
+                    + ' aria-pressed="' + (here || busy) + '" aria-busy="' + busy + '" aria-label="Keep ' + escapeHtml(s.title) + (s.artist ? ' by ' + escapeHtml(s.artist) : '') + ' on this device">'
+                    + (busy ? SPIN : (here ? CHECK : DOWN)) + '</button>'
+                : '';
             return '<div class="m-sr-row' + active + '">'
-                + '<button type="button" class="search-result" data-cloud="' + i + '" aria-label="Play ' + escapeHtml(s.title) + (s.artist ? ' by ' + escapeHtml(s.artist) : '') + '">'
+                + '<button type="button" class="search-result" data-cloud="' + i + '"' + key + ' aria-label="Play ' + escapeHtml(s.title) + (s.artist ? ' by ' + escapeHtml(s.artist) : '') + '">'
                 + '<div class="search-result-cover search-result-cover-empty">' + NOTE + '</div>'
                 + '<span class="search-result-info"><span class="search-result-title">' + escapeHtml(s.title) + '</span>' + artist + '</span>'
-                + '</button></div>';
+                + '</button>' + keep + '</div>';
         }).join('');
         if (n > MAX_ROWS) html += '<div class="m-search-hint m-search-hint-sm">Showing ' + MAX_ROWS + ' of ' + n + '. Type to narrow it down; Play all plays every one.</div>';
         // The library results' wrapper: the desktop Search page styles its rows by it
@@ -225,6 +302,12 @@ window.cloudMusic = (() => {
 
     function onResultsClick(e) {
         if (!searchActive()) return;
+        const keep = e.target.closest('[data-cloud-dl]');
+        if (keep) {
+            const s = shown[parseInt(keep.dataset.cloudDl, 10)];
+            if (s) toggleSong(s.cloud_key);
+            return;
+        }
         const t = e.target.closest('[data-cloud], [data-cloud-all]');
         if (!t) return;
         const list = shown.slice();
@@ -274,6 +357,7 @@ window.cloudMusic = (() => {
     }
 
     // Next (dir 1) or back (dir -1) through the list the song came from.
+    // Offline (or with the server failing), only through the songs on this device.
     function step(dir, byUser) {
         if (!order.length) order = songs.slice();
         const cur = currentRadioSong && currentRadioSong.cloud_key;
@@ -283,26 +367,43 @@ window.cloudMusic = (() => {
         }
         const n = order.length;
         if (!n) return;
+        const limited = cantStream();
+        const playable = (i) => !limited || downloaded.has(order[i].cloud_key);
+        // The first playable index from `from` going `d`, wrapping round or
+        // stopping at the end; -1 when there is none
+        const walk = (from, d, wrap) => {
+            for (let k = 1; k <= n; k++) {
+                const i = from + d * k;
+                if (!wrap && (i < 0 || i >= n)) return -1;
+                const j = ((i % n) + n) % n;
+                if (playable(j)) return j;
+            }
+            return -1;
+        };
+        const from = pos >= 0 ? pos : (dir < 0 ? n : -1);
         const shuffled = typeof shuffleMode !== 'undefined' && shuffleMode !== 'off';
-        let next;
+        let next = -1;
         if (dir < 0) {
             // A few seconds in, Back restarts the song (like every player)
             if (ytPlayer && ytPlayer.getCurrentTime && ytPlayer.getCurrentTime() > 3) { restartSong(); return; }
-            if (shuffled && history.length) next = history.pop();
-            else next = pos <= 0 ? n - 1 : pos - 1;
+            while (shuffled && next < 0 && history.length) {
+                const h = history.pop();
+                if (h < n && playable(h)) next = h;
+            }
+            if (next < 0) next = walk(from, -1, true);
         } else {
             if (shuffled && n > 1) {
-                do { next = Math.floor(Math.random() * n); } while (next === pos);
-            } else if (pos + 1 >= n) {
-                // Loop off: the list played through, stop (a tap on Next still wraps)
-                if (!byUser && typeof loopMode !== 'undefined' && loopMode === 'off') return;
-                next = 0;
+                const pool = [];
+                for (let i = 0; i < n; i++) if (i !== pos && playable(i)) pool.push(i);
+                next = pool.length ? pool[Math.floor(Math.random() * pool.length)] : walk(from, 1, true);
             } else {
-                next = pos + 1;
+                // Loop off: the list played through, stop (a tap on Next still wraps)
+                next = walk(from, 1, byUser || typeof loopMode === 'undefined' || loopMode !== 'off');
             }
-            if (pos >= 0) history.push(pos);
+            if (next >= 0 && pos >= 0) history.push(pos);
             if (history.length > 100) history.shift();
         }
+        if (next < 0) return;
         start(order, next, byUser);
     }
 
@@ -333,6 +434,13 @@ window.cloudMusic = (() => {
         audioHooked = true;
         const a = mp3PlayerProxy._audio;
         ['loadedmetadata', 'durationchange', 'seeked', 'play', 'pause', 'ratechange'].forEach((ev) => a.addEventListener(ev, positionState));
+        // A song failed to load while the songs count as reachable (a weak or
+        // captive connection, the server down): check the list again, so Next
+        // and a song's end pick songs that can play. Whichever song it was:
+        // script.js's own handler runs first and has already moved on.
+        a.addEventListener('error', () => {
+            if (isPlaying() && reach === 'network' && listState !== 'loading') load(true);
+        });
     }
 
     // ---- Upload (optional extra) ----
@@ -415,11 +523,480 @@ window.cloudMusic = (() => {
         });
     }
 
+    // ---- On this device ----
+    // A kept song sits in the service worker's 'cloud-v1' cache under its
+    // strictly encoded address, and sw.js plays it from there, with or
+    // without a connection. Logging out empties it like everything else a
+    // shared device could keep (Clear-Site-Data, and script.js's own wipe).
+    function keyOf(url) {
+        try {
+            const u = new URL(url, location.origin);
+            return u.origin === location.origin && u.pathname === '/cloud-music/file' ? u.searchParams.get('key') : null;
+        } catch (e) { return null; }
+    }
+    const sizeOf = (list) => list.reduce((t, s) => t + (s._size || 0), 0);
+    const size = (bytes) => (bytes >= 1073741824 ? (bytes / 1073741824).toFixed(1) + ' GB'
+        : (bytes < 1048576 ? 'under 1 MB' : Math.round(bytes / 1048576) + ' MB'));
+    const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
+    // No connection at all: the phone says so, or the list came from its copy
+    function isOffline() { return navigator.onLine === false || reach === 'offline'; }
+    // The songs can't come from the server now: offline, or the server failing
+    function cantStream() { return isOffline() || reach === 'server'; }
+
+    // The list came from the copy: ask again in a while, as long as the page
+    // is in view, the phone thinks it is online and the songs are wanted
+    // (Search on Cloudflare, or one playing). Each retry that doesn't get
+    // through waits twice as long, up to 15 minutes, so an outage can't use
+    // up the day's allowance of list requests (AppServiceProvider).
+    function scheduleRetry() {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+        if (reach === 'network') {
+            retryDelay = RETRY_FIRST;
+            return;
+        }
+        retryTimer = setTimeout(() => {
+            retryTimer = null;
+            if (!document.hidden && navigator.onLine !== false && listState !== 'loading' && (searchActive() || isPlaying())) {
+                retryDelay = Math.min(retryDelay * 2, RETRY_MAX);
+                load(true);
+            } else {
+                scheduleRetry();
+            }
+        }, retryDelay);
+    }
+
+    // What the cache really holds (another tab, the browser or a logout can
+    // change it). Resolves true when that changed.
+    function refreshDownloaded() {
+        if (!canKeep) return Promise.resolve(false);
+        return caches.open(OFFLINE_CACHE)
+            .then((cache) => cache.keys())
+            .then((reqs) => {
+                const next = new Set(reqs.map((r) => keyOf(r.url)).filter((k) => k !== null));
+                const changed = next.size !== downloaded.size || [...next].some((k) => !downloaded.has(k));
+                downloaded = next;
+                return changed;
+            })
+            .catch(() => false)
+            .then((changed) => {
+                syncOffline();
+                markRows();
+                if (changed && cantStream() && searchActive()) rerunSearch();
+                // A playlist counts as saved for offline only with its songs here (script.js)
+                if (changed && typeof updateOfflineButton === 'function') updateOfflineButton();
+                return changed;
+            });
+    }
+
+    // Runs go one after another, whoever starts them (Download all, a row's
+    // button, a playlist's Save for offline), so one Stop and one status
+    // line cover all of them.
+    function enqueue(job) {
+        const run = queue.then(job, job);
+        queue = run.catch(() => {});
+        return run;
+    }
+
+    // Waiting to come, or coming. Each run holds its own keys, so one run
+    // letting go of a song never takes it from another that wants it too;
+    // once any run kept it, it is here, not on its way.
+    function isPending(key) {
+        if (downloaded.has(key)) return false;
+        for (const run of runs) if (run.keys.has(key)) return true;
+        return false;
+    }
+
+    // Stop ('stop': the song that is coming still comes) or Remove downloads
+    // ('removed'): every run ends, the ones waiting too
+    function stopRuns(why) {
+        runs.forEach((run) => {
+            run.stopped = true;
+            run.why = why;
+            const coming = why === 'stop' && batch && batch.run === run && run.keys.has(batch.current) ? batch.current : null;
+            run.keys = new Set(coming ? [coming] : []);
+        });
+    }
+
+    // Download songs by key, skipping those already here. onEach(done, total)
+    // after each. Resolves to { done, total, dropped, stopped, why, error }:
+    // total counts the songs that weren't here, done those that came, dropped
+    // those let go of meanwhile; error is a short reason ("no connection to
+    // the server") when some didn't come. Also used by a playlist's Save for
+    // offline (script.js).
+    async function downloadKeys(keys, onEach) {
+        const unique = [...new Set(keys)];
+        // All here already? Ask the cache itself before saying so (another tab may have emptied it)
+        if (unique.every((k) => downloaded.has(k))) await refreshDownloaded();
+        const want = unique.filter((k) => !downloaded.has(k));
+        const out = { done: 0, total: want.length, dropped: 0, stopped: false, why: '', error: '' };
+        if (!want.length) return out; // nothing to wait behind another run for
+        if (!canKeep) return { ...out, error: "this browser can't keep songs on the device" };
+        const run = { want, keys: new Set(want), stopped: false, why: '' };
+        runs.add(run);
+        markRows();
+        return enqueue(() => runKeys(run, out, onEach));
+    }
+
+    async function runKeys(run, out, onEach) {
+        let gone = false;
+        try {
+            await refreshDownloaded();
+            // Kept meanwhile (by another run, or in another tab): here already
+            const todo = run.want.filter((k) => !downloaded.has(k));
+            run.want.forEach((k) => { if (downloaded.has(k)) run.keys.delete(k); });
+            out.total = todo.length;
+            if (todo.length && !run.stopped) {
+                batch = { run, done: 0, total: todo.length, current: null };
+                syncOffline();
+                // Ask the browser to keep them when space runs low. Not awaited:
+                // Firefox asks the user first, and the run mustn't wait for that
+                try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}
+                let failedInARow = 0;
+                for (const key of todo) {
+                    if (run.stopped) break;
+                    if (!run.keys.has(key)) { out.dropped++; continue; } // let go of (its row tapped again)
+                    batch.current = key;
+                    try {
+                        await fetchInto(key);
+                        if (run.keys.has(key)) {
+                            downloaded.add(key);
+                            out.done++;
+                        } else {
+                            await removeFromCache(key); // let go of while it came
+                            out.dropped++;
+                        }
+                        failedInARow = 0;
+                    } catch (e) {
+                        out.error = reasonFor(e);
+                        if (e && e.code === 'gone') {
+                            gone = true; // that song only: go on with the next
+                        } else if (['quota', 'limit', 'busy', 'nocache'].includes(e && e.code) || ++failedInARow >= 3) {
+                            // A full device or a limit ends the run; so does the same trouble three times running
+                            break;
+                        }
+                    }
+                    run.keys.delete(key);
+                    batch.done = out.done;
+                    if (onEach) onEach(out.done, out.total);
+                    syncOffline();
+                    markRows();
+                }
+            }
+        } catch (e) {
+            if (!out.error) out.error = 'something went wrong';
+        } finally {
+            out.stopped = run.stopped;
+            out.why = run.why;
+            runs.delete(run);
+            if (batch && batch.run === run) batch = null;
+            // Nothing left undone: an earlier run's error no longer applies
+            if (out.total && out.done === out.total) setNote('', false);
+            syncOffline();
+            markRows();
+        }
+        if (out.done) {
+            ensureListCopy();
+            if (typeof keepAppForOffline === 'function') keepAppForOffline(); // script.js
+            if (channel) channel.postMessage({ type: 'changed' });
+            if (typeof updateOfflineButton === 'function') updateOfflineButton();
+        }
+        // A song gone from the bucket: the list on hand is out of date
+        if (gone) load(true);
+        return out;
+    }
+
+    // One song into the cache: the whole file through this site, then checked
+    // against its size (the list's, or else the answer's own), so a transfer
+    // that broke off isn't kept as a song. The cache is opened by name each
+    // time: a song only counts as kept in the one sw.js reads, even after
+    // Remove downloads in another tab deleted it.
+    async function fetchInto(key) {
+        let res;
+        try {
+            res = await fetch(fileUrl(key), { cache: 'no-store' });
+        } catch (e) {
+            throw coded('network');
+        }
+        if (res.status === 429) {
+            const wait = parseInt(res.headers.get('Retry-After'), 10);
+            throw coded(wait > 120 ? 'limit' : 'busy');
+        }
+        if (res.status === 206) throw coded('partial'); // the cache keeps whole answers only
+        if (!res.ok) throw coded(res.status === 404 ? 'gone' : 'server');
+        const listed = (songs.find((s) => s.cloud_key === key) || {})._size || 0;
+        const told = res.headers.get('Content-Encoding') ? 0 : (parseInt(res.headers.get('Content-Length'), 10) || 0);
+        const expected = listed || told;
+        let cache;
+        try {
+            cache = await caches.open(OFFLINE_CACHE);
+        } catch (e) {
+            throw coded('nocache');
+        }
+        try {
+            await cache.put(fileUrl(key), res);
+        } catch (e) {
+            throw coded(e && e.name === 'QuotaExceededError' ? 'quota' : (e instanceof TypeError ? 'network' : 'store'));
+        }
+        if (expected) {
+            const kept = await (await caches.open(OFFLINE_CACHE)).match(fileUrl(key));
+            const got = kept ? (await kept.blob()).size : 0;
+            if (got !== expected) {
+                await removeFromCache(key);
+                throw coded('partial');
+            }
+        }
+    }
+    async function removeFromCache(key) {
+        try { await (await caches.open(OFFLINE_CACHE)).delete(fileUrl(key)); } catch (e) {}
+    }
+    function coded(code) {
+        const e = new Error(code);
+        e.code = code;
+        return e;
+    }
+    function reasonFor(e) {
+        return {
+            network: 'no connection to the server',
+            busy: 'too many downloads at once; try again in a minute',
+            limit: "today's download limit is reached; try again tomorrow",
+            partial: 'only part of the file came',
+            gone: "it's no longer in the bucket",
+            quota: 'this device is out of room',
+            store: "this browser wouldn't keep the file",
+            nocache: "this browser can't keep songs on the device",
+        }[e && e.code] || 'the server had a problem';
+    }
+
+    // Offline, Search lists the kept songs from the service worker's copy of
+    // the list: make sure there is one once songs are kept
+    function ensureListCopy() {
+        caches.match('/cloud-music/list')
+            .then((copy) => {
+                if (!copy && navigator.onLine !== false) {
+                    return fetch('/cloud-music/list', { cache: 'no-store', headers: { Accept: 'application/json' } });
+                }
+            })
+            .catch(() => {});
+    }
+
+    function setNote(text, isError) {
+        note = text;
+        noteIsError = !!(isError && text);
+    }
+
+    // Download all and a row's button: the run, then one sentence on how it went
+    async function runBatch(keys) {
+        setNote('', false);
+        const out = await downloadKeys(keys);
+        const left = out.total - out.done - out.dropped;
+        if (out.stopped) {
+            // (A run stopped before its turn doesn't word over the one that was going)
+            if (out.why === 'stop' && (out.done || !note)) setNote('Stopped after ' + plural(out.done, 'song') + '.', false);
+        } else if (left > 0) setNote((out.done ? plural(out.done, 'song') + ' downloaded; ' : '') + plural(left, 'song') + " couldn't be downloaded (" + out.error + ').', true);
+        syncOffline();
+        if (typeof updateOfflineButton === 'function') updateOfflineButton();
+        return out;
+    }
+
+    // Settings → Source: every song not on this device yet. While a run is
+    // going, the same button stops it (after the song that is coming).
+    async function downloadAll() {
+        if (!cfg || !canKeep) return;
+        if (batch) {
+            stopRuns('stop');
+            syncOffline();
+            markRows();
+            return;
+        }
+        if (cantStream()) return;
+        await load(false);
+        if (listState !== 'done' || cantStream()) {
+            setNote("The list couldn't be loaded, so nothing was downloaded.", true);
+            syncOffline();
+            return;
+        }
+        await refreshDownloaded();
+        const todo = songs.filter((s) => !downloaded.has(s.cloud_key));
+        if (!todo.length) { syncOffline(); return; }
+        // Room for them? The browser's own estimate (installed apps get plenty)
+        try {
+            const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null;
+            if (est && est.quota && est.quota - (est.usage || 0) < sizeOf(todo)) {
+                setNote("There isn't room on this device for " + size(sizeOf(todo)) + '.', true);
+                syncOffline();
+                return;
+            }
+        } catch (e) {}
+        await runBatch(todo.map((s) => s.cloud_key));
+    }
+
+    // A Search row's button: keep the song, or let it go again (also while it
+    // is still waiting to come).
+    async function toggleSong(key) {
+        if (!canKeep) return;
+        const song = songs.find((s) => s.cloud_key === key);
+        const name = song ? '“' + song.title + '”' : 'this song';
+        if (downloaded.has(key) || isPending(key)) {
+            // With no way to stream it, it couldn't come back until then: ask first
+            if (downloaded.has(key) && cantStream()
+                && !confirm('Remove ' + name + " from this device? You can't download it again until the songs can be reached.")) return;
+            await removeKeys([key]);
+            return;
+        }
+        if (cantStream()) return;
+        const out = await runBatch([key]);
+        // From Search the Settings status isn't on screen: say what went wrong here
+        if (out.total - out.done - out.dropped > 0 && !out.stopped && typeof showToast === 'function') {
+            showToast(name + " couldn't be downloaded: " + out.error + '.');
+        }
+    }
+
+    async function removeKeys(keys) {
+        if (!canKeep) return;
+        const drop = new Set(keys);
+        runs.forEach((run) => drop.forEach((k) => run.keys.delete(k))); // a run still to fetch them skips them
+        for (const key of drop) {
+            await removeFromCache(key);
+            downloaded.delete(key);
+        }
+        setNote('', false);
+        syncOffline();
+        markRows();
+        if (channel) channel.postMessage({ type: 'changed' });
+        if (typeof updateOfflineButton === 'function') updateOfflineButton();
+        // When only kept songs are listed, one that went leaves the list
+        if (cantStream() && searchActive()) rerunSearch();
+    }
+
+    // Settings → Source: everything kept for the Cloudflare source.
+    async function removeDownloads() {
+        if (!canKeep || !downloaded.size) return;
+        const n = downloaded.size;
+        if (!confirm('Remove ' + (n === 1 ? 'the downloaded song' : 'the ' + n + ' downloaded songs') + ' from this device?'
+            + (cantStream() ? " You can't download them again until the songs can be reached." : ' You can download them again.'))) return;
+        // Every run stops first, so nothing lands after the cache is gone
+        stopRuns('removed');
+        markRows();
+        await queue;
+        try { await caches.delete(OFFLINE_CACHE); } catch (e) {}
+        downloaded = new Set();
+        setNote('Removed from this device.', false);
+        // The app's other tabs stop their runs too, and see the songs gone
+        if (channel) channel.postMessage({ type: 'removed' });
+        syncOffline();
+        if (searchActive()) rerunSearch();
+        if (typeof updateOfflineButton === 'function') updateOfflineButton();
+    }
+
+    function syncOffline() {
+        const status = document.getElementById('cloudOfflineStatus');
+        const getAll = document.getElementById('cloudDownloadAllBtn');
+        const remove = document.getElementById('cloudRemoveDownloadsBtn');
+        if (!status) return;
+        if (!canKeep) {
+            status.textContent = "This browser can't keep songs on the device.";
+            if (getAll) getAll.hidden = true;
+            if (remove) remove.hidden = true;
+            return;
+        }
+        const here = songs.filter((s) => downloaded.has(s.cloud_key));
+        const left = songs.filter((s) => !downloaded.has(s.cloud_key));
+        const elsewhere = songs.length ? downloaded.size - here.length : 0; // kept, but no longer in the bucket
+        let text;
+        if (batch) {
+            text = batch.run.stopped ? 'Stopping after this song…'
+                : 'Downloading ' + Math.min(batch.done + 1, batch.total) + ' of ' + batch.total + '… Keep the app open until it finishes.';
+        } else if (!songs.length) {
+            text = downloaded.size ? plural(downloaded.size, 'song') + ' on this device.' : 'Download all keeps every Cloudflare song on this device.';
+        } else if (!here.length) {
+            text = (songs.length === 1 ? 'The song takes ' : 'All ' + songs.length + ' songs take ') + size(sizeOf(songs)) + '. None are on this device yet.';
+        } else if (!left.length) {
+            text = (songs.length === 1 ? 'The song is' : 'All ' + songs.length + ' songs are') + ' on this device (' + size(sizeOf(here)) + ').';
+        } else {
+            text = here.length + ' of ' + songs.length + ' songs are on this device (' + size(sizeOf(here)) + ').';
+        }
+        if (!batch) {
+            if (elsewhere > 0) text += ' Also ' + plural(elsewhere, 'song') + ' no longer in the bucket.';
+            if (isOffline()) text += " You're offline.";
+            else if (reach === 'server') text += " The songs can't be reached right now.";
+            if (note) text += ' ' + note;
+        }
+        status.textContent = text;
+        status.classList.toggle('err', !batch && noteIsError);
+        // Screen readers hear it when a run settles, not after every song
+        status.setAttribute('aria-busy', batch ? 'true' : 'false');
+        if (getAll) {
+            getAll.hidden = false;
+            getAll.textContent = batch ? (batch.run.stopped ? 'Stopping…' : 'Stop')
+                : (songs.length && !left.length ? 'All downloaded'
+                    : (here.length ? 'Download the other ' + left.length : 'Download all') + (left.length ? ' (' + size(sizeOf(left)) + ')' : ''));
+            setOff(getAll, !batch && ((songs.length > 0 && !left.length) || cantStream()));
+        }
+        if (remove) {
+            remove.hidden = false;
+            setOff(remove, !downloaded.size);
+        }
+    }
+
+    // aria-disabled keeps a button focusable (with `disabled` focus would
+    // drop to the page); the functions behind them check for themselves
+    function setOff(button, off) {
+        button.setAttribute('aria-disabled', off ? 'true' : 'false');
+    }
+
+    // The Search rows' buttons, without drawing the list again
+    function markRows() {
+        const el = document.getElementById('mSearchResults');
+        if (!el || !searchActive()) return;
+        el.querySelectorAll('[data-cloud-dl]').forEach((b) => {
+            const s = shown[parseInt(b.dataset.cloudDl, 10)];
+            if (!s) return;
+            const here = downloaded.has(s.cloud_key);
+            const busy = isPending(s.cloud_key);
+            const icon = busy ? 'busy' : (here ? 'kept' : 'get');
+            b.classList.toggle('is-downloaded', here);
+            b.classList.toggle('is-busy', busy);
+            b.setAttribute('aria-pressed', here || busy ? 'true' : 'false');
+            b.setAttribute('aria-busy', busy ? 'true' : 'false');
+            if (b.dataset.icon !== icon) {
+                b.dataset.icon = icon;
+                b.innerHTML = busy ? SPIN : (here ? CHECK : DOWN);
+            }
+        });
+    }
+
+    // Another tab of the app kept songs, let them go, or removed them all
+    if (channel) {
+        channel.onmessage = (e) => {
+            const type = e.data && e.data.type;
+            if (type === 'removed') {
+                stopRuns('removed');
+                setNote('Removed from this device.', false);
+            }
+            if (type === 'removed' || type === 'changed') refreshDownloaded();
+        };
+    }
+
+    // A connection lost or back: offer what can play now
+    window.addEventListener('offline', () => { syncOffline(); if (searchActive()) rerunSearch(); });
+    window.addEventListener('online', () => {
+        if (reach === 'offline') reach = 'network';
+        // A connection just back often isn't ready for the first request: if
+        // it doesn't get through, the next try comes in 3 s, not 30
+        retryDelay = 3000;
+        syncOffline();
+        if (cfg && (source === 'cloud' || isPlaying())) load(true);
+        else if (searchActive()) rerunSearch();
+    });
+
     // ---- Back from the background ----
     // A list older than a few minutes is fetched again, so songs added
     // meanwhile show up; a page restored from the back/forward cache, too.
     function refreshIfStale() {
         if (cfg && source === 'cloud' && listState !== 'loading' && Date.now() - loadedAt > 5 * 60 * 1000) load(true);
+        // The browser, another tab or a logout may have changed what is kept
+        if (cfg) refreshDownloaded();
         // iOS sometimes drops the lock-screen title while away
         if (!document.hidden && isPlaying()) { updateMediaSession(currentRadioSong); positionState(); }
     }
@@ -436,6 +1013,9 @@ window.cloudMusic = (() => {
     // file existed (library and YouTube): search it again here, once
     // window.cloudMusic is set, which also cancels those pending searches.
     Promise.resolve().then(() => { if (searchActive()) rerunSearch(); });
+    // Which songs this device keeps (offline, Search lists only those; the
+    // rows' buttons show it)
+    if (cfg) refreshDownloaded();
 
     function searchActive() { return !!cfg && source === 'cloud'; }
 
@@ -449,5 +1029,12 @@ window.cloudMusic = (() => {
         searchActive,
         renderSearch,
         displayName: (key) => splitName(cleanName(key)),
+        // On this device (Settings → Source, and a playlist's Save for offline)
+        downloadAll,
+        removeDownloads,
+        downloadKeys,
+        removeKeys,
+        keyOf,
+        isKept: (key) => downloaded.has(key),
     };
 })();

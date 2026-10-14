@@ -2097,6 +2097,16 @@
                 <div class="settings-status" id="cloudUploadStatus" role="status" aria-live="polite"></div>
                 <p class="settings-hint">Uploads go one after another. Files already in the bucket are skipped.</p>
             </div>
+
+            <div class="add-song-form-group">
+                <label>On this device</label>
+                <div class="settings-status" id="cloudOfflineStatus" role="status" aria-live="polite"></div>
+                <div class="settings-source-options">
+                    <button type="button" class="settings-source-btn" id="cloudDownloadAllBtn" onclick="cloudMusic.downloadAll()">Download all</button>
+                    <button type="button" class="settings-source-btn" id="cloudRemoveDownloadsBtn" onclick="cloudMusic.removeDownloads()">Remove downloads</button>
+                </div>
+                <p class="settings-hint">Downloaded songs play with no internet, also with the phone locked. Offline, Search lists them. To keep just one song, use the button next to it in Search. Logging out removes them from this device.</p>
+            </div>
             </div>
             </div>
             @endif

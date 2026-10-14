@@ -19475,3 +19475,47 @@ html.dv2 #dvKeysModal .dv-keys-panel { border-radius: var(--dv-r-xl); }
    sit a little closer so Account still fits */
 @media (max-width: 600px) { .settings-tabs.with-source .settings-tab svg { display: none; } }
 html.dv2 .add-song-modal .settings-tabs.with-source .settings-tab { padding: 0 12px; }
+/* Cloudflare source: keep a song on this device (the button on each Search
+   row; pressed = downloaded). The phone's round row buttons, smaller in the
+   desktop list. */
+#mSearchResults .m-sr-dl {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--cream) 25%, transparent);
+    border-radius: 50%;
+    background: none;
+    color: var(--cream-60);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+#mSearchResults .m-sr-dl.is-downloaded {
+    border-color: color-mix(in srgb, var(--amber) 60%, transparent);
+    color: var(--amber);
+}
+#mSearchResults .m-sr-dl:active { opacity: 0.7; }
+#mSearchResults .m-sr-dl:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+#mSearchResults .m-sr-dl.is-busy svg { animation: cloudKeepSpin 0.9s linear infinite; }
+@keyframes cloudKeepSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #mSearchResults .m-sr-dl.is-busy svg { animation: none; } }
+/* The desktop Search page's general button rule (color: inherit, border: 0)
+   is more specific than the rules above: restate them at its level */
+html.dv2 #mSearchResults .m-sr-dl {
+    width: 36px;
+    height: 36px;
+    border: 1px solid color-mix(in srgb, var(--cream) 25%, transparent);
+    color: var(--cream-60);
+}
+html.dv2 #mSearchResults .m-sr-dl.is-downloaded {
+    border-color: color-mix(in srgb, var(--amber) 60%, transparent);
+    color: var(--amber);
+}
+html.dv2 #mSearchResults .m-sr-dl:hover { background: var(--dv-hover); color: var(--cream); }
+html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
+/* Settings → Source → On this device: a button that can't act now looks it,
+   but stays focusable (aria-disabled, not disabled) */
+.settings-source-btn[aria-disabled="true"] { opacity: 0.45; pointer-events: none; }
