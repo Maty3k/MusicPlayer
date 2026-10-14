@@ -65,18 +65,29 @@ class CloudMusicController extends Controller
             return response('', 416, array_filter(['Content-Range' => $upstream->header('Content-Range')]));
         }
 
-        $headers = [
+        $status = $upstream->status();
+        $contentRange = $upstream->header('Content-Range');
+        // The friend's Worker answers 206 with the whole file even when no
+        // range was asked for. A 206 only answers a Range request, and a
+        // browser won't keep one for offline use, so the whole file goes on
+        // as the 200 it is.
+        if ($range === null && $status === 206
+            && preg_match('/\Abytes 0-(\d+)\/(\d+)\z/', $contentRange, $whole) && (int) $whole[1] === (int) $whole[2] - 1) {
+            $status = 200;
+            $contentRange = '';
+        }
+
+        $headers = array_filter([
             'Content-Type' => CloudMusic::typeFor($key),
             'Accept-Ranges' => 'bytes',
             'Cache-Control' => 'private, max-age=86400',
             // Opened on its own it is a file, never a page that runs anything
             'Content-Security-Policy' => 'sandbox',
-        ];
-        foreach (['Content-Length', 'Content-Range', 'ETag', 'Last-Modified'] as $name) {
-            if ($upstream->header($name) !== '') {
-                $headers[$name] = $upstream->header($name);
-            }
-        }
+            'Content-Range' => $contentRange,
+            'Content-Length' => $upstream->header('Content-Length'),
+            'ETag' => $upstream->header('ETag'),
+            'Last-Modified' => $upstream->header('Last-Modified'),
+        ], fn (?string $value) => $value !== null && $value !== '');
 
         $body = $upstream->toPsrResponse()->getBody();
 
@@ -98,7 +109,7 @@ class CloudMusicController extends Controller
             } finally {
                 $body->close();
             }
-        }, $upstream->status(), $headers);
+        }, $status, $headers);
     }
 
     public function upload(Request $request): JsonResponse
