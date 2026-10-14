@@ -274,14 +274,16 @@ window.cloudMusic = (() => {
             const active = playing === s.cloud_key ? ' is-playing' : '';
             const here = downloaded.has(s.cloud_key);
             const busy = pending.has(s.cloud_key);
+            // Which song, so focus stays on its row when the list is drawn again (script.js keepingFocus)
+            const key = ' data-cloud-key="' + escapeHtml(s.cloud_key) + '"';
             // Keep it on this device: a toggle (pressed = downloaded)
             const keep = canKeep
-                ? '<button type="button" class="m-sr-dl' + (here ? ' is-downloaded' : '') + (busy ? ' is-busy' : '') + '" data-cloud-dl="' + i + '" data-icon="' + (busy ? 'busy' : (here ? 'kept' : 'get')) + '"'
+                ? '<button type="button" class="m-sr-dl' + (here ? ' is-downloaded' : '') + (busy ? ' is-busy' : '') + '" data-cloud-dl="' + i + '"' + key + ' data-icon="' + (busy ? 'busy' : (here ? 'kept' : 'get')) + '"'
                     + ' aria-pressed="' + here + '" aria-busy="' + busy + '" aria-label="Keep ' + escapeHtml(s.title) + (s.artist ? ' by ' + escapeHtml(s.artist) : '') + ' on this device">'
                     + (busy ? SPIN : (here ? CHECK : DOWN)) + '</button>'
                 : '';
             return '<div class="m-sr-row' + active + '">'
-                + '<button type="button" class="search-result" data-cloud="' + i + '" aria-label="Play ' + escapeHtml(s.title) + (s.artist ? ' by ' + escapeHtml(s.artist) : '') + '">'
+                + '<button type="button" class="search-result" data-cloud="' + i + '"' + key + ' aria-label="Play ' + escapeHtml(s.title) + (s.artist ? ' by ' + escapeHtml(s.artist) : '') + '">'
                 + '<div class="search-result-cover search-result-cover-empty">' + NOTE + '</div>'
                 + '<span class="search-result-info"><span class="search-result-title">' + escapeHtml(s.title) + '</span>' + artist + '</span>'
                 + '</button>' + keep + '</div>';

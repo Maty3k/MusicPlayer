@@ -11650,13 +11650,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // A re-render keeps keyboard / TalkBack focus on the same row where it
     // can, and in the results otherwise (not on <body>).
-    const FOCUS_KEYS = ['lib', 'open', 'yt', 'add', 'link', 'playlist', 'cloud', 'cloudDl'];
+    const FOCUS_KEYS = ['lib', 'open', 'yt', 'add', 'link', 'playlist', 'cloud', 'cloudDl', 'cloudAll'];
+    const cssString = (v) => (window.CSS && CSS.escape ? CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&'));
     function keepingFocus(render) {
         const el = document.activeElement;
         const had = !!searchResultsEl && !!el && searchResultsEl.contains(el);
         const key = had && el.dataset ? FOCUS_KEYS.find((k) => el.dataset[k] !== undefined) : null;
         // dataset names are camelCase, attributes kebab-case (cloudDl: data-cloud-dl)
-        const sel = key ? `[data-${key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())}="${el.dataset[key]}"]` : null;
+        const attr = key ? 'data-' + key.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()) : '';
+        // A Cloudflare row by its song: its index changes when the list does
+        const sel = !key ? null
+            : (el.dataset.cloudKey !== undefined ? `[${attr}][data-cloud-key="${cssString(el.dataset.cloudKey)}"]`
+                : `[${attr}="${el.dataset[key]}"]`);
         render();
         if (!had || searchResultsEl.contains(document.activeElement)) return;
         const next = (sel && searchResultsEl.querySelector(sel)) || searchResultsEl;
