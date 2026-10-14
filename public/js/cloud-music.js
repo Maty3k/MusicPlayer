@@ -14,8 +14,8 @@
 //
 // Songs can be kept on the device (Settings → Source, or the button on each
 // Search row): they go into the service worker's 'cloud-v1' cache, and
-// sw.js plays them from there, also with no connection. Offline, Search
-// and Next offer only those.
+// sw.js plays them from there, also with no connection. Offline, or with
+// the songs out of reach, Search and Next offer only those.
 //
 // Loaded after script.js and uses its globals (ytPlayer, currentRadioSong,
 // playSongSource, …).
@@ -47,6 +47,8 @@ window.cloudMusic = (() => {
 
     // On this device (see "On this device" below)
     const OFFLINE_CACHE = 'cloud-v1';          // sw.js serves it
+    const RETRY_FIRST = 30 * 1000;             // asking again for a list out of reach…
+    const RETRY_MAX = 15 * 60 * 1000;          // …backing off up to this
     const canKeep = typeof caches !== 'undefined' && 'serviceWorker' in navigator;
     let downloaded = new Set();  // keys kept on this device
     let pending = new Set();     // keys waiting for (or in) a download run
@@ -54,8 +56,9 @@ window.cloudMusic = (() => {
     let queue = Promise.resolve(); // runs go one after another
     let reach = 'network';       // where the list came from: network | offline | server
     let reachError = '';         // why the server couldn't be reached (reach = server)
-    let lastTry = 0;             // when the list was last asked for
+    let lastTry = 0;             // when the list was last asked for, or answered
     let retryTimer = null;
+    let retryDelay = RETRY_FIRST;
     let note = '';               // how the last run ended, one sentence
     let noteIsError = false;
 
@@ -141,8 +144,12 @@ window.cloudMusic = (() => {
                     if (!why) why = 'The server answered ' + (res.headers.get('X-Upstream-Status') || 'with an error') + '.';
                 } else if (copy === 'slow') {
                     why = "The server didn't answer in time.";
+                } else if (copy === 'offline' && navigator.onLine !== false) {
+                    // Nothing got through, but the phone has a connection: the site is out of reach
+                    why = 'No connection to the server.';
                 }
-                return { list: data.songs, from: copy === 'offline' ? 'offline' : (copy ? 'server' : 'network'), why };
+                const from = !copy ? 'network' : (copy === 'offline' && navigator.onLine === false ? 'offline' : 'server');
+                return { list: data.songs, from, why };
             }))
             .then(({ list, from, why }) => {
                 songs = list
@@ -169,6 +176,7 @@ window.cloudMusic = (() => {
             .then(scheduleRetry)
             .finally(() => {
                 loading = null;
+                lastTry = Date.now(); // a retry counts from the answer, however long it took
                 syncStatus();
                 if (searchActive()) rerunSearch();
             })
@@ -418,11 +426,12 @@ window.cloudMusic = (() => {
         audioHooked = true;
         const a = mp3PlayerProxy._audio;
         ['loadedmetadata', 'durationchange', 'seeked', 'play', 'pause', 'ratechange'].forEach((ev) => a.addEventListener(ev, positionState));
-        // A song that isn't kept failed to load while the phone says it is
-        // online (a weak or captive connection, the server down): check the
-        // list again, so Next and a song's end pick songs that can play
+        // A song failed to load while the songs count as reachable (a weak or
+        // captive connection, the server down): check the list again, so Next
+        // and a song's end pick songs that can play. Whichever song it was:
+        // script.js's own handler runs first and has already moved on.
         a.addEventListener('error', () => {
-            if (isPlaying() && reach === 'network' && !downloaded.has(currentRadioSong.cloud_key) && listState !== 'loading') load(true);
+            if (isPlaying() && reach === 'network' && listState !== 'loading') load(true);
         });
     }
 
@@ -527,16 +536,26 @@ window.cloudMusic = (() => {
     function cantStream() { return isOffline() || reach === 'server'; }
 
     // The list came from the copy: ask again in a while, as long as the page
-    // is in view and the phone thinks it is online
+    // is in view, the phone thinks it is online and the songs are wanted
+    // (Search on Cloudflare, or one playing). Each retry that doesn't get
+    // through waits twice as long, up to 15 minutes, so an outage can't use
+    // up the day's allowance of list requests (AppServiceProvider).
     function scheduleRetry() {
         clearTimeout(retryTimer);
         retryTimer = null;
-        if (reach === 'network') return;
+        if (reach === 'network') {
+            retryDelay = RETRY_FIRST;
+            return;
+        }
         retryTimer = setTimeout(() => {
             retryTimer = null;
-            if (!document.hidden && navigator.onLine !== false && listState !== 'loading') load(true);
-            else scheduleRetry();
-        }, 30000);
+            if (!document.hidden && navigator.onLine !== false && listState !== 'loading' && (searchActive() || isPlaying())) {
+                retryDelay = Math.min(retryDelay * 2, RETRY_MAX);
+                load(true);
+            } else {
+                scheduleRetry();
+            }
+        }, retryDelay);
     }
 
     // What the cache really holds (another tab, the browser or a logout can
@@ -897,8 +916,11 @@ window.cloudMusic = (() => {
     window.addEventListener('offline', () => { syncOffline(); if (searchActive()) rerunSearch(); });
     window.addEventListener('online', () => {
         if (reach === 'offline') reach = 'network';
+        // A connection just back often isn't ready for the first request: if
+        // it doesn't get through, the next try comes in 3 s, not 30
+        retryDelay = 3000;
         syncOffline();
-        if (cfg && source === 'cloud') load(true);
+        if (cfg && (source === 'cloud' || isPlaying())) load(true);
         else if (searchActive()) rerunSearch();
     });
 
