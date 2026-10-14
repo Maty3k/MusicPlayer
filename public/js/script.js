@@ -9840,8 +9840,8 @@ async function toggleOfflinePlaylist() {
         for (const url of offlineUrlsForActivePlaylist(songs)) {
             await cache.delete(url, { ignoreSearch: true });
         }
-        // Its Cloudflare songs too (by exact address: their key is in the query)
-        if (window.cloudMusic) await cloudMusic.removeKeys(offlineCloudKeys(songs));
+        // Its Cloudflare songs stay: Download all, a Search row or another
+        // playlist may have kept them too. Settings → Source removes them.
         setOfflinePlaylists(saved.filter(x => x !== id));
         updateOfflineButton();
         return;
@@ -12635,7 +12635,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!wasSaved) window.mToast('Saving for offline…');
         await toggleOfflinePlaylist();
         const nowSaved = getOfflinePlaylists().includes(id);
-        if (nowSaved !== wasSaved) window.mToast(nowSaved ? 'Saved for offline' : 'Download removed');
+        if (nowSaved !== wasSaved) {
+            window.mToast(nowSaved ? 'Saved for offline'
+                : (offlineCloudKeys(listSongs()).length ? 'Download removed. Its Cloudflare songs stay on this phone (Settings → Source).' : 'Download removed'));
+        }
     }
 
     if (plSheet) {
