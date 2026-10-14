@@ -9905,6 +9905,27 @@ function applyOnlineState() {
 window.addEventListener('online', applyOnlineState);
 window.addEventListener('offline', applyOnlineState);
 
+// Logging out: the server's Clear-Site-Data empties this device's caches and
+// storage (downloaded songs included). Where a browser ignores that header,
+// empty them here first, but never hold the logout up for long.
+document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement) || form.dataset.wiped) return;
+    let path = '';
+    try { path = new URL(form.action, location.href).pathname; } catch (err) { return; }
+    if (path !== '/logout') return;
+    e.preventDefault();
+    form.dataset.wiped = '1';
+    const wipe = (async () => {
+        try {
+            if ('caches' in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+        } catch (err) {}
+        try { localStorage.clear(); } catch (err) {}
+        try { sessionStorage.clear(); } catch (err) {}
+    })();
+    Promise.race([wipe, new Promise((done) => setTimeout(done, 500))]).then(() => form.submit(), () => form.submit());
+}, true);
+
 document.addEventListener('DOMContentLoaded', () => {
     applyOnlineState();
     updateOfflineButton();
