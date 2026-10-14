@@ -9862,9 +9862,10 @@ async function toggleOfflinePlaylist() {
             // ?dl=1 forces a same-origin full-file stream when uploads live
             // on a bucket (normal playback 302s to a signed URL, which the
             // Cache API can't store usefully). Cache under the clean URL so
-            // the service worker matches <audio> requests.
+            // the service worker matches <audio> requests. A redirect means
+            // the session ended: that's the login page, not the song.
             const res = await fetch(url + '?dl=1');
-            if (res.ok) await cache.put(url, res);
+            if (res.ok && !res.redirected) await cache.put(url, res);
             else failed++;
         } catch (e) { failed++; }
         done++;
