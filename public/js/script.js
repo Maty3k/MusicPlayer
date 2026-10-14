@@ -1280,6 +1280,8 @@ function addRadioSidebarItem(song) {
     if (!songList || !listIsPlaying()) return;
     const li = document.createElement('li');
     li.className = 'song-list-item radio-song-item active';
+    // As for the playlist's own rows: offline, only non-MP3 rows grey out
+    li.dataset.src = song.mp3_url ? 'mp3' : (song.youtube_id ? 'yt' : 'spotify');
     const radioCover = safeUrl(song.cover);
     // A Cloudflare song (cloud-music.js) gets no "add to playlist": that path
     // only stores YouTube songs. Here, so every re-render keeps it that way.
