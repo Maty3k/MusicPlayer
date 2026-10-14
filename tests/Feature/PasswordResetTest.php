@@ -39,6 +39,24 @@ class PasswordResetTest extends TestCase
         Notification::assertSentTo($user, ResetPassword::class);
     }
 
+    public function test_the_reset_link_points_at_the_site_whatever_host_asked_for_it(): void
+    {
+        Notification::fake();
+        config(['app.url' => 'https://music.example']);
+        $user = $this->user();
+
+        // A forged host must not end up in the mailed link
+        $this->withHeaders(['X-Forwarded-Host' => 'evil.example'])
+            ->post('/forgot-password', ['email' => $user->email]);
+
+        Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
+            $link = $notification->toMail($user)->actionUrl;
+
+            return str_starts_with($link, 'https://music.example/reset-password/'.$notification->token.'?')
+                && ! str_contains($link, 'evil.example');
+        });
+    }
+
     public function test_unknown_email_gets_the_same_response(): void
     {
         Notification::fake();

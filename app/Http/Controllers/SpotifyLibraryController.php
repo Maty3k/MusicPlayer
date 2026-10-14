@@ -114,6 +114,11 @@ class SpotifyLibraryController extends Controller
         if ($result === null) {
             return ['success' => false, 'error' => 'Could not read that playlist from Spotify'];
         }
+        // A ceiling was reached: what fitted is saved, and the page lists the
+        // source with the sentence instead of carrying on.
+        if (isset($result['error'])) {
+            return ['success' => false] + $result;
+        }
 
         return ['success' => true] + $result;
     }

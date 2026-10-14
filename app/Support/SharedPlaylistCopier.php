@@ -22,7 +22,17 @@ class SharedPlaylistCopier
     {
         $source->loadMissing('songs');
 
-        $new = DB::transaction(function () use ($user, $source) {
+        // The copier's own ceilings apply: a share must not be a way to push
+        // more into someone's library than they could add themselves.
+        if (LibraryLimits::playlistsLeft($user) < 1) {
+            return LibraryLimits::playlistsFullMessage();
+        }
+        $take = min(self::MAX_COPY, LibraryLimits::songsLeft($user, null));
+        if ($take < 1 && $source->songs->isNotEmpty()) {
+            return LibraryLimits::songsFullMessage();
+        }
+
+        $new = DB::transaction(function () use ($user, $source, $take) {
             do {
                 $slug = 'pl-'.strtolower(Str::random(10));
             } while ($user->playlists()->where('slug', $slug)->exists());
@@ -36,7 +46,7 @@ class SharedPlaylistCopier
                 'position' => ((int) ($user->playlists()->max('position') ?? -1)) + 1,
             ]);
 
-            foreach ($source->songs->take(self::MAX_COPY)->values() as $i => $s) {
+            foreach ($source->songs->take($take)->values() as $i => $s) {
                 // Accept only a canonical 11-char youtube_id (same guard
                 // addBatch uses) so a crafted id from the sharer can't reach
                 // the copier's player.
@@ -59,19 +69,21 @@ class SharedPlaylistCopier
 
         $total = $source->songs->count();
 
-        return $total > self::MAX_COPY
-            ? 'Added “'.$new->name.'” to your library: the first '.self::MAX_COPY.' of its '.$total.' songs.'
+        return $total > $take
+            ? 'Added “'.$new->name.'” to your library: the first '.$take.' of its '.$total.' songs.'
             : 'Added “'.$new->name.'” to your library.';
     }
 
     /**
      * Only external http(s) cover URLs — never the owner's private /media
-     * uploads (they 404 for other users and shouldn't be referenced).
+     * uploads (they 404 for other users and shouldn't be referenced) — and
+     * none longer than a song may carry: the sharer chose these, and the
+     * copier's page has to load every one of them.
      */
     public static function publicCover(?string $cover): string
     {
         $cover = trim((string) $cover);
 
-        return preg_match('#^https?://#i', $cover) ? $cover : '';
+        return preg_match('#^https?://#i', $cover) && LibraryLimits::fits($cover) ? $cover : '';
     }
 }

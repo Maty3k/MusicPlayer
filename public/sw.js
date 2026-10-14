@@ -116,7 +116,9 @@ async function serveNavigation(req) {
         // Cache only the real player page — a redirect to /login lands with a
         // different final URL and must never overwrite the offline shell.
         const finalPath = new URL(res.url || req.url).pathname;
-        if (res.ok && finalPath === '/') {
+        // Nor the page marked no-store: it shows a new member their PIN.
+        const keep = !/no-store/i.test(res.headers.get('Cache-Control') || '');
+        if (res.ok && finalPath === '/' && keep) {
             cache.put('/', res.clone());
         }
         return res;

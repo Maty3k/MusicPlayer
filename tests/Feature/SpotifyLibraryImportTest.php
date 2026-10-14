@@ -215,6 +215,33 @@ class SpotifyLibraryImportTest extends TestCase
         $this->assertNull($songs[0]->youtube_id);
     }
 
+    public function test_an_import_stops_at_the_library_ceilings_and_says_so(): void
+    {
+        $tracks = [$this->track('t1', 'One'), $this->track('t2', 'Two'), $this->track('t3', 'Three')];
+        $this->fakeLibrary([], [
+            ['id' => 'pl1', 'name' => 'Road Trip', 'tracks' => ['total' => 3]],
+            ['id' => 'pl2', 'name' => 'Second', 'tracks' => ['total' => 3]],
+        ], ['pl1' => $tracks, 'pl2' => $tracks]);
+        $user = $this->connectedUser();
+        config(['library.playlist_songs' => 2, 'library.playlists' => 1]);
+
+        // Two of the three fit, and the answer says why the third did not
+        $res = $this->actingAs($user)
+            ->postJson('/spotify-library', ['action' => 'import', 'kind' => 'playlist', 'id' => 'pl1', 'offset' => 0])
+            ->assertOk()->json();
+        $this->assertFalse($res['success']);
+        $this->assertStringContainsString('No room', $res['error']);
+        $this->assertSame(2, $user->playlists()->where('slug', 'spotify-pl1')->firstOrFail()->songs()->count());
+
+        // No second mirror once the account holds as many playlists as it may
+        $res = $this->actingAs($user)
+            ->postJson('/spotify-library', ['action' => 'import', 'kind' => 'playlist', 'id' => 'pl2', 'offset' => 0])
+            ->assertOk()->json();
+        $this->assertFalse($res['success']);
+        $this->assertStringContainsString('playlists', $res['error']);
+        $this->assertNull($user->playlists()->where('slug', 'spotify-pl2')->first());
+    }
+
     public function test_reimporting_syncs_a_mirrored_playlist_instead_of_duplicating_it(): void
     {
         $tracks = [$this->track('t1', 'One'), $this->track('t2', 'Two'), $this->track('t3', 'Three')];

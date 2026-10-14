@@ -85,7 +85,7 @@ class MemberAccessTest extends TestCase
 
         // Locked: even the right PIN is refused, or the guessing could go on
         $this->tryPin('42', '0137')->assertRedirect('/login');
-        $this->assertStringStartsWith('Too many wrong PINs. Try again in ', $this->loginError());
+        $this->assertStringStartsWith('Too many wrong PINs or passwords. Try again in ', $this->loginError());
         $this->assertGuest();
 
         $this->travel(16)->minutes();
@@ -135,7 +135,7 @@ class MemberAccessTest extends TestCase
 
         // The same answer a real member's number gives: a lock tells nothing
         $this->tryPin('999', '1234');
-        $this->assertStringStartsWith('Too many wrong PINs. Try again in ', $this->loginError());
+        $this->assertStringStartsWith('Too many wrong PINs or passwords. Try again in ', $this->loginError());
     }
 
     public function test_twenty_wrong_pins_lock_a_member_number_for_the_day(): void
@@ -152,7 +152,7 @@ class MemberAccessTest extends TestCase
         }
 
         $this->tryPin('42', '0137')->assertRedirect('/login');
-        $this->assertStringStartsWith('Too many wrong PINs. Try again in ', $this->loginError());
+        $this->assertStringStartsWith('Too many wrong PINs or passwords. Try again in ', $this->loginError());
         $this->assertStringEndsWith('hours.', $this->loginError());
         $this->assertGuest();
 
@@ -177,8 +177,65 @@ class MemberAccessTest extends TestCase
         }
 
         $this->tryPin('42', '0137')->assertRedirect('/login');
-        $this->assertStringStartsWith('Too many wrong PINs. Try again in ', $this->loginError());
+        $this->assertStringStartsWith('Too many wrong PINs or passwords. Try again in ', $this->loginError());
         $this->assertGuest();
+    }
+
+    public function test_the_email_sign_in_shares_a_members_lock(): void
+    {
+        $user = $this->member(42);
+        $user->forceFill(['email' => 'member@example.com'])->save();
+
+        // Guessing through the e-mail form counts against the member number...
+        for ($i = 0; $i < 5; $i++) {
+            $this->from('/login')->post('/login', ['email' => 'member@example.com', 'password' => '9999']);
+        }
+        $this->tryPin('42', '0137')->assertRedirect('/login');
+        $this->assertStringStartsWith('Too many wrong PINs or passwords. Try again in ', $this->loginError());
+
+        // ...and the e-mail form itself is locked too, for the right PIN as well
+        $this->from('/login')->post('/login', ['email' => 'member@example.com', 'password' => '0137'])
+            ->assertRedirect('/login')->assertSessionHasErrors('email');
+        $this->assertGuest();
+    }
+
+    public function test_the_fifth_wrong_pin_says_the_number_is_now_locked(): void
+    {
+        $this->member(42);
+
+        for ($i = 0; $i < 4; $i++) {
+            $this->tryPin('42', '9999');
+            $this->assertStringNotContainsString('locked', $this->loginError());
+        }
+        $this->tryPin('42', '9999');
+        $this->assertStringContainsString("don't match", $this->loginError());
+        $this->assertStringContainsString('locked for 15 minutes', $this->loginError());
+    }
+
+    public function test_wrong_pins_in_settings_count_towards_the_lock(): void
+    {
+        $user = $this->member(42);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->actingAs($user)->postJson('/settings/password', [
+                'current_password' => '9999',
+                'password' => 'brand-new-password',
+                'password_confirmation' => 'brand-new-password',
+            ])->assertUnprocessable();
+        }
+
+        // Locked in Settings, even with the right PIN...
+        $this->actingAs($user)->postJson('/settings/password', [
+            'current_password' => '0137',
+            'password' => 'brand-new-password',
+            'password_confirmation' => 'brand-new-password',
+        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
+        $this->assertTrue(Hash::check('0137', $user->fresh()->password));
+
+        // ...and at the member sign-in
+        auth()->logout();
+        $this->tryPin('42', '0137')->assertRedirect('/login');
+        $this->assertStringStartsWith('Too many wrong PINs or passwords. Try again in ', $this->loginError());
     }
 
     private function member(int $number, string $pin = '0137'): User
