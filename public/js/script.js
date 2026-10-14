@@ -993,12 +993,15 @@ let isFetchingRadio = false;
 // running for the old context then cleans up only after itself.
 let radioGen = 0;
 
-function resetRadio() {
+function resetRadio(opts) {
+    // keepCloud: a playing Cloudflare song (cloud-music.js) lives in
+    // currentRadioSong too, and only this reset must not drop it
+    const keep = opts && opts.keepCloud && currentRadioSong && currentRadioSong.cloud_key ? currentRadioSong : null;
     radioGen++;
     radioPool = [];
     smartShuffleNextIsRadio = false;
-    currentRadioSong = null;
-    removeRadioSidebarItem();
+    currentRadioSong = keep;
+    if (!keep) removeRadioSidebarItem();
     try { if (radioProbePlayer) radioProbePlayer.destroy(); } catch (e) {}
     radioProbePlayer = null;
     isFetchingRadio = false;
@@ -1030,8 +1033,10 @@ function toggleShuffle() {
         btn.dataset.shuffle = 'off';
         label.textContent = 'shuffle';
         shuffleQueue = [];
-        // Clear smart shuffle state (and a probe still running)
-        resetRadio();
+        // Clear smart shuffle state (and a probe still running). A playing
+        // Cloudflare song stays: dropping it would hand Next and its end to
+        // the playlist.
+        resetRadio({ keepCloud: true });
     }
 }
 
@@ -1276,7 +1281,10 @@ function addRadioSidebarItem(song) {
     const li = document.createElement('li');
     li.className = 'song-list-item radio-song-item active';
     const radioCover = safeUrl(song.cover);
-    const saveBtn = currentRadioSongSaved
+    // A Cloudflare song (cloud-music.js) gets no "add to playlist": that path
+    // only stores YouTube songs. Here, so every re-render keeps it that way.
+    const saveBtn = song.cloud_key ? ''
+        : currentRadioSongSaved
         ? '<button class="song-save-btn" disabled title="Added to playlist">&#10003;</button>'
         : '<button class="song-save-btn" onclick="event.stopPropagation(); saveRadioSong()" title="Add to playlist">+</button>';
     li.innerHTML = `
@@ -1293,7 +1301,7 @@ function addRadioSidebarItem(song) {
                 <span></span><span></span><span></span><span></span>
             </div>
         </div>
-        <span class="radio-badge" title="Recommended song">
+        <span class="radio-badge" title="${song.cloud_key ? 'From Cloudflare' : 'Recommended song'}">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/>
                 <circle cx="4" cy="18" r="2"/>
@@ -5727,6 +5735,8 @@ function recordPlay(song) {
         youtube_id: song.youtube_id || '',
         mp3_url: song.mp3_url || '',
         spotify_id: song.spotify_id || '',
+        // A replay from Jump back in keeps playing through its Cloudflare list
+        cloud_key: song.cloud_key || '',
     };
     const key = songPlayKey(entry);
     const prev = Array.isArray(recentSongs) ? recentSongs : [];
@@ -6583,8 +6593,11 @@ function handleUnplayableSong(song, reason) {
     playRequested = false;
     const name = song.title ? `“${song.title}”` : 'This song';
     unplayableStreak++;
-    const alone = loopMode === 'single' || (!currentRadioSong && songsData.length <= 1);
-    if (alone || unplayableStreak >= Math.min(5, songsData.length || 1)) {
+    // The list the next song would come from: the Cloudflare one while it plays
+    const cloud = !!(window.cloudMusic && cloudMusic.isPlaying());
+    const pool = cloud ? cloudMusic.size() : songsData.length;
+    const alone = loopMode === 'single' || ((cloud || !currentRadioSong) && pool <= 1);
+    if (alone || unplayableStreak >= Math.min(5, pool || 1)) {
         unplayableStreak = 0;
         showBulkToast(`${name} can't play: ${reason}.`
             + (alone ? '' : ' Several songs in a row couldn’t play, so playback stopped.'));
@@ -10015,7 +10028,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // (switching into an empty playlist doesn't stop the old track, and
         // the dock would be the only reachable transport).
         const empty = (typeof songsData === 'undefined' || songsData.length === 0)
-            && !document.body.classList.contains('m-playing');
+            && !document.body.classList.contains('m-playing')
+            // A paused Cloudflare song: the dock is the way back to it
+            && !(window.cloudMusic && cloudMusic.isPlaying());
         dock.classList.toggle('m-dock-hidden', empty || keyboardOpen);
         document.body.classList.toggle('m-kb', keyboardOpen);
         dvSyncBarVisibility();

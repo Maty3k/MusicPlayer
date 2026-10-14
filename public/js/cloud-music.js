@@ -229,11 +229,17 @@ window.cloudMusic = (() => {
         if (!t) return;
         const list = shown.slice();
         if (!list.length) return;
+        // A song change already under way would play over this one (the app
+        // ignores taps meanwhile everywhere else, too). Before anything changes.
+        if (typeof isChangingSong !== 'undefined' && isChangingSong) return;
         let idx = 0;
         if (t.dataset.cloud !== undefined) idx = parseInt(t.dataset.cloud, 10) || 0;
         else if (typeof shuffleMode !== 'undefined' && shuffleMode !== 'off') idx = Math.floor(Math.random() * list.length);
         history = [];
         start(list, idx, true); // synchronous: this tap is what unlocks audio on iOS
+        // The phone keyboard would stay up (and keep the player dock hidden)
+        const input = document.getElementById('mSearchInput');
+        if (input && document.activeElement === input) input.blur();
     }
 
     // ---- Playback ----
@@ -254,15 +260,7 @@ window.cloudMusic = (() => {
             document.querySelectorAll('.song-list-item:not(.radio-song-item)').forEach((item) => item.classList.remove('active'));
         }
         removeRadioSidebarItem();
-        addRadioSidebarItem(song);
-        // Its row has no "save to playlist" (that path only stores YouTube songs)
-        const row = document.querySelector('.radio-song-item');
-        if (row) {
-            const save = row.querySelector('.song-save-btn');
-            if (save) save.remove();
-            const badge = row.querySelector('.radio-badge');
-            if (badge) badge.title = 'From Cloudflare';
-        }
+        addRadioSidebarItem(song); // no "save to playlist" for a Cloudflare song (script.js)
 
         resetSleeveProgress();
         // Swaps the src of the one shared <audio> and calls play() right away
@@ -446,6 +444,7 @@ window.cloudMusic = (() => {
         reload: () => load(true),
         upload,
         isPlaying,
+        size: () => order.length || songs.length, // the list the playing song came from
         step,
         searchActive,
         renderSearch,
