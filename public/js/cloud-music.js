@@ -140,6 +140,9 @@ window.cloudMusic = (() => {
                 // server fails, the service worker answers with its last copy
                 // and says which (sw.js)
                 const copy = res.headers.get('X-Offline-Copy');
+                // Nothing reached the server (the device's own connection failed): such
+                // tries cost none of the day's allowance, so no long back-off for them
+                if (copy === 'offline') retryDelay = Math.min(retryDelay, RETRY_FIRST);
                 let why = '';
                 if (copy === 'server') {
                     try { why = decodeURIComponent(res.headers.get('X-Upstream-Error') || ''); } catch (e) {}
@@ -167,6 +170,7 @@ window.cloudMusic = (() => {
             .catch((e) => {
                 // A TypeError is fetch itself failing: no connection
                 listError = e instanceof TypeError ? 'No connection to the server.' : ((e && e.message) || 'Something went wrong.');
+                if (e instanceof TypeError) retryDelay = Math.min(retryDelay, RETRY_FIRST);
                 // A failed refresh keeps the list it had; only the status line
                 // says so. Its songs can't stream now, though: offer the kept ones
                 listState = songs.length ? 'done' : 'error';
