@@ -1483,6 +1483,13 @@ async function fetchAiRecommendations() {
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({}),
         });
+        // At the daily ceiling: stop "Thinking..." and show the empty note.
+        if (resp.status === 429) {
+            discoverAI = [];
+            aiRecsLoaded = true;
+            rebuildSongList();
+            return;
+        }
         const data = await resp.json();
         if (data.enabled) {
             aiRecsEnabled = true;
@@ -1532,10 +1539,19 @@ async function postJsonRetrying(url, body, { retries = 3, onWait, cancelled } = 
             body: JSON.stringify(body),
         });
         if (resp.status !== 429) return resp.json();
+        const retryAfter = Math.max(1, parseInt(resp.headers.get('Retry-After'), 10) || 10);
+        // A daily ceiling answers with a wait of hours: say so at once
+        // instead of sleeping through retries that cannot succeed.
+        if (retryAfter > 120) {
+            const hours = Math.ceil(retryAfter / 3600);
+            return { success: false, rateLimited: true, daily: true, error: retryAfter >= 3600
+                ? `Today's limit for this is used up: try again in ${hours === 1 ? 'an hour' : hours + ' hours'}`
+                : `Too many requests: try again in ${Math.ceil(retryAfter / 60)} minutes` };
+        }
         if (attempt >= retries) {
             return { success: false, rateLimited: true, error: 'Too many searches right now: try again in a minute' };
         }
-        const wait = Math.min(90, Math.max(1, parseInt(resp.headers.get('Retry-After'), 10) || 10));
+        const wait = Math.min(90, retryAfter);
         if (onWait) onWait(wait);
         await new Promise(resolve => setTimeout(resolve, wait * 1000));
     }

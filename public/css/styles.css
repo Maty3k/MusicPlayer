@@ -8129,7 +8129,7 @@ body.auth-page {
 
 .auth-member-form {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 84px auto;
+    grid-template-columns: minmax(0, 1fr) 104px auto; /* room for a 6-digit PIN */
     gap: 8px;
     align-items: end;
 }
@@ -8437,7 +8437,7 @@ body.auth-page {
 
     .auth-panel { padding: 28px 24px 48px; }
     .auth-wordmark { margin-bottom: 28px; }
-    .auth-member-form { grid-template-columns: minmax(0, 1fr) 76px auto; }
+    .auth-member-form { grid-template-columns: minmax(0, 1fr) 96px auto; }
 }
 
 /* ---- Member welcome card (first load after instant signup) ---- */

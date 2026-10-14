@@ -12,9 +12,12 @@ use App\Models\User;
  */
 class LibraryLimits
 {
+    /** The numbers config/library.php sets, should a cached configuration predate it. */
+    private const DEFAULTS = ['playlists' => 300, 'playlist_songs' => 5000, 'songs' => 30000, 'url_length' => 2000, 'plays' => 20000];
+
     public static function max(string $what): int
     {
-        return (int) config('library.'.$what);
+        return (int) config('library.'.$what, self::DEFAULTS[$what] ?? 0);
     }
 
     public static function playlistsLeft(User $user): int

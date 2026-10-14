@@ -186,12 +186,31 @@ class SpotifyLibraryImporter
             }
         }
 
+        // The account's ceilings hold here too (config/library.php). A mirror
+        // that cannot be made or cannot take every song stops with a sentence
+        // instead of going past them.
+        $mirror = $user->playlists()->where('slug', $slug)->first();
+        if ($mirror === null && LibraryLimits::playlistsLeft($user) < 1) {
+            return ['done' => true, 'next_offset' => $cursor, 'imported' => 0, 'slug' => $slug, 'error' => LibraryLimits::playlistsFullMessage()];
+        }
+        $inMirror = $mirror === null ? 0 : $mirror->songs()->count();
+        $kept = $offset === 0 ? 0 : $inMirror; // offset 0 starts the mirror afresh
+        $inLibrary = Song::whereIn('playlist_id', $user->playlists()->select('id'))->count() - ($inMirror - $kept);
+        $room = max(0, min(LibraryLimits::max('playlist_songs') - $kept, LibraryLimits::max('songs') - $inLibrary));
+        $error = null;
+        if (count($rows) > $room) {
+            $rows = array_slice($rows, 0, $room);
+            $done = true;
+            $error = LibraryLimits::songsFullMessage();
+        }
+
         DB::transaction(function () use ($user, $slug, $name, $rows): void {
             $playlist = $this->preparePlaylist($user, $slug, $name);
             $this->appendSongs($playlist, $rows);
         });
 
-        return ['done' => $done, 'next_offset' => $cursor, 'imported' => count($rows), 'slug' => $slug];
+        return ['done' => $done, 'next_offset' => $cursor, 'imported' => count($rows), 'slug' => $slug]
+            + ($error === null ? [] : ['error' => $error]);
     }
 
     /**

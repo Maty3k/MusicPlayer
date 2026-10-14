@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -25,11 +27,28 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureRateLimits();
 
-        // The link in a reset mail is built from APP_URL, never from the
-        // request: a forged Host header must not be able to point it at
-        // someone else's site.
+        // The links in the reset and verification mails are built from
+        // APP_URL, never from the request: a forged Host header must not be
+        // able to point them at someone else's site.
         ResetPassword::createUrlUsing(fn (object $user, string $token) => rtrim((string) config('app.url'), '/')
             .route('password.reset', ['token' => $token, 'email' => $user->getEmailForPasswordReset()], false));
+        VerifyEmail::createUrlUsing(function (object $user) {
+            $urls = app('url');
+            $urls->forceRootUrl(rtrim((string) config('app.url'), '/'));
+            try {
+                return $urls->temporarySignedRoute(
+                    'verification.verify',
+                    now()->addMinutes((int) config('auth.verification.expire', 60)),
+                    ['id' => $user->getKey(), 'hash' => sha1($user->getEmailForVerification())],
+                );
+            } finally {
+                $urls->forceRootUrl(null);
+            }
+        });
+
+        // A session ended by a password change lands on the login page with
+        // a sentence saying why (resources/views/auth/login.blade.php).
+        AuthenticateSession::redirectUsing(fn () => route('login', ['ended' => 1]));
     }
 
     /**
@@ -41,14 +60,24 @@ class AppServiceProvider extends ServiceProvider
     {
         $who = fn (Request $request): string => (string) ($request->user()?->getAuthIdentifier() ?? $request->ip());
 
-        // POST /save-music: generous for listening and searching, tighter for
-        // the actions that add rows or rewrite a whole playlist.
-        RateLimiter::for('save-music', function (Request $request) use ($who) {
-            $limits = [Limit::perMinute(600)->by('save-music:'.$who($request))];
+        // POST /save-music: generous for listening, searching and adding songs
+        // one by one (the Song Scanner adds a whole folder that way; the size
+        // of a library is bounded by config/library.php), tighter for the
+        // actions that rewrite a playlist or add many rows at once. A limit
+        // answers in the page's own shape, so every place that shows
+        // result.error says what happened.
+        $tooFast = fn (Request $request, array $headers) => response()->json([
+            'success' => false,
+            'rateLimited' => true,
+            'error' => 'Too many changes at once. Wait a few seconds and try again.',
+        ], 429, $headers);
 
-            $writes = ['add', 'addBatch', 'createPlaylist', 'copySong', 'moveSong', 'reorder', 'delete', 'deletePlaylist', 'share'];
-            if (in_array($request->input('action'), $writes, true)) {
-                $limits[] = Limit::perMinute(90)->by('save-music-write:'.$who($request));
+        RateLimiter::for('save-music', function (Request $request) use ($who, $tooFast) {
+            $limits = [Limit::perMinute(1200)->by('save-music:'.$who($request))->response($tooFast)];
+
+            $heavy = ['addBatch', 'createPlaylist', 'copySong', 'moveSong', 'reorder', 'delete', 'deletePlaylist', 'share'];
+            if (in_array($request->input('action'), $heavy, true)) {
+                $limits[] = Limit::perMinute(90)->by('save-music-heavy:'.$who($request))->response($tooFast);
             }
 
             return $limits;

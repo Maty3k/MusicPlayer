@@ -158,7 +158,7 @@ class LibraryLimitsTest extends TestCase
         $this->assertSame(2, $copier->playlists()->count());
     }
 
-    public function test_writes_that_add_rows_are_rate_limited(): void
+    public function test_heavy_writes_are_rate_limited_and_say_so_in_the_pages_own_words(): void
     {
         $user = $this->user();
 
@@ -168,10 +168,12 @@ class LibraryLimitsTest extends TestCase
 
         // The player's own calls don't all ask for JSON; they get it anyway
         $res = $this->actingAs($user)->post('/save-music', ['action' => 'share', 'playlist' => 'mix']);
-        $res->assertStatus(429);
-        $this->assertStringContainsString('application/json', (string) $res->headers->get('Content-Type'));
+        $res->assertStatus(429)->assertJson(['success' => false, 'rateLimited' => true]);
+        $this->assertStringContainsString('Wait a few seconds', $res->json('error'));
 
-        // Listening and searching have their own, roomier budget
+        // Listening, searching and adding songs one by one have their own,
+        // roomier budget
         $this->actingAs($user)->post('/save-music', ['action' => 'searchLibrary', 'q' => 'so'])->assertOk();
+        $this->assertTrue($this->save($user, ['action' => 'add', 'song' => $this->song('a')])['success']);
     }
 }

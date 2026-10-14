@@ -88,9 +88,11 @@ songs; `--force` replaces).
 
 Registration sends a signed verification link through Resend. Users can't
 reach the player until verified (`verified` middleware). The resend button on
-the verify page is throttled (6/min). Locally, `MAIL_MAILER=log` writes the
-mail (with its link) to `storage/logs/laravel.log` so you can test without
-Resend.
+the verify page allows 3 mails a minute and 10 a day. The links in the
+verification and password-reset mails are built from `APP_URL`, so it must be
+the site's real address (`https://music4u.online`). Locally, `MAIL_MAILER=log`
+writes the mail (with its link) to `storage/logs/laravel.log` so you can test
+without Resend.
 
 While the Resend domain is unverified (test mode delivers only to the account
 owner), `php artisan user:verify user@example.com` (Cloud → Commands) marks an
@@ -106,3 +108,9 @@ account verified manually.
 - Most music is added by link (a YouTube ID, an MP3 URL, a Spotify import) and
   stores nothing. Uploaded audio files are the exception: they need the bucket
   described at the top of this page.
+- **Sessions end when a password changes.** Every session and "stay signed in"
+  cookie carries a fingerprint of the account's password, keyed with `APP_KEY`.
+  So changing `APP_KEY` (even with `APP_PREVIOUS_KEYS`) signs everybody out
+  once, and so does changing `BCRYPT_ROUNDS` for each account as it next signs
+  in. Members who never noted their PIN cannot come back after that: avoid
+  both unless there is no other way.

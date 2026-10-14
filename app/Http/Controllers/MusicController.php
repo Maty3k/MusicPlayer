@@ -405,7 +405,9 @@ class MusicController extends Controller
         $playlist = $this->findPlaylist($user, $this->strInput($request, 'playlist'));
         $name = trim($this->strInput($request, 'name'));
 
-        if ($playlist !== null && $name !== '') {
+        // Imported playlists keep names of up to 90 characters (the column
+        // holds 100): a longer one is refused, not an error page.
+        if ($playlist !== null && $name !== '' && mb_strlen($name) <= 90) {
             $playlist->update(['name' => $name]);
 
             return ['success' => true];

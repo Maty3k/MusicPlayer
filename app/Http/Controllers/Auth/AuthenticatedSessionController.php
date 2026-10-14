@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\Playlist;
+use App\Support\SignInLimits;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -33,12 +34,20 @@ class AuthenticatedSessionController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        // The same count as the member sign-in: a member who attached an
+        // e-mail signs in here with the same PIN.
+        $account = SignInLimits::forEmail($credentials['email']);
+        SignInLimits::ensureNotLocked($account, $request, 'email');
+
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+            $locked = SignInLimits::failed($account, $request);
+
             throw ValidationException::withMessages([
-                'email' => __('auth.failed'),
+                'email' => __('auth.failed').($locked > 0 ? ' '.SignInLimits::nowLockedMessage($locked) : ''),
             ]);
         }
 
+        SignInLimits::succeeded($account);
         $request->session()->regenerate();
 
         return redirect()->intended(route('player'));

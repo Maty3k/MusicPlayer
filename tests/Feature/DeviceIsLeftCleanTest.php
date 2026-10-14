@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 /**
@@ -56,6 +58,40 @@ class DeviceIsLeftCleanTest extends TestCase
                 ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
                 ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
         }
+    }
+
+    public function test_a_limit_reached_by_a_form_gets_a_page_that_says_how_long_to_wait(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/member/start')->assertRedirect(route('player'));
+            auth()->logout();
+        }
+
+        $this->post('/member/start')
+            ->assertStatus(429)
+            ->assertSee('Too many tries.')
+            ->assertSee('Try again in');
+    }
+
+    public function test_the_verification_link_points_at_the_site_whatever_host_asked_for_it(): void
+    {
+        Notification::fake();
+        config(['app.url' => 'https://music.example']);
+
+        $this->withHeaders(['X-Forwarded-Host' => 'evil.example'])->post('/register', [
+            'name' => 'New',
+            'email' => 'new@example.com',
+            'password' => 'brand-new-password',
+            'password_confirmation' => 'brand-new-password',
+        ]);
+
+        $user = User::where('email', 'new@example.com')->firstOrFail();
+        Notification::assertSentTo($user, VerifyEmail::class, function ($notification) use ($user) {
+            $link = $notification->toMail($user)->actionUrl;
+
+            return str_starts_with($link, 'https://music.example/email/verify/'.$user->id.'/')
+                && ! str_contains($link, 'evil.example');
+        });
     }
 
     public function test_an_email_address_can_only_be_attached_a_few_times_a_day(): void

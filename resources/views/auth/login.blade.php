@@ -10,6 +10,10 @@
         <div class="auth-status">Password reset. Log in with the new one.</div>
     @endif
 
+    @if (request()->query('ended'))
+        <div class="auth-status">The PIN or password of this account was changed, so you were signed out here. Log in with the new one.</div>
+    @endif
+
     @if ($errors->any())
         <div class="auth-errors" role="alert">
             @foreach ($errors->all() as $error)

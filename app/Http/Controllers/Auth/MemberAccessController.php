@@ -7,8 +7,8 @@ use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use App\Support\SignInLimits;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -20,21 +20,6 @@ use Illuminate\Validation\ValidationException;
 class MemberAccessController extends Controller
 {
     private const PIN_DIGITS = 6;
-
-    /**
-     * Wrong PINs a member number takes before it locks. Member numbers are
-     * handed out in order, so anyone can name one: the count has to be per
-     * number, not per visitor. The short window stops a burst; the daily one
-     * turns "try every PIN of this member" from hours into years.
-     */
-    private const NUMBER_TRIES = 5;
-
-    private const NUMBER_WINDOW = 15 * 60;
-
-    private const NUMBER_TRIES_PER_DAY = 20;
-
-    /** Wrong PINs one address gets per hour, over all member numbers. */
-    private const ADDRESS_TRIES = 30;
 
     public function start(Request $request): RedirectResponse
     {
@@ -84,50 +69,24 @@ class MemberAccessController extends Controller
         $number = (int) preg_replace('/\D/', '', $validated['member_number']);
 
         // Counted for any number, real or not, so a lock never tells whether
-        // a member exists. While one is on, the right PIN is refused too:
-        // letting it through would let the guessing carry on.
-        $limits = [
-            ['member-pin:'.$number, self::NUMBER_TRIES, self::NUMBER_WINDOW],
-            ['member-pin-day:'.$number, self::NUMBER_TRIES_PER_DAY, 24 * 60 * 60],
-            ['member-pin-from:'.$request->ip(), self::ADDRESS_TRIES, 60 * 60],
-        ];
-        foreach ($limits as [$key, $tries]) {
-            if (RateLimiter::tooManyAttempts($key, $tries)) {
-                throw ValidationException::withMessages([
-                    'member_number' => 'Too many wrong PINs. Try again in '.$this->waitText(RateLimiter::availableIn($key)).'.',
-                ]);
-            }
-        }
+        // a member exists (see SignInLimits).
+        $account = SignInLimits::forMemberNumber($number);
+        SignInLimits::ensureNotLocked($account, $request, 'member_number');
 
         $attempt = ['member_number' => $number, 'password' => $validated['pin']];
         if ($number < 1 || ! Auth::attempt($attempt, remember: true)) {
-            foreach ($limits as [$key, , $window]) {
-                RateLimiter::hit($key, $window);
-            }
+            $locked = SignInLimits::failed($account, $request);
 
             throw ValidationException::withMessages([
-                'member_number' => 'That member number and PIN don\'t match.',
+                'member_number' => 'That member number and PIN don\'t match.'
+                    .($locked > 0 ? ' '.SignInLimits::nowLockedMessage($locked) : ''),
             ]);
         }
 
-        // The member is in: their number starts from zero again. The count
-        // for the address stays, or one own account would reset it at will.
-        RateLimiter::clear('member-pin:'.$number);
-        RateLimiter::clear('member-pin-day:'.$number);
+        SignInLimits::succeeded($account);
 
         $request->session()->regenerate();
 
         return redirect()->intended(route('player'));
-    }
-
-    /** "1 minute", "12 minutes", "3 hours": how long a lock still lasts. */
-    private function waitText(int $seconds): string
-    {
-        $minutes = max(1, (int) ceil($seconds / 60));
-        if ($minutes < 90) {
-            return $minutes === 1 ? '1 minute' : $minutes.' minutes';
-        }
-
-        return ((int) ceil($minutes / 60)).' hours';
     }
 }
