@@ -595,8 +595,10 @@ window.cloudMusic = (() => {
     }
 
     // Waiting to come, or coming. Each run holds its own keys, so one run
-    // letting go of a song never takes it from another that wants it too.
+    // letting go of a song never takes it from another that wants it too;
+    // once any run kept it, it is here, not on its way.
     function isPending(key) {
+        if (downloaded.has(key)) return false;
         for (const run of runs) if (run.keys.has(key)) return true;
         return false;
     }
@@ -607,7 +609,7 @@ window.cloudMusic = (() => {
         runs.forEach((run) => {
             run.stopped = true;
             run.why = why;
-            const coming = why === 'stop' && batch && batch.run === run ? batch.current : null;
+            const coming = why === 'stop' && batch && batch.run === run && run.keys.has(batch.current) ? batch.current : null;
             run.keys = new Set(coming ? [coming] : []);
         });
     }
@@ -638,6 +640,7 @@ window.cloudMusic = (() => {
             await refreshDownloaded();
             // Kept meanwhile (by another run, or in another tab): here already
             const todo = run.want.filter((k) => !downloaded.has(k));
+            run.want.forEach((k) => { if (downloaded.has(k)) run.keys.delete(k); });
             out.total = todo.length;
             if (todo.length && !run.stopped) {
                 batch = { run, done: 0, total: todo.length, current: null };
