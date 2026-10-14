@@ -70,8 +70,9 @@ class CloudMusicController extends Controller
         // The friend's Worker answers 206 with the whole file even when no
         // range was asked for. A 206 only answers a Range request, and a
         // browser won't keep one for offline use, so the whole file goes on
-        // as the 200 it is.
-        if ($range === null && $status === 206
+        // as the 200 it is. Only with no Range at all (a download): <audio>
+        // always sends one, so playback never takes this path.
+        if (! $request->headers->has('Range') && $status === 206
             && preg_match('/\Abytes 0-(\d+)\/(\d+)\z/', $contentRange, $whole) && (int) $whole[1] === (int) $whole[2] - 1) {
             $status = 200;
             $contentRange = '';
