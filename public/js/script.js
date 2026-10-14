@@ -9803,6 +9803,18 @@ function offlineUrlsForActivePlaylist(songs = listSongs()) {
     return [...urls];
 }
 
+/** A playlist's Cloudflare songs, by key: cloud-music.js keeps those in its own cache. */
+function offlineCloudKeys(songs = listSongs()) {
+    if (!window.cloudMusic) return [];
+    return [...new Set(songs.map(s => (s && s.mp3_url ? cloudMusic.keyOf(s.mp3_url) : null)).filter(k => k !== null))];
+}
+
+/** Whether a song can be kept for offline: an upload, or a Cloudflare song. */
+function songCanBeOffline(s) {
+    if (!s || !s.mp3_url) return false;
+    return s.mp3_url.startsWith('/media/') || !!(window.cloudMusic && cloudMusic.keyOf(s.mp3_url) !== null);
+}
+
 // A save in progress (the phone menu can be reopened meanwhile).
 let offlineSaving = false;
 
@@ -9826,20 +9838,24 @@ async function toggleOfflinePlaylist() {
         for (const url of offlineUrlsForActivePlaylist(songs)) {
             await cache.delete(url, { ignoreSearch: true });
         }
+        // Its Cloudflare songs too (by exact address: their key is in the query)
+        if (window.cloudMusic) await cloudMusic.removeKeys(offlineCloudKeys(songs));
         setOfflinePlaylists(saved.filter(x => x !== id));
         updateOfflineButton();
         return;
     }
 
     const urls = offlineUrlsForActivePlaylist(songs);
-    if (urls.length === 0) {
-        alert('Nothing here can be saved for offline.\n\nOnly uploaded songs (and MP3s hosted on this app) play offline — YouTube and Spotify tracks always need a connection.');
+    const cloudKeys = offlineCloudKeys(songs);
+    if (urls.length === 0 && cloudKeys.length === 0) {
+        alert('Nothing here can be saved for offline.\n\nOnly uploaded songs, Cloudflare songs and MP3s hosted on this app play offline — YouTube and Spotify tracks always need a connection.');
         return;
     }
 
     offlineSaving = true;
     btn.classList.add('offline-saving');
     const cache = await caches.open(OFFLINE_MEDIA_CACHE);
+    const total = urls.length + cloudKeys.length;
     let done = 0, failed = 0;
     for (const url of urls) {
         try {
@@ -9852,7 +9868,12 @@ async function toggleOfflinePlaylist() {
             else failed++;
         } catch (e) { failed++; }
         done++;
-        btn.title = `Saving for offline… ${done}/${urls.length}`;
+        btn.title = `Saving for offline… ${done}/${total}`;
+    }
+    if (cloudKeys.length) {
+        // Songs already on this device count as saved
+        const got = await cloudMusic.downloadKeys(cloudKeys, (n) => { btn.title = `Saving for offline… ${done + n}/${total}`; });
+        failed += got.total - got.done;
     }
     btn.classList.remove('offline-saving');
     offlineSaving = false;
@@ -9860,7 +9881,7 @@ async function toggleOfflinePlaylist() {
     if (failed === 0) {
         setOfflinePlaylists([...saved, id]);
     } else {
-        alert(`Some files failed to download (${failed}/${urls.length}). Try again while online.`);
+        alert(`Some files failed to download (${failed}/${total}). Try again while online.`);
     }
     updateOfflineButton();
 }
@@ -9872,8 +9893,8 @@ function updateOfflineButton() {
     btn.classList.toggle('offline-saved', isSaved);
     btn.title = isSaved ? 'Saved for offline — tap to remove' : 'Save playlist for offline';
 
-    // Only meaningful for playlists that contain uploaded/MP3 songs
-    const hasOfflinable = listSongs().some(s => s.mp3_url && s.mp3_url.startsWith('/media/'));
+    // Only meaningful for playlists that contain uploaded or Cloudflare songs
+    const hasOfflinable = listSongs().some(songCanBeOffline);
     btn.style.display = (hasOfflinable || isSaved) ? '' : 'none';
 }
 
@@ -12507,17 +12528,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const queueSub = document.getElementById('mPlSheetQueueSub');
         const queued = typeof playQueue !== 'undefined' && Array.isArray(playQueue) ? playQueue.length : 0;
         if (queueSub) queueSub.textContent = queued ? (queued === 1 ? '1 song queued' : queued + ' songs queued') : 'Nothing queued';
-        // Offline only works for uploaded songs (YouTube and Spotify always stream).
+        // Offline only works for uploaded and Cloudflare songs (YouTube and Spotify always stream).
         const offlineRow = plRow('offline');
         if (offlineRow) {
             const saved = getOfflinePlaylists().includes(listId());
-            const offlinable = count > 0 && list.some((s) => s.mp3_url && s.mp3_url.startsWith('/media/'));
+            const offlinable = count > 0 && list.some(songCanBeOffline);
             const saving = typeof offlineSaving !== 'undefined' && offlineSaving;
             offlineRow.hidden = !('caches' in window) || !(saved || offlinable || saving);
             offlineRow.disabled = saving;
             offlineRow.querySelector('b').textContent = saving ? 'Saving for offline…' : (saved ? 'Remove download' : 'Save for offline');
             const sub = document.getElementById('mPlSheetOfflineSub');
-            if (sub) sub.textContent = saved ? 'Saved on this phone' : 'Keep the uploaded songs on this phone';
+            const cloud = offlineCloudKeys(list).length > 0;
+            const uploads = list.some((s) => s.mp3_url && s.mp3_url.startsWith('/media/'));
+            if (sub) sub.textContent = saved ? 'Saved on this phone'
+                : (cloud ? (uploads ? 'Keep the uploaded and Cloudflare songs on this phone' : 'Keep the Cloudflare songs on this phone') : 'Keep the uploaded songs on this phone');
         }
         disarmPlDelete();
     }
@@ -14417,11 +14441,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const count = listLoading() ? 0 : songs.length;
             const reorder = item('reorder');
             if (reorder) reorder.hidden = count < 2;
-            // Offline only works for uploaded songs (YouTube and Spotify stream)
+            // Offline only works for uploaded and Cloudflare songs (YouTube and Spotify stream)
             const offline = item('offline');
             if (offline) {
                 const saved = getOfflinePlaylists().includes(listId());
-                const offlinable = count > 0 && songs.some((s) => s.mp3_url && s.mp3_url.startsWith('/media/'));
+                const offlinable = count > 0 && songs.some(songCanBeOffline);
                 const saving = typeof offlineSaving !== 'undefined' && offlineSaving;
                 offline.hidden = !('caches' in window) || !(saved || offlinable || saving);
                 offline.disabled = saving;

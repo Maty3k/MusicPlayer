@@ -54,6 +54,14 @@ songs play through one reused `<audio>` element, so they keep playing on a
 locked iPhone, with lock-screen controls. The page side is in
 `public/js/cloud-music.js`.
 
+Songs can also be kept on the device, for listening with no connection:
+Settings → Source → **On this device** (Download all), the button on each
+Search row, or a playlist's Save for offline. They sit in the service
+worker's `cloud-v1` cache under each song's exact address, and `public/sw.js`
+plays them from there, ranges and all, together with the last copy of the
+list. Offline, Search and Next offer only the kept songs. Logging out
+removes them, like everything else the app keeps on a device.
+
 ## Deployment
 
 See [DEPLOY.md](DEPLOY.md) for the Laravel Cloud walkthrough (Postgres,
