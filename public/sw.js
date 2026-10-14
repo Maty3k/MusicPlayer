@@ -156,44 +156,56 @@ async function serveCloudFile(req, url) {
 
 /* The Cloudflare list: fresh from the network, and its last copy kept with
    the app's page (so Remove downloads, which empties CLOUD_CACHE, leaves
-   it). When nothing gets through, the network takes too long, or the server
-   fails, that copy answers instead, saying which, so the page can offer the
+   it). When nothing gets through, the answer takes too long (all of it, not
+   only its headers), or the server fails or turns requests away for now
+   (429), that copy answers instead, saying which, so the page can offer the
    downloaded songs and tell "you're offline" from "the server is down". */
 const LIST_TIMEOUT_MS = 12000;
 async function serveCloudList(req) {
     let res = null;
+    let body = null;
     let why = 'offline';
+    const stop = new AbortController();
+    const timer = setTimeout(() => stop.abort(), LIST_TIMEOUT_MS);
     try {
-        const stop = new AbortController();
-        const timer = setTimeout(() => stop.abort(), LIST_TIMEOUT_MS);
-        try {
-            res = await fetch(req, { signal: stop.signal });
-        } finally {
-            clearTimeout(timer);
-        }
+        res = await fetch(req, { signal: stop.signal });
+        body = await res.arrayBuffer();
     } catch (e) {
+        res = null;
         why = e && e.name === 'AbortError' ? 'slow' : 'offline';
+    } finally {
+        clearTimeout(timer);
     }
-    if (res && res.ok) {
+    if (res && res.ok && !res.redirected) {
         // A copy that can't be written must not cost the fresh answer
-        try { await (await caches.open(SHELL_CACHE)).put('/cloud-music/list', res.clone()); } catch (e) {}
-        return res;
+        try { await (await caches.open(SHELL_CACHE)).put('/cloud-music/list', answer(body, res.status, res.headers)); } catch (e) {}
+        return answer(body, res.status, res.headers);
     }
-    if (res && res.status < 500) return res; // e.g. signed out: the page must know
+    // e.g. signed out: the page must know
+    if (res && res.status < 500 && res.status !== 429) return answer(body, res.status, res.headers);
     let copy = null;
     try { copy = await (await caches.open(SHELL_CACHE)).match('/cloud-music/list', { ignoreVary: true }); } catch (e) {}
-    if (!copy) return res || Response.error();
+    if (!copy) return res ? answer(body, res.status, res.headers) : Response.error();
     const headers = new Headers(copy.headers);
     headers.set('X-Offline-Copy', res ? 'server' : why); // offline | slow | server
     if (res) {
         headers.set('X-Upstream-Status', String(res.status));
         // The server's own words (its errors are JSON: { error: "…" })
         try {
-            const body = await res.clone().json();
-            if (body && typeof body.error === 'string') headers.set('X-Upstream-Error', encodeURIComponent(body.error.slice(0, 300)));
+            const data = JSON.parse(new TextDecoder().decode(body));
+            if (data && typeof data.error === 'string') headers.set('X-Upstream-Error', encodeURIComponent(data.error.slice(0, 300)));
         } catch (e) {}
     }
-    return new Response(copy.body, { status: 200, headers });
+    return answer(await copy.arrayBuffer(), 200, headers);
+}
+
+/* An answer made from a body already read, without the network's encoding
+   and length (they describe the bytes as they travelled, not these). */
+function answer(body, status, headers) {
+    const h = new Headers(headers);
+    h.delete('Content-Encoding');
+    h.delete('Content-Length');
+    return new Response([204, 205, 304].includes(status) ? null : body, { status, headers: h });
 }
 
 /* The page asks after keeping songs, so that an offline start works: a
