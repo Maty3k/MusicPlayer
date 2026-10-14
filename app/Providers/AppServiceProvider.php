@@ -6,7 +6,6 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
-use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -33,8 +32,11 @@ class AppServiceProvider extends ServiceProvider
         ResetPassword::createUrlUsing(fn (object $user, string $token) => rtrim((string) config('app.url'), '/')
             .route('password.reset', ['token' => $token, 'email' => $user->getEmailForPasswordReset()], false));
         VerifyEmail::createUrlUsing(function (object $user) {
+            // The scheme too: a forced root alone keeps the request's.
+            $site = rtrim((string) config('app.url'), '/');
             $urls = app('url');
-            $urls->forceRootUrl(rtrim((string) config('app.url'), '/'));
+            $urls->forceRootUrl($site);
+            $urls->forceScheme((string) (parse_url($site, PHP_URL_SCHEME) ?: 'https'));
             try {
                 return $urls->temporarySignedRoute(
                     'verification.verify',
@@ -43,12 +45,9 @@ class AppServiceProvider extends ServiceProvider
                 );
             } finally {
                 $urls->forceRootUrl(null);
+                $urls->forceScheme(null);
             }
         });
-
-        // A session ended by a password change lands on the login page with
-        // a sentence saying why (resources/views/auth/login.blade.php).
-        AuthenticateSession::redirectUsing(fn () => route('login', ['ended' => 1]));
     }
 
     /**

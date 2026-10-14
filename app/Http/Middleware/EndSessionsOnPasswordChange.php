@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Http\Request;
 use Illuminate\Session\Middleware\AuthenticateSession;
 
 /**
@@ -48,6 +49,16 @@ class EndSessionsOnPasswordChange extends AuthenticateSession
         }
 
         return $response;
+    }
+
+    /**
+     * A session ended here lands on the login page with a sentence saying
+     * why (resources/views/auth/login.blade.php). Set here rather than with
+     * redirectUsing(), which the framework's own guest redirect overrides.
+     */
+    protected function redirectTo(Request $request)
+    {
+        return route('login', ['ended' => 1]);
     }
 
     private function hashKey(): string
