@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Playlist;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Illuminate\Http\Response;
 
 class PlayerController extends Controller
 {
@@ -13,7 +13,7 @@ class PlayerController extends Controller
      * built from music.json — playlists keyed by slug, plus active playlist,
      * its songs, current index/song, and recently played slugs.
      */
-    public function show(Request $request): View
+    public function show(Request $request): Response
     {
         $pendingShare = $this->pendingShare($request);
 
@@ -43,7 +43,7 @@ class PlayerController extends Controller
         $currentIndex = min($activePlaylist['currentIndex'], max(count($songs) - 1, 0));
         $current = $songs[$currentIndex] ?? [];
 
-        return view('music.player', [
+        $page = response()->view('music.player', [
             'playlists' => $playlists,
             'activePlaylistId' => $activePlaylistId,
             'activePlaylist' => $activePlaylist,
@@ -56,6 +56,15 @@ class PlayerController extends Controller
             'shareTokens' => $shareTokens,
             'pendingShare' => $pendingShare,
         ]);
+
+        // The first page after "Start listening" shows the new member's PIN.
+        // It must not be kept: the service worker stores the player page as
+        // its offline copy and skips one marked no-store (public/sw.js).
+        if ($request->session()->has('member_card')) {
+            $page->header('Cache-Control', 'no-store');
+        }
+
+        return $page;
     }
 
     /**

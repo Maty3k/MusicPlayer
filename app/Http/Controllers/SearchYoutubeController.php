@@ -72,7 +72,9 @@ class SearchYoutubeController extends Controller
                         $channel = $video['longBylineText']['runs'][0]['text'];
                     }
 
-                    if ($videoId && $title) {
+                    // Only a well-formed id goes back: the page builds a
+                    // thumbnail address and a player call from it.
+                    if (is_string($videoId) && preg_match('/^[A-Za-z0-9_-]{11}$/', $videoId) && $title) {
                         $results[] = [
                             'videoId' => $videoId,
                             'title' => $title,

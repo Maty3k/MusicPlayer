@@ -219,214 +219,6 @@ body {
     isolation: isolate;
 }
 
-.room-wall {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 75%;
-    background:
-        linear-gradient(180deg, #2a2420 0%, #1e1a15 100%),
-        repeating-linear-gradient(90deg, transparent 0px, transparent 100px, rgba(255,255,255,0.02) 100px, rgba(255,255,255,0.02) 101px);
-}
-
-.room-floor {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 25%;
-    background: linear-gradient(180deg, #1a1510 0%, #12100c 100%);
-}
-
-.room-floor::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 10%;
-    right: 10%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(212, 165, 116, 0.06), transparent);
-}
-
-/* Wall Art */
-.wall-art {
-    position: absolute;
-    top: 12%;
-    left: 6%;
-}
-
-.art-frame {
-    width: 120px;
-    height: 120px;
-    background: linear-gradient(145deg, #1a1510, #0d0a08);
-    border: 5px solid #2a2520;
-    box-shadow:
-        0 8px 30px rgba(0,0,0,0.6),
-        inset 0 0 20px rgba(0,0,0,0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.art-frame::before {
-    content: '';
-    position: absolute;
-    inset: 8px;
-    border: 1px solid rgba(212, 165, 116, 0.1);
-}
-
-.art-content {
-    font-size: 3.5rem;
-    color: #d4a574;
-    opacity: 0.4;
-    text-shadow: 0 0 20px rgba(212, 165, 116, 0.3);
-}
-
-/* Wall Clock */
-.wall-clock {
-    position: absolute;
-    top: 10%;
-    right: 8%;
-}
-
-.clock-face {
-    width: 90px;
-    height: 90px;
-    background: radial-gradient(circle, #1a1510 0%, #0d0a08 100%);
-    border: 5px solid #2a2520;
-    border-radius: 50%;
-    position: relative;
-    box-shadow:
-        0 8px 25px rgba(0,0,0,0.5),
-        inset 0 0 15px rgba(0,0,0,0.5);
-}
-
-.clock-face::before {
-    content: '';
-    position: absolute;
-    inset: 5px;
-    border: 1px solid rgba(255,255,255,0.05);
-    border-radius: 50%;
-}
-
-.clock-hand {
-    position: absolute;
-    bottom: 50%;
-    left: 50%;
-    transform-origin: bottom center;
-    background: #d4a574;
-    border-radius: 2px;
-    z-index: 2;
-}
-
-.clock-hand.hour {
-    width: 4px;
-    height: 22px;
-    transform: translateX(-50%) rotate(0deg);
-}
-
-.clock-hand.minute {
-    width: 3px;
-    height: 30px;
-    transform: translateX(-50%) rotate(0deg);
-    z-index: 3;
-}
-
-.clock-center {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 10px;
-    height: 10px;
-    background: radial-gradient(circle, #d4a574, #a67c4a);
-    border-radius: 50%;
-    box-shadow: 0 0 5px rgba(212, 165, 116, 0.5);
-    z-index: 4;
-}
-
-.clock-marks {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 1;
-}
-
-.clock-mark {
-    position: absolute;
-    top: 7px;
-    left: 50%;
-    width: 2px;
-    height: 6px;
-    margin-left: -1px;
-    background: #d4a574;
-    transform-origin: 50% calc(40px - 7px);
-    border-radius: 1px;
-}
-
-.clock-mark.major {
-    height: 8px;
-    width: 2.5px;
-    margin-left: -1.25px;
-    background: #e0c090;
-}
-
-/* Hanging Lights */
-.hanging-lights {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 150px;
-}
-
-.light-bulb {
-    width: 30px;
-    height: 80px;
-    position: relative;
-}
-
-.light-bulb::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 3px;
-    height: 40px;
-    background: linear-gradient(180deg, #222 0%, #333 100%);
-}
-
-.light-bulb::after {
-    content: '';
-    position: absolute;
-    top: 40px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 24px;
-    height: 32px;
-    background: radial-gradient(ellipse at 30% 30%, #fff8e0 0%, #ffd89e 30%, #d4a574 60%, #a67c4a 100%);
-    border-radius: 50% 50% 50% 50% / 30% 30% 70% 70%;
-    box-shadow:
-        0 0 30px rgba(255, 200, 100, 0.5),
-        0 0 60px rgba(255, 180, 80, 0.2);
-}
-
-.bulb-glow {
-    position: absolute;
-    top: 50px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 200px;
-    height: 250px;
-    background: radial-gradient(ellipse at top, rgba(255, 200, 100, 0.1) 0%, rgba(255, 180, 80, 0.05) 40%, transparent 70%);
-    pointer-events: none;
-}
-
 /* Room Content */
 .room-content {
     position: relative;
@@ -732,37 +524,6 @@ body {
     box-shadow:
         0 1px 2px rgba(0,0,0,0.5),
         inset 0 1px 0 rgba(255,240,210,0.08);
-}
-
-.speaker {
-    width: 70px;
-    height: 100px;
-    background: linear-gradient(145deg, #1a1510 0%, #0d0a08 100%);
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.5);
-    padding: 10px;
-}
-
-.speaker-cone {
-    width: 45px;
-    height: 45px;
-    background: radial-gradient(circle, #333 0%, #1a1a1a 50%, #111 100%);
-    border-radius: 50%;
-    box-shadow: inset 0 3px 12px rgba(0,0,0,0.8);
-}
-
-.speaker::after {
-    content: '';
-    width: 20px;
-    height: 20px;
-    background: radial-gradient(circle, #2a2a2a 0%, #151515 100%);
-    border-radius: 50%;
-    box-shadow: inset 0 2px 5px rgba(0,0,0,0.6);
 }
 
 /* Center - Main Content */
@@ -1307,14 +1068,6 @@ body {
 
 .app-flash-btn:focus-visible { outline: 2px solid var(--cream-60); outline-offset: 2px; }
 
-/* Records Display */
-.records-display {
-    display: flex;
-    gap: 30px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
 .record-card {
     position: relative;
     cursor: pointer;
@@ -1479,11 +1232,6 @@ body {
     margin-bottom: 3px;
 }
 
-.cover-count {
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.7);
-}
-
 .cover-glow {
     position: absolute;
     inset: -30px;
@@ -1568,478 +1316,6 @@ body {
     line-height: 1;
 }
 
-/* Right Side */
-.room-right {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 25px;
-    opacity: 0.9;
-    position: relative;
-    transition: opacity 0.3s ease;
-    min-width: 200px;
-}
-
-.room-right:hover {
-    opacity: 1;
-}
-
-
-/* Floor Rug */
-.floor-rug {
-    position: absolute;
-    bottom: 5%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 80%;
-    height: 30%;
-    background:
-        radial-gradient(ellipse, rgba(139, 90, 43, 0.12) 0%, rgba(139, 90, 43, 0.06) 50%, transparent 70%);
-    border-radius: 50%;
-}
-
-.floor-rug::before {
-    content: '';
-    filter: blur(4px); /* feather the ring so it reads as floor glow, not a scratch */
-    position: absolute;
-    top: 20%;
-    left: 15%;
-    right: 15%;
-    bottom: 20%;
-    border: 1px solid rgba(139, 90, 43, 0.08);
-    border-radius: 50%;
-}
-
-/* Floor Speakers */
-.floor-speaker {
-    position: absolute;
-    bottom: 8%;
-    z-index: 4;
-}
-
-.floor-speaker.left-speaker { left: 20%; }
-.floor-speaker.right-speaker { right: 20%; }
-
-.speaker-body {
-    width: 70px;
-    height: 110px;
-    background: linear-gradient(180deg, #1e1a16 0%, #161210 40%, #0e0c0a 100%);
-    border-radius: 6px;
-    border: 2px solid #2a2520;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px;
-    box-shadow:
-        0 8px 25px rgba(0,0,0,0.6),
-        inset 0 1px 0 rgba(255,255,255,0.05);
-}
-
-.speaker-cone {
-    border-radius: 50%;
-    border: 2px solid #2a2520;
-    position: relative;
-}
-
-.speaker-cone.large {
-    width: 42px;
-    height: 42px;
-    background: radial-gradient(circle, #1a1510 0%, #0d0a08 50%, #1a1510 100%);
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
-}
-
-.speaker-cone.large::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: radial-gradient(circle, #2a2520, #1a1510);
-    border: 1px solid #333;
-}
-
-.speaker-cone.small {
-    width: 22px;
-    height: 22px;
-    background: radial-gradient(circle, #1a1510 0%, #0d0a08 60%);
-    box-shadow: inset 0 0 5px rgba(0,0,0,0.8);
-}
-
-.speaker-cone.small::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #222;
-    border: 1px solid #333;
-}
-
-.speaker-led {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: #d4a574;
-    box-shadow: 0 0 6px rgba(212, 165, 116, 0.4);
-    margin-top: 2px;
-}
-
-/* Floor scattered records */
-.floor-records {
-    position: absolute;
-    bottom: 6%;
-    left: 30%;
-    z-index: 3;
-}
-
-.floor-vinyl {
-    position: absolute;
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    background: radial-gradient(circle, #111 20%, #0a0a0a 22%, #111 24%, #0d0d0d 60%, #0a0a0a 62%, #111 100%);
-    border: 1px solid #222;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.5);
-}
-
-.floor-vinyl::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #d4a574;
-    border: 1px solid #a67c4a;
-}
-
-.floor-vinyl.v1 {
-    bottom: 0;
-    left: 0;
-    transform: rotate(-15deg);
-}
-
-.floor-vinyl.v2 {
-    bottom: 6px;
-    left: 35px;
-    transform: rotate(20deg);
-    opacity: 0.8;
-}
-
-.floor-vinyl.v3 {
-    bottom: -5px;
-    left: 55px;
-    transform: rotate(-5deg);
-    width: 40px;
-    height: 40px;
-    opacity: 0.6;
-}
-
-/* Floor Plant */
-.floor-plant {
-    position: absolute;
-    bottom: 7%;
-    right: 22%;
-    z-index: 4;
-}
-
-.plant-pot {
-    width: 30px;
-    height: 28px;
-    background: linear-gradient(180deg, #6b4226 0%, #5a3520 50%, #4a2a18 100%);
-    border-radius: 2px 2px 6px 6px;
-    clip-path: polygon(5% 0%, 95% 0%, 85% 100%, 15% 100%);
-    position: relative;
-    z-index: 2;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-}
-
-.plant-pot::before {
-    content: '';
-    position: absolute;
-    top: -4px;
-    left: -3px;
-    right: -3px;
-    height: 6px;
-    background: linear-gradient(180deg, #7a5030, #5a3520);
-    border-radius: 3px;
-}
-
-.plant-stem {
-    position: absolute;
-    width: 2px;
-    background: #3a6b3a;
-    border-radius: 1px;
-    transform-origin: bottom center;
-    bottom: 24px;
-    left: 50%;
-    z-index: 1;
-}
-
-.plant-stem.s1 { height: 30px; transform: translateX(-50%) rotate(-8deg); }
-.plant-stem.s2 { height: 36px; transform: translateX(-50%) rotate(12deg); }
-.plant-stem.s3 { height: 26px; transform: translateX(-50%) rotate(-20deg); }
-
-.plant-leaf {
-    position: absolute;
-    width: 16px;
-    height: 8px;
-    background: radial-gradient(ellipse, #4a8b4a, #3a6b3a);
-    border-radius: 50%;
-    z-index: 1;
-}
-
-.plant-leaf.l1 {
-    bottom: 50px;
-    left: 2px;
-    transform: rotate(-30deg);
-}
-
-.plant-leaf.l2 {
-    bottom: 56px;
-    left: 18px;
-    transform: rotate(25deg);
-}
-
-.plant-leaf.l3 {
-    bottom: 42px;
-    left: -6px;
-    transform: rotate(-50deg);
-    width: 14px;
-    height: 7px;
-}
-
-/* Wall Poster */
-.wall-poster {
-    position: absolute;
-    top: 15%;
-    left: 17%;
-}
-
-.poster-content {
-    width: 90px;
-    height: 120px;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border: 3px solid #0f3460;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.5);
-    position: relative;
-    overflow: hidden;
-}
-
-.poster-content::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: linear-gradient(45deg, transparent 40%, rgba(233, 69, 96, 0.1) 50%, transparent 60%);
-}
-
-.poster-text {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: #e94560;
-    text-align: center;
-    letter-spacing: 3px;
-    line-height: 1.5;
-    text-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
-}
-
-/* Wall Shelf */
-.wall-shelf {
-    position: absolute;
-    top: 22%;
-    right: 12%;
-}
-
-.shelf-board {
-    width: 130px;
-    height: 12px;
-    background: linear-gradient(180deg, #3d3028 0%, #2a2018 100%);
-    border-radius: 3px;
-    box-shadow: 0 6px 15px rgba(0,0,0,0.5);
-}
-
-.shelf-board::before {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
-}
-
-.shelf-items {
-    position: absolute;
-    bottom: 12px;
-    left: 10px;
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-}
-
-.shelf-book {
-    width: 18px;
-    height: 45px;
-    background: linear-gradient(90deg, #8b4513 0%, #a0522d 50%, #8b4513 100%);
-    border-radius: 2px;
-    box-shadow: 2px 0 5px rgba(0,0,0,0.3);
-}
-
-.shelf-book.b2 {
-    height: 38px;
-    background: linear-gradient(90deg, #2e4a62 0%, #3d5a80 50%, #2e4a62 100%);
-}
-
-.shelf-headphones {
-    width: 35px;
-    height: 30px;
-    position: relative;
-    margin-left: 5px;
-}
-
-.shelf-headphones::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 5px;
-    width: 25px;
-    height: 15px;
-    border: 4px solid #333;
-    border-bottom: none;
-    border-radius: 15px 15px 0 0;
-}
-
-.shelf-headphones::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 12px;
-    height: 15px;
-    background: linear-gradient(180deg, #333 0%, #222 100%);
-    border-radius: 3px;
-    box-shadow: 23px 0 0 linear-gradient(180deg, #333 0%, #222 100%);
-}
-
-/* Clock improvements */
-/* String Lights */
-.string-lights {
-    position: absolute;
-    top: 1%;
-    left: 3%;
-    right: 3%;
-    height: 80px;
-}
-
-.string-wire {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-}
-
-.string-wire path {
-    stroke: rgba(122, 100, 78, 0.55);
-    stroke-width: 2;
-}
-
-.string-bulb {
-    position: absolute;
-    top: 30px;
-    width: 12px;
-    height: 18px;
-    background: radial-gradient(ellipse at top, #fffbe8 0%, #ffd89e 40%, #d4a574 100%);
-    border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
-    box-shadow:
-        0 0 15px rgba(255, 216, 158, 0.6),
-        0 0 30px rgba(255, 200, 100, 0.3),
-        0 0 50px rgba(255, 180, 80, 0.15);
-    animation: stringGlow 3s ease-in-out infinite;
-}
-
-.string-bulb::before {
-    content: '';
-    position: absolute;
-    top: -4px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 6px;
-    height: 5px;
-    background: #555;
-    border-radius: 2px 2px 0 0;
-}
-
-.string-bulb:nth-child(2) { animation-delay: 0.5s; top: 35px; }
-.string-bulb:nth-child(3) { animation-delay: 1s; top: 28px; }
-.string-bulb:nth-child(4) { animation-delay: 1.5s; top: 32px; }
-.string-bulb:nth-child(5) { animation-delay: 2s; top: 30px; }
-.string-bulb:nth-child(6) { animation-delay: 2.5s; top: 35px; }
-.string-bulb:nth-child(7) { animation-delay: 3s; top: 28px; }
-
-@keyframes stringGlow {
-    0%, 100% { opacity: 0.7; box-shadow: 0 0 10px rgba(255, 216, 158, 0.4), 0 0 20px rgba(255, 200, 100, 0.2); }
-    50% { opacity: 1; box-shadow: 0 0 20px rgba(255, 216, 158, 0.8), 0 0 40px rgba(255, 200, 100, 0.4), 0 0 60px rgba(255, 180, 80, 0.2); }
-}
-
-/* Dust Particles */
-.dust-particles {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    overflow: hidden;
-}
-
-.dust-particles span {
-    position: absolute;
-    width: 3px;
-    height: 3px;
-    background: rgba(255, 220, 150, 0.4);
-    border-radius: 50%;
-    animation: dustFloat 10s ease-in-out infinite;
-}
-
-.dust-particles span:nth-child(1) { left: 15%; top: 20%; animation-delay: 0s; }
-.dust-particles span:nth-child(2) { left: 35%; top: 40%; animation-delay: 1s; }
-.dust-particles span:nth-child(3) { left: 55%; top: 25%; animation-delay: 2s; }
-.dust-particles span:nth-child(4) { left: 75%; top: 45%; animation-delay: 3s; }
-.dust-particles span:nth-child(5) { left: 25%; top: 60%; animation-delay: 4s; }
-.dust-particles span:nth-child(6) { left: 45%; top: 55%; animation-delay: 5s; }
-.dust-particles span:nth-child(7) { left: 65%; top: 35%; animation-delay: 6s; }
-.dust-particles span:nth-child(8) { left: 85%; top: 50%; animation-delay: 7s; }
-.dust-particles span:nth-child(9) { left: 20%; top: 70%; animation-delay: 8s; }
-.dust-particles span:nth-child(10) { left: 60%; top: 65%; animation-delay: 9s; }
-
-@keyframes dustFloat {
-    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
-    25% { transform: translateY(-15px) translateX(5px); opacity: 0.6; }
-    50% { transform: translateY(-5px) translateX(-5px); opacity: 0.4; }
-    75% { transform: translateY(-20px) translateX(3px); opacity: 0.5; }
-}
-
-/* Ambient Overlay */
-.ambient-overlay {
-    position: absolute;
-    inset: 0;
-    background:
-        radial-gradient(ellipse at 50% 30%, transparent 0%, transparent 40%, rgba(0,0,0,0.4) 100%),
-        radial-gradient(ellipse at 50% 0%, rgba(255, 200, 100, 0.03) 0%, transparent 50%);
-    pointer-events: none;
-}
 
 /* Vignette effect */
 .room-bg::after {
@@ -2575,194 +1851,6 @@ body {
     40% { opacity: 1; transform: scale(1.2); }
 }
 
-.coffee-mug {
-    position: absolute;
-    bottom: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.mug-body {
-    width: 35px;
-    height: 40px;
-    background: linear-gradient(135deg, #f0f0f0 0%, #d0d0d0 50%, #b0b0b0 100%);
-    border-radius: 4px 4px 10px 10px;
-    position: relative;
-    box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
-}
-
-.mug-body::after {
-    content: '';
-    position: absolute;
-    top: 5px;
-    left: 5px;
-    right: 5px;
-    height: 12px;
-    background: linear-gradient(180deg, #3d2817 0%, #5a3d2a 100%);
-    border-radius: 3px;
-}
-
-.mug-handle {
-    position: absolute;
-    right: -12px;
-    top: 8px;
-    width: 14px;
-    height: 22px;
-    border: 4px solid #c0c0c0;
-    border-left: none;
-    border-radius: 0 12px 12px 0;
-}
-
-.mug-steam {
-    position: absolute;
-    top: -25px;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.mug-steam span {
-    position: absolute;
-    width: 3px;
-    height: 18px;
-    background: rgba(255,255,255,0.25);
-    border-radius: 3px;
-    animation: steam 2.5s ease-in-out infinite;
-}
-
-.mug-steam span:nth-child(1) { left: -8px; animation-delay: 0s; }
-.mug-steam span:nth-child(2) { left: 0; animation-delay: 0.4s; }
-.mug-steam span:nth-child(3) { left: 8px; animation-delay: 0.8s; }
-
-@keyframes steam {
-    0%, 100% { transform: translateY(0) scaleY(1); opacity: 0.25; }
-    50% { transform: translateY(-15px) scaleY(1.8); opacity: 0; }
-}
-
-/* Vinyl Crate Decoration */
-.vinyl-crate-decor {
-    position: relative;
-}
-
-.crate-box {
-    width: 110px;
-    height: 85px;
-    background: linear-gradient(180deg, #4a3828 0%, #3d2d20 50%, #2a1f15 100%);
-    border-radius: 5px;
-    padding: 12px;
-    box-shadow:
-        inset 0 -3px 8px rgba(0,0,0,0.3),
-        0 8px 25px rgba(0,0,0,0.5);
-    perspective: 100px;
-}
-
-.crate-box::before {
-    content: '';
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    right: 8px;
-    height: 2px;
-    background: rgba(255,255,255,0.05);
-}
-
-.crate-records {
-    display: flex;
-    gap: 4px;
-    height: 100%;
-    align-items: flex-end;
-}
-
-.crate-record {
-    width: 18px;
-    height: 90%;
-    background: linear-gradient(90deg, #111 0%, #252525 50%, #111 100%);
-    border-radius: 2px;
-    position: relative;
-    transform: rotateY(-5deg);
-    cursor: pointer;
-    transition: transform 0.2s ease, height 0.2s ease;
-}
-
-.crate-record:hover {
-    transform: rotateY(-5deg) translateY(-8px);
-    height: 95%;
-}
-
-.crate-record::after {
-    content: '';
-    position: absolute;
-    top: 8px;
-    left: 3px;
-    width: 12px;
-    height: 12px;
-    background: var(--r-color);
-    border-radius: 50%;
-}
-
-.crate-label {
-    font-size: 0.6rem;
-    color: #555;
-    text-align: center;
-    margin-top: 8px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-}
-
-/* Cat Silhouette */
-.cat-silhouette {
-    position: absolute;
-    bottom: -70px;
-    right: 10px;
-    opacity: 0.4;
-}
-
-.cat-body {
-    width: 60px;
-    height: 38px;
-    background: #151515;
-    border-radius: 50% 50% 40% 40%;
-}
-
-.cat-head {
-    position: absolute;
-    top: -18px;
-    left: -8px;
-    width: 32px;
-    height: 28px;
-    background: #151515;
-    border-radius: 50% 50% 45% 45%;
-}
-
-.cat-ear {
-    position: absolute;
-    top: -10px;
-    width: 12px;
-    height: 16px;
-    background: #151515;
-    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-}
-
-.cat-ear.left { left: 2px; transform: rotate(-15deg); }
-.cat-ear.right { right: 2px; transform: rotate(15deg); }
-
-.cat-tail {
-    position: absolute;
-    right: -25px;
-    top: 8px;
-    width: 35px;
-    height: 8px;
-    background: #151515;
-    border-radius: 4px;
-    transform: rotate(-20deg);
-    transform-origin: left center;
-    animation: tailWag 3s ease-in-out infinite;
-}
-
-@keyframes tailWag {
-    0%, 100% { transform: rotate(-25deg); }
-    50% { transform: rotate(-5deg); }
-}
-
 
 /* Card improvements */
 .vinyl-shine {
@@ -3124,22 +2212,6 @@ body {
     to { transform: rotate(360deg); }
 }
 
-.song-list-vinyl-groove {
-    position: absolute;
-    inset: 3px;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    background: repeating-radial-gradient(
-        circle at center,
-        transparent 0px,
-        transparent 2px,
-        rgba(255, 255, 255, 0.03) 2.5px,
-        transparent 3px
-    );
-    pointer-events: none;
-    z-index: 1;
-}
-
 .song-list-cover {
     position: absolute;
     top: 50%;
@@ -3160,19 +2232,6 @@ body {
     background: #2a2218;
     color: rgba(212, 165, 116, 0.3);
     font-size: 0.6rem;
-}
-
-.song-list-vinyl-hole {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: #0d0a08;
-    box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.8);
-    z-index: 3;
 }
 
 .song-list-info {
@@ -4230,17 +3289,6 @@ body.song-dragging .song-list-item { transition: none; }
     flex-direction: column;
     gap: 4px;
 }
-.spotify-import-track {
-    font-size: 0.78rem;
-    color: rgba(242, 232, 216, 0.75);
-    padding: 5px 8px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.spotify-import-track-title { color: #f2e8d8; font-weight: 500; }
 
 /* ============================================================
    Bulk import — the "Import many" entry button, tabbed modal,
@@ -4409,158 +3457,6 @@ body.song-dragging .song-list-item { transition: none; }
     box-shadow: inset 0 0 100px 30px rgba(5, 3, 2, 0.25);
     pointer-events: none;
     z-index: 2;
-}
-
-/* ---- Aurora gradient orbs ---- */
-.aurora-orbs {
-    position: absolute;
-    inset: -20%;
-    z-index: 0;
-    pointer-events: none;
-    overflow: hidden;
-    filter: blur(100px);
-    animation: auroraHueShift 30s linear infinite;
-}
-
-@keyframes auroraHueShift {
-    0% { filter: blur(100px) hue-rotate(0deg); }
-    100% { filter: blur(100px) hue-rotate(25deg); }
-}
-
-.aurora-orb {
-    position: absolute;
-    border-radius: 50%;
-    mix-blend-mode: hard-light;
-    will-change: transform;
-}
-
-/* Orb 1: Deep amber/orange -- dominant warm glow */
-.aurora-orb-1 {
-    width: 55vmax;
-    height: 55vmax;
-    top: -20%;
-    left: 15%;
-    background: radial-gradient(circle at center,
-        rgba(255, 140, 50, 0.5) 0%,
-        rgba(200, 100, 30, 0.3) 40%,
-        transparent 70%
-    );
-    animation: auroraOrb1 18s ease-in-out infinite;
-}
-
-/* Orb 2: Hot magenta/rose -- exciting accent */
-.aurora-orb-2 {
-    width: 45vmax;
-    height: 45vmax;
-    bottom: -15%;
-    right: 0%;
-    background: radial-gradient(circle at center,
-        rgba(180, 50, 100, 0.45) 0%,
-        rgba(140, 30, 80, 0.25) 40%,
-        transparent 70%
-    );
-    animation: auroraOrb2 22s ease-in-out infinite;
-}
-
-/* Orb 3: Warm purple -- bridges amber and magenta */
-.aurora-orb-3 {
-    width: 40vmax;
-    height: 40vmax;
-    top: 25%;
-    right: 20%;
-    background: radial-gradient(circle at center,
-        rgba(120, 60, 160, 0.38) 0%,
-        rgba(90, 40, 130, 0.2) 40%,
-        transparent 70%
-    );
-    animation: auroraOrb3 25s ease-in-out infinite;
-}
-
-/* Orb 4: Hot coral/red -- concert spotlight */
-.aurora-orb-4 {
-    width: 35vmax;
-    height: 35vmax;
-    top: 60%;
-    left: -5%;
-    background: radial-gradient(circle at center,
-        rgba(255, 80, 60, 0.42) 0%,
-        rgba(200, 50, 40, 0.22) 40%,
-        transparent 70%
-    );
-    animation: auroraOrb4 20s ease-in-out infinite;
-}
-
-/* Orb 5: Deep gold -- vinyl warmth */
-.aurora-orb-5 {
-    width: 50vmax;
-    height: 50vmax;
-    top: 40%;
-    left: 40%;
-    background: radial-gradient(circle at center,
-        rgba(255, 180, 50, 0.3) 0%,
-        rgba(200, 140, 30, 0.15) 40%,
-        transparent 70%
-    );
-    animation: auroraOrb5 28s ease-in-out infinite;
-}
-
-@keyframes auroraOrb1 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    25% { transform: translate(15%, 20%) scale(1.2); }
-    50% { transform: translate(-10%, 15%) scale(0.9); }
-    75% { transform: translate(20%, -10%) scale(1.15); }
-}
-
-@keyframes auroraOrb2 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    25% { transform: translate(-18%, -15%) scale(1.15); }
-    50% { transform: translate(12%, -20%) scale(1.25); }
-    75% { transform: translate(-15%, 10%) scale(0.85); }
-}
-
-@keyframes auroraOrb3 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(-20%, 18%) scale(1.3); }
-    66% { transform: translate(18%, -15%) scale(0.85); }
-}
-
-@keyframes auroraOrb4 {
-    0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
-    33% { transform: translate(25%, -10%) scale(1.1) rotate(120deg); }
-    66% { transform: translate(-15%, 20%) scale(1.2) rotate(240deg); }
-}
-
-@keyframes auroraOrb5 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(-20%, -15%) scale(1.15); }
-}
-
-/* ---- Vinyl groove background pattern ---- */
-.vinyl-groove-bg {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 130vmax;
-    height: 130vmax;
-    border-radius: 50%;
-    background: repeating-radial-gradient(
-        circle at center,
-        transparent 0px,
-        transparent 7px,
-        rgba(255, 200, 150, 0.025) 7px,
-        rgba(255, 200, 150, 0.025) 8px
-    );
-    mask-image: radial-gradient(circle, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.2) 30%, transparent 60%);
-    -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.2) 30%, transparent 60%);
-    pointer-events: none;
-    z-index: 1;
-    animation: grooveSpin 120s linear infinite;
-}
-
-@keyframes grooveSpin {
-    from { transform: translate(-50%, -50%) rotate(0deg); }
-    to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
 /* ---- Film grain overlay ---- */
@@ -5333,65 +4229,6 @@ body.song-dragging .song-list-item { transition: none; }
     box-shadow: 0 -1px 3px rgba(0,0,0,0.3);
 }
 
-/* Deck feet at 4 corners */
-.deck-foot {
-    position: absolute;
-    width: 26px;
-    height: 26px;
-    background:
-        radial-gradient(circle at 35% 28%, rgba(255,240,210,0.18) 0%, transparent 40%),
-        repeating-radial-gradient(
-            circle at center,
-            transparent 0px, transparent 1.5px,
-            rgba(200,180,150,0.06) 1.5px, rgba(200,180,150,0.06) 2.5px
-        ),
-        radial-gradient(circle at 40% 35%, #504840 0%, #383028 35%, #282018 60%, #1a1610 100%);
-    border-radius: 50%;
-    z-index: 20;
-    box-shadow:
-        0 4px 10px rgba(0,0,0,0.7),
-        0 1px 3px rgba(0,0,0,0.4),
-        inset 0 2px 3px rgba(255,240,210,0.12),
-        inset 0 -2px 3px rgba(0,0,0,0.4),
-        0 0 0 1px rgba(200,180,150,0.08);
-}
-
-.deck-foot-tl { top: 12px; left: 12px; }
-.deck-foot-tr { top: 12px; right: 12px; }
-.deck-foot-bl { bottom: 12px; left: 12px; }
-.deck-foot-br { bottom: 12px; right: 12px; }
-
-/* Strobe dots ring around platter edge */
-.strobe-dots {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: repeating-conic-gradient(
-        #c0b0a0 0deg 1.5deg, transparent 1.5deg 5deg
-    );
-    mask-image: radial-gradient(circle, transparent 86%, black 86.5%, black 87.5%, transparent 88%);
-    -webkit-mask-image: radial-gradient(circle, transparent 86%, black 86.5%, black 87.5%, transparent 88%);
-    opacity: 0.85;
-    z-index: 2;
-    pointer-events: none;
-}
-
-/* Rubber mat overlay on vinyl */
-.rubber-mat {
-    position: absolute;
-    inset: 8px;
-    border-radius: 50%;
-    background:
-        repeating-radial-gradient(
-            circle at center,
-            transparent 0px, transparent 6px,
-            rgba(255,255,255,0.035) 6px, rgba(255,255,255,0.035) 7px
-        ),
-        radial-gradient(circle, rgba(255,255,255,0.01) 0%, rgba(255,255,255,0.03) 70%, transparent 75%);
-    pointer-events: none;
-    z-index: 1;
-}
-
 /* Pitch slider (interactive - controls playback rate) */
 .pitch-slider {
     display: flex;
@@ -5602,19 +4439,6 @@ body.song-dragging .song-list-item { transition: none; }
     font-size: 3rem;
     color: rgba(212, 165, 116, 0.35);
     background: linear-gradient(135deg, #2a2218, #1a1510);
-}
-
-.sleeve-info {
-    padding: 20px 18px 16px;
-    border-top: 1px solid rgba(212, 165, 116, 0.18);
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    transition: opacity 0.3s ease;
-}
-
-.sleeve-info.changing {
-    opacity: 0;
 }
 
 /* Lyrics container on vinyl sleeve */
@@ -5941,18 +4765,6 @@ body.song-dragging .song-list-item { transition: none; }
     height: 100%;
 }
 
-.volume-icon {
-    font-size: 1.2rem;
-    cursor: pointer;
-    user-select: none;
-    opacity: 0.8;
-    transition: opacity 0.2s;
-}
-
-.volume-icon:hover {
-    opacity: 1;
-}
-
 .volume-slider {
     -webkit-appearance: none;
     appearance: none;
@@ -6041,11 +4853,8 @@ body.song-dragging .song-list-item { transition: none; }
     }
 
     /* Hide decorative-only elements on mobile */
-    .strobe-dots,
     .tonearm-rest,
-    .deck-foot,
     .pitch-slider,
-    .rubber-mat,
     .tonearm-counterweight {
         display: none;
     }
@@ -6333,29 +5142,13 @@ body.song-dragging .song-list-item { transition: none; }
     }
 
     /* Mobile vinyl room */
-    .room-left, .room-right {
-        display: none;
-    }
-
-    .floor-speaker, .floor-records, .floor-plant {
+    .room-left {
         display: none;
     }
 
     .room-content {
         padding: 10px 12px;
         justify-content: center;
-    }
-
-    .wall-art, .wall-clock, .wall-poster, .wall-shelf {
-        display: none;
-    }
-
-    /* The hanging/string lights dangle over the playlist cards and greeting
-       on a phone — keep the room clean, nothing may overlay the playlists. */
-    .string-lights,
-    .hanging-lights,
-    .dust-particles {
-        display: none;
     }
 
     /* The crate content (greeting + filter + 2 conveyor rows + stats) is
@@ -6388,12 +5181,6 @@ body.song-dragging .song-list-item { transition: none; }
 
     .greeting-text p {
         font-size: 0.9rem;
-    }
-
-    .records-display {
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 15px;
     }
 
     .record-card-cover {
@@ -6448,10 +5235,6 @@ body.song-dragging .song-list-item { transition: none; }
         font-size: 0.65rem;
     }
 
-    .floor-rug {
-        display: none;
-    }
-
     .music-player-view {
         flex-direction: column;
     }
@@ -6465,43 +5248,12 @@ body.song-dragging .song-list-item { transition: none; }
 
 }
 
-/* Pause animations when section is not visible */
-.section-hidden .platter-vinyl,
-.section-hidden .cat-tail,
-.section-hidden .turntable-led,
-.section-hidden .string-bulb,
-.section-hidden .dust-particles span,
-.section-hidden .clock-hand,
-.section-hidden .steam,
-.section-hidden .bulb-glow,
-.section-hidden .amp-display-text.scrolling {
-    animation-play-state: paused !important;
-}
-
 /* ==== Phase C: responsive breakpoints ==== */
 /* ── Music/vinyl-room graduated responsive breakpoints — tablets & mid-screens ── */
 
-/* Wall decorations overlap functional side panels — hide below ultrawide */
-@media (max-width: 1800px) {
-    .wall-poster, .wall-art, .wall-shelf {
-        display: none;
-    }
-
-    .floor-records, .floor-plant {
-        display: none;
-    }
-}
-
 @media (max-width: 1100px) {
-    .wall-clock {
-        display: none;
-    }
 
-    .floor-speaker {
-        display: none;
-    }
-
-    .room-left, .room-right {
+    .room-left {
         transform: scale(0.85);
         transform-origin: center center;
     }
@@ -6513,10 +5265,6 @@ body.song-dragging .song-list-item { transition: none; }
 
 @media (max-width: 900px) {
     .room-left {
-        display: none;
-    }
-
-    .room-right {
         display: none;
     }
 
@@ -7771,7 +6519,7 @@ body.song-dragging .song-list-item { transition: none; }
 }
 
 /* =================================================
-   Toolbar above the conveyor: source filter (+ optional inline stats)
+   Toolbar above the conveyor: source filter
    ================================================= */
 .collection-toolbar {
     display: flex;
@@ -7780,22 +6528,6 @@ body.song-dragging .song-list-item { transition: none; }
     gap: 18px;
     flex-wrap: wrap;
     margin: 0 auto;
-}
-.collection-stats-inline {
-    display: inline-flex;
-    gap: 6px;
-}
-.collection-stats-inline .stat-chip {
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-    color: rgba(212, 165, 116, 0.55);
-    padding: 5px 12px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(212, 165, 116, 0.12);
-    border-radius: 999px;
-    font-variant-numeric: tabular-nums;
 }
 
 /* =================================================
@@ -7878,10 +6610,6 @@ body.song-dragging .song-list-item { transition: none; }
         line-clamp: 2;
         overflow: hidden;
         overflow-wrap: anywhere;
-    }
-
-    .cover-count {
-        font-size: clamp(0.75rem, 0.3vw + 0.6rem, 0.85rem);
     }
 
     .preview-track {
@@ -8129,7 +6857,7 @@ body.auth-page {
 
 .auth-member-form {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 84px auto;
+    grid-template-columns: minmax(0, 1fr) 104px auto; /* room for a 6-digit PIN */
     gap: 8px;
     align-items: end;
 }
@@ -8437,7 +7165,7 @@ body.auth-page {
 
     .auth-panel { padding: 28px 24px 48px; }
     .auth-wordmark { margin-bottom: 28px; }
-    .auth-member-form { grid-template-columns: minmax(0, 1fr) 76px auto; }
+    .auth-member-form { grid-template-columns: minmax(0, 1fr) 96px auto; }
 }
 
 /* ---- Member welcome card (first load after instant signup) ---- */
@@ -8480,13 +7208,6 @@ body.auth-page {
     letter-spacing: 0.3em;
     color: #d4a574;
     margin-left: 4px;
-}
-
-.member-card-note {
-    font-size: 0.75rem;
-    line-height: 1.5;
-    color: rgba(242, 232, 216, 0.55);
-    margin-bottom: 14px;
 }
 
 .member-card-copy {
@@ -8830,10 +7551,10 @@ body.offline-mode .song-list-item:not([data-src="mp3"])::after {
    data-theme on <html> (pre-paint inline script in the blade head)
    and every rule below keys off [data-theme] so it outranks the
    later MOBILE V2 block on specificity, not source order.
-   Design line: a theme repaints the ROOM — walls, floor, rug,
-   string-light color, and UI accent chrome. The hardware keeps
-   its brass and amber (turntable, amp VFD, clock): gear doesn't
-   change color when the walls do.
+   Design line: a theme repaints the ROOM — its shell and the UI
+   accent chrome. The hardware keeps its brass and amber
+   (turntable, amp VFD): gear doesn't change color when the
+   walls do.
    Adding a theme = one token set + one settings swatch. Nothing else.
    ============================================================ */
 
@@ -8845,18 +7566,12 @@ html[data-theme="golden-hour"] {
     --th-shell-c: #1a1512;
     --th-wall-a: #3b312a;
     --th-wall-b: #2f2721;
-    --th-floor-a: #241d18;
-    --th-floor-b: #1c1613;
-    --th-rug-rgb: 150, 110, 70;
     --th-accent-rgb: 242, 180, 92;
     --th-accent: #f2b45c;
     --th-accent-hi-rgb: 255, 200, 115;
     --th-accent-hi: #ffc873;
     --th-ink: #211a16;
     --th-cream: #fff5e9;
-    --th-bulb-core: #fff8ec;
-    --th-bulb-mid: #ffc873;
-    --th-bulb-rgb: 255, 200, 115;
     --m-walnut-hi: #3b312a;
     --m-walnut: #2f2721;
     --m-walnut-deep: #211a16;
@@ -8874,13 +7589,10 @@ html[data-theme="after-hours"] {
     --th-body: #08090c;
     --th-shell-a: #16181f; --th-shell-b: #0f1013; --th-shell-c: #08090a;
     --th-wall-a: #20242e;  --th-wall-b: #171a21;
-    --th-floor-a: #14161c; --th-floor-b: #0e1013;
-    --th-rug-rgb: 90, 110, 139;
     --th-accent-rgb: 168, 192, 220;   --th-accent: #a8c0dc;
     --th-accent-hi-rgb: 207, 224, 242; --th-accent-hi: #cfe0f2;
     --th-ink: #10151c;
     --th-cream: #e8eef6;
-    --th-bulb-core: #f4f8ff; --th-bulb-mid: #cfe0f2; --th-bulb-rgb: 190, 210, 240;
     /* Phone-shell tokens follow the room */
     --m-walnut-hi: #262b36; --m-walnut: #1b1f28; --m-walnut-deep: #14171e;
     --m-ink: #10151c; --m-cream: #e8eef6; --m-cream-dim: rgba(232, 238, 246, 0.55);
@@ -8893,13 +7605,10 @@ html[data-theme="velvet"] {
     --th-body: #0c0708;
     --th-shell-a: #1f1215; --th-shell-b: #150c0e; --th-shell-c: #0b0708;
     --th-wall-a: #2e1a1e;  --th-wall-b: #211317;
-    --th-floor-a: #1c1114; --th-floor-b: #120c0e;
-    --th-rug-rgb: 150, 80, 90;
     --th-accent-rgb: 216, 154, 160;   --th-accent: #d89aa0;
     --th-accent-hi-rgb: 240, 196, 196; --th-accent-hi: #f0c4c4;
     --th-ink: #1c0f12;
     --th-cream: #f6e8ea;
-    --th-bulb-core: #fff0ec; --th-bulb-mid: #f4c8bc; --th-bulb-rgb: 255, 190, 170;
     --m-walnut-hi: #382228; --m-walnut: #29191f; --m-walnut-deep: #201318;
     --m-ink: #1c0f12; --m-cream: #f6e8ea; --m-cream-dim: rgba(246, 232, 234, 0.55);
     --m-gold: #d89aa0; --m-gold-hi: #f0c4c4;
@@ -8911,13 +7620,10 @@ html[data-theme="greenroom"] {
     --th-body: #080b08;
     --th-shell-a: #151a14; --th-shell-b: #0f130e; --th-shell-c: #080a08;
     --th-wall-a: #232b21;  --th-wall-b: #181f17;
-    --th-floor-a: #161a13; --th-floor-b: #0f120d;
-    --th-rug-rgb: 100, 120, 80;
     --th-accent-rgb: 180, 198, 154;   --th-accent: #b4c69a;
     --th-accent-hi-rgb: 216, 230, 192; --th-accent-hi: #d8e6c0;
     --th-ink: #131810;
     --th-cream: #eef4e4;
-    --th-bulb-core: #fbfdec; --th-bulb-mid: #ece9b8; --th-bulb-rgb: 232, 236, 176;
     --m-walnut-hi: #2b3327; --m-walnut: #1f2619; --m-walnut-deep: #171d13;
     --m-ink: #131810; --m-cream: #eef4e4; --m-cream-dim: rgba(238, 244, 228, 0.55);
     --m-gold: #b4c69a; --m-gold-hi: #d8e6c0;
@@ -8929,44 +7635,7 @@ html[data-theme="greenroom"] {
 [data-theme] #music-section {
     background: linear-gradient(180deg, var(--th-shell-a) 0%, var(--th-shell-b) 40%, var(--th-shell-c) 100%);
 }
-[data-theme] .room-wall {
-    background:
-        linear-gradient(180deg, var(--th-wall-a) 0%, var(--th-wall-b) 100%),
-        repeating-linear-gradient(90deg, transparent 0px, transparent 100px, rgba(255, 255, 255, 0.02) 100px, rgba(255, 255, 255, 0.02) 101px);
-}
-[data-theme] .room-floor {
-    background: linear-gradient(180deg, var(--th-floor-a) 0%, var(--th-floor-b) 100%);
-}
-[data-theme] .room-floor::before {
-    background: linear-gradient(90deg, transparent, rgba(var(--th-accent-rgb), 0.06), transparent);
-}
-[data-theme] .floor-rug {
-    background: radial-gradient(ellipse, rgba(var(--th-rug-rgb), 0.12) 0%, rgba(var(--th-rug-rgb), 0.06) 50%, transparent 70%);
-}
-[data-theme] .floor-rug::before { border-color: rgba(var(--th-rug-rgb), 0.08); }
-[data-theme] .ambient-overlay {
-    background:
-        radial-gradient(ellipse at 50% 30%, transparent 0%, transparent 40%, rgba(0, 0, 0, 0.4) 100%),
-        radial-gradient(ellipse at 50% 0%, rgba(var(--th-bulb-rgb), 0.03) 0%, transparent 50%);
-}
 
-/* ---- The light itself: string + hanging bulbs, dust in the beam ---- */
-[data-theme] .string-bulb {
-    background: radial-gradient(ellipse at top, var(--th-bulb-core) 0%, var(--th-bulb-mid) 40%, var(--th-accent) 100%);
-    animation-name: stringGlowThemed;
-}
-@keyframes stringGlowThemed {
-    0%, 100% { opacity: 0.7; box-shadow: 0 0 10px rgba(var(--th-bulb-rgb), 0.4), 0 0 20px rgba(var(--th-bulb-rgb), 0.2); }
-    50% { opacity: 1; box-shadow: 0 0 20px rgba(var(--th-bulb-rgb), 0.8), 0 0 40px rgba(var(--th-bulb-rgb), 0.4), 0 0 60px rgba(var(--th-bulb-rgb), 0.2); }
-}
-[data-theme] .light-bulb::after {
-    background: radial-gradient(ellipse at 30% 30%, var(--th-bulb-core) 0%, var(--th-bulb-mid) 30%, var(--th-accent) 60%, color-mix(in srgb, var(--th-accent) 60%, #000) 100%);
-    box-shadow: 0 0 30px rgba(var(--th-bulb-rgb), 0.5), 0 0 60px rgba(var(--th-bulb-rgb), 0.2);
-}
-[data-theme] .bulb-glow {
-    background: radial-gradient(ellipse at top, rgba(var(--th-bulb-rgb), 0.1) 0%, rgba(var(--th-bulb-rgb), 0.05) 40%, transparent 70%);
-}
-[data-theme] .dust-particles span { background: rgba(var(--th-bulb-rgb), 0.4); }
 
 /* ---- Homescreen accent chrome ---- */
 [data-theme] .greeting-text p { color: rgba(var(--th-accent-rgb), 0.55); }
@@ -9021,10 +7690,6 @@ html[data-theme="greenroom"] {
 }
 [data-theme] .import-textarea:focus { border-color: rgba(var(--th-accent-rgb), 0.55); }
 [data-theme] .import-check-row input[type="checkbox"] { accent-color: var(--th-accent); }
-[data-theme] .collection-stats-inline .stat-chip {
-    color: rgba(var(--th-accent-rgb), 0.55);
-    border-color: rgba(var(--th-accent-rgb), 0.12);
-}
 [data-theme] .record-card.now-playing::after {
     color: var(--th-ink);
     background: linear-gradient(180deg, var(--th-accent-hi), var(--th-accent));
@@ -9362,9 +8027,7 @@ html[data-theme="greenroom"] {
 
     /* ---- Battery trims: GPU-hungry mood layers off on phones.
        The blurred cover backdrop stays — that IS the mood. ---- */
-    .aurora-orbs,
-    .player-eq-visualizer,
-    .vinyl-groove-bg {
+    .player-eq-visualizer {
         display: none;
     }
 
@@ -10201,8 +8864,6 @@ html[data-theme="greenroom"] {
     .tonearm-base,
     .tonearm-rest,
     .tonearm-counterweight,
-    .strobe-dots,
-    .deck-foot,
     #bigPlayerLed,
     .record-player-led {
         display: none;
@@ -11087,24 +9748,6 @@ html[data-theme="greenroom"] {
         var(--ink);
 }
 
-.room-wall,
-.room-floor,
-.floor-rug,
-.wall-art,
-.wall-poster,
-.wall-shelf,
-.wall-clock,
-.string-lights,
-.hanging-lights,
-.floor-plant,
-.cat-silhouette,
-.dust-particles,
-.ambient-overlay,
-.floor-speaker,
-.room-right {
-    display: none;
-}
-
 .greeting-text h1 {
     font-family: var(--display);
     font-weight: 600;
@@ -11272,9 +9915,6 @@ html[data-theme="greenroom"] {
     animation: none;
 }
 
-.aurora-orbs,
-.vinyl-groove-bg { display: none; }
-
 /* Sidebar (also the phone's playlist screen) */
 .music-sidebar {
     background: var(--ink);
@@ -11349,9 +9989,6 @@ html[data-theme="greenroom"] {
     animation: none;
     transform: none;
 }
-
-.song-list-vinyl-groove,
-.song-list-vinyl-hole { display: none; }
 
 .song-list-cover {
     top: 0;
@@ -11441,10 +10078,6 @@ html[data-theme="greenroom"] {
         border-radius: 24px;
         box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(242, 232, 216, 0.08);
     }
-
-    .deck-foot,
-    .strobe-dots,
-    .rubber-mat { display: none; }
 
     .record-player-platter {
         background: color-mix(in srgb, var(--sleeve) 55%, #000);
@@ -13079,12 +11712,6 @@ html[data-theme="greenroom"] {
     color: var(--on-amber);
 }
 
-.member-card-note {
-    margin-bottom: 18px;
-    font-size: 0.85rem;
-    color: var(--cream-60);
-}
-
 /* ============================================================
    FIRST-RUN WIZARD + SEND-TO MENU
    ============================================================ */
@@ -13361,8 +11988,7 @@ html[data-theme="greenroom"] {
 }
 
 /* Leftover scenery the quiet room missed */
-#vinylCrateView .room-bg::after,
-#vinylCrateView .floor-records { display: none; }
+#vinylCrateView .room-bg::after { display: none; }
 
 /* ---------- Frame: [rail | content], one scroller, shared top edge ---------- */
 #vinylCrateView .room-content {
@@ -17326,12 +15952,10 @@ html.dv2 #dvBar .dv-bar-meta .song-artist {
     text-overflow: ellipsis;
 }
 html.dv2 #dvBar .dv-bar-meta .song-title {
-    font-size: 0.9rem;
     font-weight: 600;
     color: var(--cream);
 }
 html.dv2 #dvBar .dv-bar-meta .song-artist {
-    font-size: 0.78rem;
     color: var(--cream-60);
 }
 
@@ -17458,7 +16082,6 @@ html.dv2 #dvBar .dv-bar-seek {
 html.dv2 #dvBar .dv-bar-time {
     flex: 0 0 auto;
     min-width: 36px;
-    font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
     color: var(--cream-60);
 }
@@ -17483,7 +16106,6 @@ html.dv2 #dvBar .dv-bar-rail {
 }
 html.dv2 #dvBar .dv-bar-fill {
     height: 100%;
-    width: 0;
     border-radius: 2px;
     background: var(--cream);
 }
@@ -17716,7 +16338,6 @@ html.dv2 #dvSide .dv-side-link {
     width: 100%;
     padding: 10px 12px;
     border-radius: 8px;
-    font-size: 0.95rem;
     font-weight: 600;
     color: var(--cream-60);
     text-align: left;
@@ -17747,7 +16368,6 @@ html.dv2 #dvSide .dv-side-lib-title {
     gap: 16px;
     min-width: 0;
     margin: 0;
-    font-size: 0.95rem;
     font-weight: 600;
     color: var(--cream-60);
     white-space: nowrap;
@@ -17804,7 +16424,6 @@ html.dv2 #dvSide .dv-side-chip {
     padding: 5px 12px;
     border-radius: 999px;
     background: color-mix(in srgb, var(--cream) 8%, transparent);
-    font-size: 0.78rem;
     font-weight: 500;
     color: var(--cream);
     transition: background-color 0.15s ease;
@@ -17874,7 +16493,6 @@ html.dv2 #dvSide .dv-side-name {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-size: 0.9rem;
     font-weight: 500;
     color: var(--cream);
 }
@@ -17885,7 +16503,6 @@ html.dv2 #dvSide .dv-side-meta {
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
-    font-size: 0.78rem;
     color: var(--cream-60);
 }
 html.dv2 #dvSide .dv-side-count { overflow: hidden; text-overflow: ellipsis; }
@@ -17932,7 +16549,6 @@ html.dv2 #dvSide .dv-side-state {
 html.dv2 #dvSide .dv-side-empty {
     margin: 0;
     padding: 8px 20px 16px;
-    font-size: 0.85rem;
     line-height: 1.45;
     color: var(--cream-60);
 }
@@ -17952,7 +16568,6 @@ html.dv2 #dvSide .dv-side-extra {
     gap: 8px;
     padding: 8px 10px;
     border-radius: 8px;
-    font-size: 0.8rem;
     font-weight: 500;
     color: var(--cream-60);
     white-space: nowrap;
@@ -17975,18 +16590,15 @@ html.dv2 #dvPlPlay {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    height: 36px;
     margin-top: 12px;
-    padding: 0 18px 0 16px;
     border: 0;
-    border-radius: 999px;
     background: var(--amber);
     color: var(--on-amber);
     font: 600 0.85rem/1 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     cursor: pointer;
     transition: background-color 0.15s ease, transform 0.15s ease;
 }
-html.dv2 #dvPlPlay:hover:not(:disabled) { background: var(--amber-hi); transform: scale(1.03); }
+html.dv2 #dvPlPlay:hover:not(:disabled) { background: var(--amber-hi); }
 html.dv2 #dvPlPlay:disabled { opacity: 0.45; cursor: default; }
 html.dv2 #dvPlPlay:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 html.dv2 #dvPlPlay .dv-pl-ic-pause { display: none; }
@@ -18067,7 +16679,6 @@ html.dv2 div[role="region"]:has(> #mDock) { display: none; }
 
 /* What goes */
 html.dv2 #vinylCrateView .room-bg,
-html.dv2 #vinylCrateView .room-right,
 html.dv2 #vinylCrateView .greeting-text,
 html.dv2 #vinylCrateView .collection-stats,
 html.dv2 #vinylCrateView .collection-toolbar .new-playlist-btn,
@@ -18143,14 +16754,11 @@ html.dv2 #vinylCrateView #mHomeHead {
 html.dv2 #vinylCrateView #mGreeting {
     margin: 0;
     font-family: var(--display);
-    font-size: clamp(1.75rem, 1.3rem + 1vw, 2.25rem);
     font-weight: 700;
     line-height: 1.15;
     letter-spacing: -0.02em;
     color: var(--cream);
-    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 /* ---- Section headings */
@@ -18158,7 +16766,6 @@ html.dv2 #vinylCrateView .recent-songs-label {
     margin: 0 0 8px;
     padding: 0;
     font-family: var(--display);
-    font-size: 1.375rem;
     font-weight: 700;
     line-height: 1.3;
     letter-spacing: -0.01em;
@@ -18185,7 +16792,6 @@ html.dv2 #vinylCrateView .recent-songs {
     grid-area: recent;
     display: block;
     width: auto;
-    margin-top: 28px;
 }
 html.dv2 #vinylCrateView .recent-songs.hidden { display: none; }
 html.dv2 #vinylCrateView .recent-song,
@@ -18287,7 +16893,6 @@ html.dv2 #vinylCrateView .crate-shelf {
     grid-area: shelf;
     display: block;
     width: auto;
-    margin-top: 28px;
 }
 html.dv2 #vinylCrateView .records-conveyor,
 html.dv2 #vinylCrateView .records-conveyor.is-static {
@@ -18728,7 +17333,6 @@ html.dv2 #dvPlHead .dv-pl-cover-empty svg { width: 38%; height: 38%; }
 html.dv2 #dvPlHead .dv-pl-info { flex: 1 1 auto; min-width: 0; padding-right: 40px; }
 html.dv2 #dvPlHead .dv-pl-kicker {
     margin: 0 0 6px;
-    font-size: 0.8rem;
     font-weight: 600;
     color: var(--cream);
 }
@@ -18749,7 +17353,6 @@ html.dv2 #dvPlHead .dv-pl-name {
 }
 html.dv2 #dvPlHead .dv-pl-meta {
     margin: 12px 0 0;
-    font-size: 0.875rem;
     color: color-mix(in srgb, var(--cream) 72%, transparent);
 }
 
@@ -18920,14 +17523,12 @@ html.dv2 #musicSidebar #songList > .song-list-item:not(.discover-item):not(.radi
 }
 html.dv2 #dvPlCols {
     position: sticky;
-    top: 0;
     z-index: 3;
     grid-template-areas: var(--dv-a1);
     margin: 0 var(--dv-page-pad) 8px;
     padding: 8px 8px;
     border-bottom: 1px solid var(--line);
     background: var(--dv-panel);
-    font-size: 0.8rem;
     color: color-mix(in srgb, var(--cream) 60%, transparent);
 }
 html.dv2 #dvPlCols .dv-col-num { grid-area: num; justify-self: center; }
@@ -18975,7 +17576,6 @@ html.dv2 #musicSidebar #songList > .song-list-item:not(.discover-item):not(.radi
 html.dv2 #musicSidebar #songList .song-list-item .song-list-title {
     grid-area: title;
     align-self: end;
-    font-size: 0.95rem;
     font-weight: 400;
     color: var(--cream);
 }
@@ -18983,7 +17583,6 @@ html.dv2 #musicSidebar #songList .song-list-item .song-list-artist {
     grid-area: artist;
     align-self: start;
     margin: 0;
-    font-size: 0.82rem;
     letter-spacing: 0;
     text-transform: none;
     color: color-mix(in srgb, var(--cream) 62%, transparent);
@@ -19004,7 +17603,6 @@ html.dv2 #musicSidebar #songList .song-list-item .song-list-cover { border-radiu
 html.dv2 #musicSidebar #songList .song-list-num {
     grid-area: num;
     justify-self: center;
-    font-size: 0.9rem;
     font-weight: 400;
     font-variant-numeric: tabular-nums;
     color: color-mix(in srgb, var(--cream) 62%, transparent);
@@ -19038,7 +17636,6 @@ html.dv2 #musicSidebar.dv-has-dur #songList .song-list-dur {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-size: 0.85rem;
     color: color-mix(in srgb, var(--cream) 62%, transparent);
 }
 html.dv2 #musicSidebar #songList .song-list-album { grid-area: album; }
@@ -19225,8 +17822,6 @@ html.dv2 #musicPlayerView.dv-deck .music-main {
 /* The room's dressing goes: vignette, orbs, the EQ wash, the shelf glow */
 html.dv2 #musicPlayerView.dv-deck .music-main::after,
 html.dv2 #musicPlayerView.dv-deck .player-eq-visualizer,
-html.dv2 #musicPlayerView.dv-deck .aurora-orbs,
-html.dv2 #musicPlayerView.dv-deck .vinyl-groove-bg,
 html.dv2 #musicPlayerView.dv-deck .turntable-area::after { display: none; }
 
 /* The backdrop: the cover, blurred and darkened (none: the panel colour) */
@@ -19273,7 +17868,6 @@ html.dv2 #dvNpHead .dv-np-back svg { display: block; }
 html.dv2 #dvNpHead .dv-np-heading {
     margin: 0;
     font-family: var(--display);
-    font-size: 1.15rem;
     font-weight: 700;
     letter-spacing: -0.01em;
     color: var(--cream);
@@ -19455,7 +18049,6 @@ html.dv2 #dvNpInfo .dv-np-by {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-size: 0.95rem;
     color: var(--cream-60);
 }
 html.dv2 #dvNpInfo .dv-np-by .song-album:not(:empty)::before { content: ' \00b7  '; }
@@ -19466,7 +18059,6 @@ html.dv2 #dvNpInfo .dv-np-from {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-size: 0.8rem;
     color: var(--cream-60);
 }
 html.dv2 #dvNpInfo .dv-np-from[hidden] { display: none; }
@@ -19668,7 +18260,6 @@ html.dv2 #mSearchResults .m-search-section {
     display: flex;
     align-items: baseline;
     gap: 12px;
-    margin: 28px 0 10px;
 }
 html.dv2 #mSearchResults > .m-search-section:first-child,
 html.dv2 #mSearchResults .m-sr-lib > .m-search-section:first-child { margin-top: 12px; }
@@ -19683,7 +18274,6 @@ html.dv2 #mSearchResults .m-search-heading {
 }
 html.dv2 #mSearchResults .m-search-count {
     display: inline;
-    font-size: 0.85rem;
     color: var(--cream-60);
 }
 html.dv2 #mSearchResults .m-search-clear-all {
@@ -19698,7 +18288,6 @@ html.dv2 #mSearchResults .m-search-clear-all:hover { color: var(--cream); backgr
 html.dv2 #mSearchResults .m-search-hint {
     padding: 56px 12px;
     text-align: center;
-    font-size: 1rem;
     line-height: 1.45;
     color: var(--cream-60);
 }
@@ -19793,7 +18382,6 @@ html.dv2 #mSearchResults .m-rp-art img[src*="sddefault"] { transform: scale(1.34
 html.dv2 #mSearchResults .m-rp-art-empty svg { width: 24px; height: 24px; }
 html.dv2 #mSearchResults .m-rp-name {
     min-width: 0;
-    font-size: 0.92rem;
     font-weight: 600;
     color: var(--cream);
     overflow: hidden;
@@ -19827,8 +18415,8 @@ html.dv2 #mSearchResults .m-sr-lib .search-result {
 html.dv2 #mSearchResults .search-result:hover { background: none; }
 html.dv2 #mSearchResults .m-sr-lib .search-result-cover { width: 40px; height: 40px; border-radius: 4px; }
 html.dv2 #mSearchResults .search-result-cover-empty svg { width: 20px; height: 20px; }
-html.dv2 #mSearchResults .search-result .search-result-title { font-size: 0.95rem; font-weight: 500; color: var(--cream); }
-html.dv2 #mSearchResults .search-result .search-result-artist { font-size: 0.82rem; color: var(--cream-60); }
+html.dv2 #mSearchResults .search-result .search-result-title { font-weight: 500; color: var(--cream); }
+html.dv2 #mSearchResults .search-result .search-result-artist { color: var(--cream-60); }
 html.dv2 #mSearchResults .search-result:hover .search-result-title { text-decoration: underline; text-underline-offset: 2px; }
 html.dv2 #mSearchResults .m-sr-open {
     flex: 0 1 auto;
@@ -20044,7 +18632,6 @@ html.dv2 #dvPanel .dv-panel-tab {
     padding: 6px 14px;
     border-radius: 999px;
     background: rgba(255, 245, 233, 0.07);
-    font-size: 0.875rem;
     font-weight: 600;
     white-space: nowrap;
     transition: background-color 0.15s ease, color 0.15s ease;
@@ -20086,7 +18673,7 @@ html.dv2 #dvPanel #queueBody {
     overflow: visible;
     padding: 0;
 }
-html.dv2 #dvPanel .queue-section-label { margin: 6px 4px 8px; color: var(--cream); font-size: 0.9rem; }
+html.dv2 #dvPanel .queue-section-label { margin: 6px 4px 8px; color: var(--cream); }
 html.dv2 #dvPanel .queue-section-head { margin: 18px 0 6px; }
 html.dv2 #dvPanel .queue-section-head .queue-section-label { margin: 0 4px; }
 html.dv2 #dvPanel .queue-now { gap: 12px; padding: 8px; border-radius: 10px; }
@@ -20107,7 +18694,7 @@ html.dv2 #dvPanel .queue-clear-btn {
 }
 html.dv2 #dvPanel .queue-clear-btn:hover { background: rgba(255, 245, 233, 0.12); color: var(--cream); }
 html.dv2 #dvPanel .queue-item:focus-within .queue-item-playicon { opacity: 1; }
-html.dv2 #dvPanel .queue-empty { padding: 20px 8px; color: var(--cream-60); text-align: left; }
+html.dv2 #dvPanel .queue-empty { color: var(--cream-60); }
 /* "Next from <playlist>": a row is one button (cover, title and artist) */
 html.dv2 #dvPanel .dv-nf-label { margin-top: 20px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 html.dv2 #dvPanel .dv-nf-item { padding: 0; }
@@ -20296,11 +18883,8 @@ html.dv2 #dvAcctMenu [role="menuitem"] {
     align-items: center;
     gap: 12px;
     width: 100%;
-    padding: 9px 12px;
-    border-radius: 8px;
     background: none;
     text-align: left;
-    font-size: 0.875rem;
     white-space: nowrap;
 }
 html.dv2 #dvAcctMenu [role="menuitem"] svg { flex: 0 0 auto; color: var(--cream-60); }
@@ -20316,7 +18900,6 @@ html.dv2 #dvAcct .dv-acct-sep {
 }
 html.dv2 #dvAcct .dv-acct-label {
     padding: 4px 12px 4px;
-    font-size: 0.75rem;
     font-weight: 600;
     color: var(--cream-60);
 }

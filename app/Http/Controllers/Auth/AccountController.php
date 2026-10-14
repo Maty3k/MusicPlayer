@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Support\SignInLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 /**
  * In-app account settings (fetch/JSON, consumed by the Settings modal).
@@ -33,7 +36,7 @@ class AccountController extends Controller
      */
     public function attachEmail(Request $request): JsonResponse
     {
-        $validated = $request->validate([
+        $validated = $this->validateWithCurrentSecret($request, [
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
             'current_password' => ['required', 'current_password'],
         ]);
@@ -45,7 +48,7 @@ class AccountController extends Controller
 
     public function updatePassword(Request $request): JsonResponse
     {
-        $validated = $request->validate([
+        $validated = $this->validateWithCurrentSecret($request, [
             'current_password' => ['required', 'current_password'],
             'password' => ['required', 'confirmed', Password::min(8)],
         ]);
@@ -53,6 +56,39 @@ class AccountController extends Controller
         // The 'hashed' cast on the model hashes this on assignment.
         $request->user()->update(['password' => $validated['password']]);
 
+        // Every other device is signed out by the new hash (see
+        // EndSessionsOnPasswordChange); this refreshes the "stay signed in"
+        // cookie so the device that made the change keeps it.
+        Auth::logoutOtherDevices($validated['password']);
+
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Validate a form that asks for the current PIN or password. A wrong one
+     * counts towards the account's sign-in lock: whoever holds an open
+     * session must not be able to guess the PIN here instead of at sign-in.
+     *
+     * @param  array<string, mixed>  $rules
+     * @return array<string, mixed>
+     */
+    private function validateWithCurrentSecret(Request $request, array $rules): array
+    {
+        $account = SignInLimits::forUser($request->user());
+        SignInLimits::ensureNotLocked($account, null, 'current_password');
+
+        try {
+            $validated = $request->validate($rules);
+        } catch (ValidationException $e) {
+            if (array_key_exists('current_password', $e->errors())) {
+                SignInLimits::failed($account, null);
+            }
+
+            throw $e;
+        }
+
+        SignInLimits::succeeded($account);
+
+        return $validated;
     }
 }

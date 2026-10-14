@@ -45,7 +45,6 @@ class SpotifyController extends Controller
             'callback' => $this->callback($request),
             'token' => $this->token($request),
             'status' => $this->status($request),
-            'logout' => $this->logout($request),
             'playlists' => $this->playlists($request),
             default => response()->json(['error' => 'Unknown action']),
         };
@@ -54,6 +53,9 @@ class SpotifyController extends Controller
     public function handlePost(Request $request): JsonResponse
     {
         return match ($request->input('action', '')) {
+            // Disconnecting changes something, so it is a POST: as a GET, any
+            // image or link pointing at it would disconnect whoever opened it.
+            'logout' => $this->logout($request),
             'import_url' => $this->importUrl($request),
             'playlist_tracks' => $this->playlistTracks($request),
             default => response()->json(['error' => 'Unknown action']),

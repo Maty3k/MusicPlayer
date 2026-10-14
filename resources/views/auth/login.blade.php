@@ -10,6 +10,10 @@
         <div class="auth-status">Password reset. Log in with the new one.</div>
     @endif
 
+    @if (request()->query('ended'))
+        <div class="auth-status">The PIN or password of this account was changed, so you were signed out here. Log in with the new one.</div>
+    @endif
+
     @if ($errors->any())
         <div class="auth-errors" role="alert">
             @foreach ($errors->all() as $error)
@@ -43,7 +47,7 @@
             </label>
             <label class="auth-field auth-field-pin">
                 <span>PIN</span>
-                <input type="password" id="pin" name="pin" placeholder="&#8226;&#8226;&#8226;&#8226;" required autocomplete="current-password">
+                <input type="password" id="pin" name="pin" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required autocomplete="current-password">
             </label>
             <button type="submit" class="auth-btn auth-btn-ghost">Log in</button>
         </form>

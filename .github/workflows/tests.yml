@@ -5,11 +5,18 @@ on:
   push:
   pull_request:
 
+# The repo is public and anyone can open a pull request: the job only ever
+# needs to read the code.
+permissions:
+  contents: read
+
 jobs:
   phpunit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -26,4 +33,9 @@ jobs:
           php artisan key:generate
 
       - name: Run tests
-        run: php artisan test
+        run: php artisan test --log-junit junit.xml
+
+      - name: Name the failed tests
+        # A job's log needs a GitHub sign-in to read; its annotations don't.
+        if: failure()
+        run: python3 .github/scripts/annotate_junit.py junit.xml
