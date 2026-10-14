@@ -9,8 +9,8 @@
                playlist's "available offline" toggle (page code writes
                into this cache directly with window.caches).
    - CLOUD   : Cloudflare songs the user downloaded (cloud-music.js writes
-               them, keyed by each song's exact address), plus the last
-               copy of the Cloudflare list for offline use.
+               them, keyed by each song's strictly encoded address), plus
+               the last copy of the Cloudflare list for offline use.
    - RUNTIME : static assets (css/js/vendor/icons) and cover images,
                cached as they're used.
 
@@ -53,9 +53,9 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // --- Cloudflare songs: the downloaded copy first, by exact address ---
+    // --- Cloudflare songs: the downloaded copy first, by the song's address ---
     if (url.origin === self.location.origin && url.pathname === '/cloud-music/file') {
-        event.respondWith(serveCloudFile(req));
+        event.respondWith(serveCloudFile(req, url));
         return;
     }
 
@@ -126,13 +126,27 @@ async function serveMedia(req) {
     });
 }
 
-/* Serve a Cloudflare song. A downloaded copy sits in CLOUD_CACHE under the
-   song's exact address: the song is in the query, so never ignoreSearch
-   here (unlike /media/, whose file names are unique). Otherwise the
-   network, which passes <audio>'s ranges on to the server itself. */
-async function serveCloudFile(req) {
-    const cache = await caches.open(CLOUD_CACHE);
-    const cached = await cache.match(req.url, { ignoreVary: true });
+/* The address a Cloudflare song is kept under: cloud-music.js's strict
+   encoding of its key, so any spelling of the same key finds the copy. The
+   key is in the query, so never ignoreSearch here (unlike /media/, whose
+   file names are unique). */
+const strictEncode = (s) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+function cloudCacheUrl(url) {
+    const key = url.searchParams.get('key');
+    return key === null ? url.href : self.location.origin + '/cloud-music/file?key=' + strictEncode(key);
+}
+
+/* Serve a Cloudflare song: the downloaded copy in CLOUD_CACHE, else the
+   network, which passes <audio>'s ranges on to the server itself. Cache
+   Storage failing must never stop a song that can stream. */
+async function serveCloudFile(req, url) {
+    let cached = null;
+    try {
+        const cache = await caches.open(CLOUD_CACHE);
+        cached = await cache.match(cloudCacheUrl(url), { ignoreVary: true });
+    } catch (e) {
+        // the network below
+    }
     if (!cached) return fetch(req);
     return sliceForRange(cached, req.headers.get('range'));
 }
