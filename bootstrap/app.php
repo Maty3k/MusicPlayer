@@ -25,14 +25,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        // settings/* is consumed by fetch() in the Settings modal — validation
-        // and auth failures must come back as JSON, not redirects. A rate
-        // limit on any JSON call must too: a 429 from /search-youtube during
-        // an import has to read as "slow down", not as an HTML page. The
-        // player's own calls to /save-music don't all ask for JSON, so that
-        // path is named too.
+        // settings/* is consumed by fetch() in the Settings modal, and
+        // cloud-music/* by the Cloudflare source (fetch, an upload, <audio>) —
+        // validation and auth failures must come back as JSON, not redirects.
+        // A rate limit on any JSON call must too: a 429 from /search-youtube
+        // during an import has to read as "slow down", not as an HTML page.
+        // The player's own calls to /save-music don't all ask for JSON, so
+        // that path is named too.
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request, Throwable $e) => $request->is('api/*') || $request->is('settings/*')
+            fn (Request $request, Throwable $e) => $request->is('api/*') || $request->is('settings/*') || $request->is('cloud-music/*')
                 || ($e instanceof ThrottleRequestsException && ($request->expectsJson() || $request->is('save-music'))),
         );
     })->create();

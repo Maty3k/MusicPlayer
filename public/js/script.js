@@ -5732,8 +5732,6 @@ function recordPlay(song) {
     const prev = Array.isArray(recentSongs) ? recentSongs : [];
     recentSongs = [entry, ...prev.filter(s => songPlayKey(s) !== key)].slice(0, 12);
     updateRecentSongs();
-    // Cloudflare songs stay on this device: their URL carries the Worker token.
-    if (song.cloud_key) return;
 
     try {
         fetch('/save-music', {

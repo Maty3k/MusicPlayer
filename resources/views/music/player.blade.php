@@ -172,8 +172,9 @@
             $spotifyOn = (bool) config('services.spotify.client_id');
             // Record-cover recognition (the Song Scanner) needs a Gemini key.
             $geminiOn = (bool) config('services.gemini.key');
-            // Your own MP3/M4A files from the Cloudflare Worker (Settings → Source)
-            $cloudOn = config('services.cloud_music.url') !== '';
+            // MP3/M4A files from the Cloudflare Worker (Settings → Source). Only
+            // whether it's set up reaches the page; its address and token don't.
+            $cloudOn = \App\Support\CloudMusic::configured();
             // The desktop avatar's label: the name, else how the account signs in
             $acctDisplay = $acctName !== '' ? $acctName : ($acctSub !== '' ? $acctSub : 'your account');
         @endphp
@@ -2496,8 +2497,9 @@
         let recentSongs = @json($recentSongs);
         let favoriteKeys = new Set(@json($favoriteKeys));
         let shareTokens = @json((object) $shareTokens);
-        // Cloudflare Worker for your own files (null: not set up)
-        const CLOUD_MUSIC = @json($cloudOn ? ['url' => config('services.cloud_music.url'), 'token' => (string) config('services.cloud_music.token')] : null);
+        // The Cloudflare source is set up. Nothing more: the page reaches the
+        // Worker only through /cloud-music/*, which adds its token on the server.
+        const CLOUD_MUSIC = @json($cloudOn);
     </script>
     <!-- gif.js encoder for the Vinyl GIF Maker (client-side GIF encoding + worker) -->
     <script src="{{ asset('vendor/gif.js/gif.js') }}?v={{ filemtime(public_path('vendor/gif.js/gif.js')) }}" defer></script>

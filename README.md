@@ -47,9 +47,12 @@ CLOUD_MUSIC_URL=https://name.account.workers.dev
 CLOUD_MUSIC_TOKEN=...
 ```
 
-These songs stream straight from the Worker through one reused `<audio>`
-element, so they keep playing on a locked iPhone, with lock-screen controls.
-The code is in `public/js/cloud-music.js`.
+The token is one secret for every account, so it stays on the server: the
+page only talks to `/cloud-music/*` (`CloudMusicController`), which adds it
+to each call to the Worker and streams the files on with HTTP Range. The
+songs play through one reused `<audio>` element, so they keep playing on a
+locked iPhone, with lock-screen controls. The page side is in
+`public/js/cloud-music.js`.
 
 ## Deployment
 

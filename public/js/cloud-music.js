@@ -1,6 +1,9 @@
 // ============================================================
 // CLOUDFLARE SOURCE — your own MP3/M4A files from the R2 bucket, through
-// the Worker (CLOUD_MUSIC, set in player.blade.php from .env).
+// the Worker. The page never sees the Worker's address or token: it only
+// knows whether the source is set up (CLOUD_MUSIC, player.blade.php) and
+// talks to /cloud-music/* (CloudMusicController), which adds the token on
+// the server. A song's mp3_url is a path on this site.
 //
 // Settings → Source picks where the Search tab looks: your playlists (as
 // before) or the Cloudflare list. Cloudflare songs play through the one
@@ -14,7 +17,7 @@
 // ============================================================
 
 window.cloudMusic = (() => {
-    const cfg = (typeof CLOUD_MUSIC === 'object' && CLOUD_MUSIC && CLOUD_MUSIC.url) ? CLOUD_MUSIC : null;
+    const cfg = typeof CLOUD_MUSIC !== 'undefined' && CLOUD_MUSIC === true; // set up on the server
     const SOURCE_KEY = 'songSource';
     const MAX_ROWS = 200;
     const NOTE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>';
@@ -35,8 +38,12 @@ window.cloudMusic = (() => {
     let audioHooked = false;
 
     // ---- URLs ----
-    const token = () => encodeURIComponent(cfg ? cfg.token : '');
-    const fileUrl = (key) => cfg.url + '/file/' + encodeURIComponent(key) + '?t=' + token();
+    // A song's address: the same for the same file, and no token in it, so
+    // a favourite or a recent play can keep it. Strictly encoded, because
+    // encodeURIComponent leaves ! ' ( ) * alone and an mp3_url with ' in it
+    // is refused when it is saved (MusicController::sanitizeUrl).
+    const enc = (s) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+    const fileUrl = (key) => '/cloud-music/file?key=' + enc(key);
 
     // ---- Display titles (only for showing; playback always uses the key) ----
     const NOISE = /\b(official|oficial|video|audio|lyrics?|letra|visuali[sz]er|hd|hq|4k|1080p|720p|vevo|m\/v|mv|videoclip|clip officiel|explicit|color coded)\b/i;
@@ -94,15 +101,16 @@ window.cloudMusic = (() => {
         if (!force && listState === 'done') return Promise.resolve(songs);
         listState = 'loading';
         syncStatus();
-        loading = fetch(cfg.url + '/list?t=' + token(), { cache: 'no-store' })
-            .then((res) => {
-                if (res.status === 401 || res.status === 403) throw new Error('the token was refused');
-                if (!res.ok) throw new Error('the Worker answered ' + res.status);
-                return res.json();
-            })
-            .then((data) => {
-                if (!Array.isArray(data)) throw new Error('unexpected answer from the Worker');
-                songs = data
+        loading = fetch('/cloud-music/list', { cache: 'no-store', headers: { Accept: 'application/json' } })
+            .then((res) => res.json().catch(() => null).then((data) => {
+                // The server words every error itself; the Worker's never reach the page.
+                if (!res.ok || !data || !Array.isArray(data.songs)) {
+                    throw new Error((data && (data.error || data.message)) || 'The server answered ' + res.status + '.');
+                }
+                return data.songs;
+            }))
+            .then((list) => {
+                songs = list
                     .filter((it) => it && typeof it.key === 'string' && Number(it.size) > 0) // size 0 = failed upload
                     .map(toSong)
                     .sort((a, b) => (a.artist + ' ' + a.title).localeCompare(b.artist + ' ' + b.title, undefined, { sensitivity: 'base' }));
@@ -334,39 +342,70 @@ window.cloudMusic = (() => {
             if (cls) status.classList.add(cls);
         };
         if (!cfg || !files.length) return;
+        const MAX_BYTES = 40 * 1024 * 1024; // the server's limit, as for your own uploads
         const ok = files.filter((f) => /\.(mp3|m4a)$/i.test(f.name));
         if (!ok.length) { say('Pick MP3 or M4A files.', 'err'); return; }
+        const tooBig = ok.filter((f) => f.size > MAX_BYTES).length;
 
         say('Checking what is already there…');
         load(true).then(() => {
             if (listState !== 'done') { say("Couldn't load the list, so nothing was uploaded.", 'err'); return; }
             const have = new Set(songs.map((s) => s.cloud_key));
-            const todo = ok.filter((f) => !have.has(f.name));
-            const skipped = ok.length - todo.length;
-            let done = 0, failed = 0;
+            const todo = ok.filter((f) => f.size <= MAX_BYTES && !have.has(f.name));
+            let skipped = ok.length - tooBig - todo.length;
+            let done = 0, failed = 0, lastError = '';
+            const finish = (extra) => {
+                const parts = [done + ' uploaded'];
+                if (skipped) parts.push(skipped + ' already there');
+                if (tooBig) parts.push(tooBig + ' over 40 MB');
+                if (failed) parts.push(failed + ' failed');
+                say(parts.join(', ') + '.' + (extra ? ' ' + extra : ''), failed || tooBig || extra ? 'err' : 'ok');
+                load(true);
+            };
+            // One after another, through this site (CloudMusicController): it
+            // checks the file, adds the Worker's token and never writes over a
+            // file that is already in the bucket.
             const next = (i) => {
-                if (i >= todo.length) {
-                    const parts = [done + ' uploaded'];
-                    if (skipped) parts.push(skipped + ' already there');
-                    if (failed) parts.push(failed + ' failed');
-                    say(parts.join(', ') + '.', failed ? 'err' : 'ok');
-                    load(true);
-                    return;
-                }
+                if (i >= todo.length) { finish(lastError); return; }
                 const f = todo[i];
                 const label = (i + 1) + ' of ' + todo.length + ': ' + f.name;
+                const form = new FormData();
+                form.append('file', f);
                 const xhr = new XMLHttpRequest();
-                xhr.open('PUT', cfg.url + '/upload/' + encodeURIComponent(f.name) + '?t=' + token());
-                xhr.setRequestHeader('Content-Type', /\.m4a$/i.test(f.name) ? 'audio/mp4' : 'audio/mpeg');
+                xhr.open('POST', '/cloud-music/upload');
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.setRequestHeader('X-CSRF-TOKEN', window.getCsrfToken ? window.getCsrfToken() : '');
                 xhr.upload.onprogress = (e) => {
                     if (e.lengthComputable) say('Uploading ' + label + ' (' + Math.round((e.loaded / e.total) * 100) + '%)');
                 };
-                xhr.onload = () => { if (xhr.status >= 200 && xhr.status < 300) done++; else failed++; next(i + 1); };
-                xhr.onerror = () => { failed++; next(i + 1); };
+                xhr.onload = () => {
+                    let data = null;
+                    try { data = JSON.parse(xhr.responseText); } catch (e) {}
+                    const message = (data && (data.error || data.message)) || '';
+                    if (xhr.status === 429) {
+                        // The per-minute limit: wait it out and send this file again.
+                        // The daily one (hours away) ends the batch: the rest would be refused too.
+                        const wait = parseInt(xhr.getResponseHeader('Retry-After'), 10);
+                        if (wait > 0 && wait <= 90) {
+                            say('Waiting ' + wait + ' s before the next upload…');
+                            setTimeout(() => next(i), wait * 1000 + 250);
+                        } else {
+                            failed += todo.length - i;
+                            finish(message);
+                        }
+                        return;
+                    }
+                    if (xhr.status >= 200 && xhr.status < 300) done++;
+                    else if (xhr.status === 409) skipped++;
+                    else { failed++; lastError = message; }
+                    next(i + 1);
+                };
+                xhr.onerror = () => { failed++; lastError = 'No connection to the server.'; next(i + 1); };
                 say('Uploading ' + label);
-                xhr.send(f);
+                xhr.send(form);
             };
-            if (!todo.length) { say('All ' + ok.length + ' already in the bucket.', 'ok'); return; }
+            if (!todo.length && !tooBig) { say('All ' + ok.length + ' already in the bucket.', 'ok'); return; }
+            if (!todo.length) { finish(''); return; }
             next(0);
         });
     }

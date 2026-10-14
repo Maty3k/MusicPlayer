@@ -51,12 +51,12 @@ return [
     ],
 
     // Cloudflare Worker in front of the private R2 "music" bucket (Settings →
-    // Source → Cloudflare). Optional: without a URL the option stays hidden.
-    // The token is handed to the browser, which streams straight from the
-    // Worker (that's what keeps playing on a locked iPhone).
+    // Source → Cloudflare). Optional: without both values the choice says it
+    // isn't set up. The token never leaves the server: the page talks to
+    // /cloud-music/*, which adds it (App\Support\CloudMusic).
     'cloud_music' => [
         'url' => rtrim((string) env('CLOUD_MUSIC_URL', ''), '/'),
-        'token' => env('CLOUD_MUSIC_TOKEN', ''),
+        'token' => (string) env('CLOUD_MUSIC_TOKEN', ''),
     ],
 
 ];
