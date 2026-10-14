@@ -169,6 +169,8 @@ async function serveCloudList(req) {
     const timer = setTimeout(() => stop.abort(), LIST_TIMEOUT_MS);
     try {
         res = await fetch(req, { signal: stop.signal });
+        // The list opened as a page and sent to the login page: the browser follows that itself
+        if (res.type === 'opaqueredirect') return res;
         body = await res.arrayBuffer();
     } catch (e) {
         res = null;
