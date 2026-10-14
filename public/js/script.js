@@ -568,6 +568,7 @@ function nextSong() {
     noteUserSongAsk(); // only ever the user's Next (auto-advance is playNextByLoop)
     // The queue always wins over the normal playlist/shuffle progression.
     if (playQueue.length > 0) { advanceFromQueue(); return; }
+    if (window.cloudMusic && cloudMusic.isPlaying()) { cloudMusic.step(1, true); return; }
     if (songsData.length === 0) return;
 
     // Smart shuffle: alternate between playlist and radio
@@ -595,7 +596,9 @@ function nextSong() {
 }
 
 function prevSong() {
-    if (isChangingSong || songsData.length === 0) return;
+    if (isChangingSong) return;
+    if (window.cloudMusic && cloudMusic.isPlaying()) { noteUserSongAsk(); cloudMusic.step(-1, true); return; }
+    if (songsData.length === 0) return;
     noteUserSongAsk();
     if (shuffleMode !== 'off' && songHistory.length > 0) {
         // Go back to the actual previous song that played
@@ -990,12 +993,15 @@ let isFetchingRadio = false;
 // running for the old context then cleans up only after itself.
 let radioGen = 0;
 
-function resetRadio() {
+function resetRadio(opts) {
+    // keepCloud: a playing Cloudflare song (cloud-music.js) lives in
+    // currentRadioSong too, and only this reset must not drop it
+    const keep = opts && opts.keepCloud && currentRadioSong && currentRadioSong.cloud_key ? currentRadioSong : null;
     radioGen++;
     radioPool = [];
     smartShuffleNextIsRadio = false;
-    currentRadioSong = null;
-    removeRadioSidebarItem();
+    currentRadioSong = keep;
+    if (!keep) removeRadioSidebarItem();
     try { if (radioProbePlayer) radioProbePlayer.destroy(); } catch (e) {}
     radioProbePlayer = null;
     isFetchingRadio = false;
@@ -1027,8 +1033,10 @@ function toggleShuffle() {
         btn.dataset.shuffle = 'off';
         label.textContent = 'shuffle';
         shuffleQueue = [];
-        // Clear smart shuffle state (and a probe still running)
-        resetRadio();
+        // Clear smart shuffle state (and a probe still running). A playing
+        // Cloudflare song stays: dropping it would hand Next and its end to
+        // the playlist.
+        resetRadio({ keepCloud: true });
     }
 }
 
@@ -1273,7 +1281,10 @@ function addRadioSidebarItem(song) {
     const li = document.createElement('li');
     li.className = 'song-list-item radio-song-item active';
     const radioCover = safeUrl(song.cover);
-    const saveBtn = currentRadioSongSaved
+    // A Cloudflare song (cloud-music.js) gets no "add to playlist": that path
+    // only stores YouTube songs. Here, so every re-render keeps it that way.
+    const saveBtn = song.cloud_key ? ''
+        : currentRadioSongSaved
         ? '<button class="song-save-btn" disabled title="Added to playlist">&#10003;</button>'
         : '<button class="song-save-btn" onclick="event.stopPropagation(); saveRadioSong()" title="Add to playlist">+</button>';
     li.innerHTML = `
@@ -1290,7 +1301,7 @@ function addRadioSidebarItem(song) {
                 <span></span><span></span><span></span><span></span>
             </div>
         </div>
-        <span class="radio-badge" title="Recommended song">
+        <span class="radio-badge" title="${song.cloud_key ? 'From Cloudflare' : 'Recommended song'}">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/>
                 <circle cx="4" cy="18" r="2"/>
@@ -1691,6 +1702,9 @@ function playNextByLoop() {
         }
         return;
     }
+    // A Cloudflare song plays on through its own list (cloud-music.js),
+    // right here in the 'ended' event so a locked iPhone keeps going.
+    if (window.cloudMusic && cloudMusic.isPlaying()) { cloudMusic.step(1, false); return; }
     if (songsData.length === 0) return;
 
     // 'playlist' and 'off' both keep going; 'off' plays the playlist through
@@ -1967,6 +1981,7 @@ function songToQueueItem(song) {
         youtube_id: song.youtube_id || '',
         mp3_url: song.mp3_url || '',
         spotify_id: song.spotify_id || '',
+        cloud_key: song.cloud_key || '',
     };
 }
 
@@ -5720,6 +5735,8 @@ function recordPlay(song) {
         youtube_id: song.youtube_id || '',
         mp3_url: song.mp3_url || '',
         spotify_id: song.spotify_id || '',
+        // A replay from Jump back in keeps playing through its Cloudflare list
+        cloud_key: song.cloud_key || '',
     };
     const key = songPlayKey(entry);
     const prev = Array.isArray(recentSongs) ? recentSongs : [];
@@ -6576,8 +6593,11 @@ function handleUnplayableSong(song, reason) {
     playRequested = false;
     const name = song.title ? `“${song.title}”` : 'This song';
     unplayableStreak++;
-    const alone = loopMode === 'single' || (!currentRadioSong && songsData.length <= 1);
-    if (alone || unplayableStreak >= Math.min(5, songsData.length || 1)) {
+    // The list the next song would come from: the Cloudflare one while it plays
+    const cloud = !!(window.cloudMusic && cloudMusic.isPlaying());
+    const pool = cloud ? cloudMusic.size() : songsData.length;
+    const alone = loopMode === 'single' || ((cloud || !currentRadioSong) && pool <= 1);
+    if (alone || unplayableStreak >= Math.min(5, pool || 1)) {
         unplayableStreak = 0;
         showBulkToast(`${name} can't play: ${reason}.`
             + (alone ? '' : ' Several songs in a row couldn’t play, so playback stopped.'));
@@ -10008,7 +10028,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // (switching into an empty playlist doesn't stop the old track, and
         // the dock would be the only reachable transport).
         const empty = (typeof songsData === 'undefined' || songsData.length === 0)
-            && !document.body.classList.contains('m-playing');
+            && !document.body.classList.contains('m-playing')
+            // A paused Cloudflare song: the dock is the way back to it
+            && !(window.cloudMusic && cloudMusic.isPlaying());
         dock.classList.toggle('m-dock-hidden', empty || keyboardOpen);
         document.body.classList.toggle('m-kb', keyboardOpen);
         dvSyncBarVisibility();
@@ -11658,6 +11680,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // The empty field: recent searches, then your playlists.
     function renderSearchHome() {
         if (!searchResultsEl) return;
+        // Source = Cloudflare: the empty field lists those songs instead. Here
+        // and not only in runPageSearch: the desktop Search page and playlist
+        // repaints draw the empty field without it (cloud-music.js).
+        if (window.cloudMusic && cloudMusic.searchActive()) {
+            cloudMusic.renderSearch('', searchResultsEl);
+            return;
+        }
         const recent = loadRecentSearches();
         let html = '';
         if (recent.length) {
@@ -11821,6 +11850,12 @@ document.addEventListener('DOMContentLoaded', () => {
         ytResults = [];
         libDone = false;
         ytState = 'idle';
+        // Source = Cloudflare: search your own files instead (cloud-music.js).
+        // A pasted YouTube or Spotify link still adds or imports as usual.
+        if (window.cloudMusic && cloudMusic.searchActive() && !linkKind(q)) {
+            cloudMusic.renderSearch(q, searchResultsEl, announce);
+            return;
+        }
         if (!q) {
             renderSearchHome();
             return;
@@ -11921,7 +11956,8 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.addEventListener('input', runPageSearch);
         searchInput.addEventListener('keydown', (e) => {
             if (e.key !== 'Enter') return;
-            rememberSearch();
+            // A Cloudflare filter isn't a search to come back to (cloud-music.js)
+            if (!(window.cloudMusic && cloudMusic.searchActive())) rememberSearch();
             // Done typing: drop the keyboard (the desktop page keeps focus
             // in the field; arrow down goes into the results)
             if (!htmlEl.classList.contains('dv2')) searchInput.blur();
@@ -15314,7 +15350,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (what === 'stats') window.showStatsModal();
             else if (what === 'keys') { if (window.dvKeys) window.dvKeys.open(); }
             else if (what === 'bring') window.showBringMusicModal();
-            else if (what === 'playback' || what === 'appearance' || what === 'account') {
+            else if (what === 'playback' || what === 'appearance' || what === 'source' || what === 'account') {
                 window.showSettingsModal();
                 setSettingsTab(what); // it opens on Playback
             } else if (what === 'install') install();

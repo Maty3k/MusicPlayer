@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\MemberAccessController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\CloudMusicController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MusicController;
 use App\Http\Controllers\PlayerController;
@@ -102,6 +103,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/upload-song', UploadSongController::class)->middleware('throttle:120,5,upload-song');
     Route::get('/media/{filename}', MediaController::class)
         ->where('filename', '[A-Za-z0-9.\-]+');
+
+    // The Cloudflare source (Settings → Source): the friend's R2 bucket
+    // behind his Worker. The page only ever talks to these; the Worker's
+    // token is added on the server and never reaches a browser.
+    Route::get('/cloud-music/list', [CloudMusicController::class, 'list'])->middleware('throttle:cloud-music-list');
+    Route::get('/cloud-music/file', [CloudMusicController::class, 'file'])->middleware('throttle:cloud-music-file');
+    Route::post('/cloud-music/upload', [CloudMusicController::class, 'upload'])->middleware('throttle:cloud-music-upload');
 
     // Spotify POST serves import_url/playlist_tracks; the GET side lives
     // outside this group (see below) because its callback also serves guests.

@@ -19466,3 +19466,12 @@ html.dv2 #dvKeysModal .dv-keys-panel { border-radius: var(--dv-r-xl); }
         animation: dvFadeOut 350ms ease-out forwards;
     }
 }
+
+/* Cloudflare source: the playing song in the Search results (as specific as
+   it must be to beat the phone's and the desktop's own title colour) */
+#mSearchResults .m-sr-row.is-playing .search-result .search-result-title { color: var(--amber); }
+/* Four Settings tabs, when the Cloudflare source is set up: on a phone the
+   labels need the room the icons took, and in the desktop window the pills
+   sit a little closer so Account still fits */
+@media (max-width: 600px) { .settings-tabs.with-source .settings-tab svg { display: none; } }
+html.dv2 .add-song-modal .settings-tabs.with-source .settings-tab { padding: 0 12px; }

@@ -120,5 +120,34 @@ class AppServiceProvider extends ServiceProvider
             Limit::perDay(150)->by('ai-scan-day:'.$who($request)),
             Limit::perDay(1000)->by('ai-scan-everyone'),
         ]);
+
+        // The Cloudflare source: every call goes on to the friend's Worker,
+        // whose daily request allowance is his, and every song's bytes pass
+        // through this app. Per account by the minute and by the day, and a
+        // daily total for everyone. One song is a few Range requests (more on
+        // an iPhone, and every seek adds one); an upload is up to 40 MB in his
+        // bucket. The list and uploads answer in the page's own shape; a file
+        // gets the plain 429 (<audio> reads no JSON).
+        $workerBusy = fn (Request $request, array $headers) => response()->json([
+            'success' => false,
+            'rateLimited' => true,
+            'error' => 'Too many requests for the Cloudflare songs. Wait a minute and try again.',
+        ], 429, $headers);
+
+        RateLimiter::for('cloud-music-list', fn (Request $request) => [
+            Limit::perMinute(30)->by('cloud-music-list:'.$who($request))->response($workerBusy),
+            Limit::perDay(500)->by('cloud-music-list-day:'.$who($request))->response($workerBusy),
+            Limit::perDay(5000)->by('cloud-music-list-everyone')->response($workerBusy),
+        ]);
+        RateLimiter::for('cloud-music-file', fn (Request $request) => [
+            Limit::perMinute(180)->by('cloud-music-file:'.$who($request)),
+            Limit::perDay(3000)->by('cloud-music-file-day:'.$who($request)),
+            Limit::perDay(20000)->by('cloud-music-file-everyone'),
+        ]);
+        RateLimiter::for('cloud-music-upload', fn (Request $request) => [
+            Limit::perMinute(20)->by('cloud-music-upload:'.$who($request))->response($workerBusy),
+            Limit::perDay(200)->by('cloud-music-upload-day:'.$who($request))->response($workerBusy),
+            Limit::perDay(500)->by('cloud-music-upload-everyone')->response($workerBusy),
+        ]);
     }
 }
