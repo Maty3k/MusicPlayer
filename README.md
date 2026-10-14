@@ -34,6 +34,22 @@ library snapshot into your account:
 php artisan music:import you@example.com
 ```
 
+## Cloudflare source (your own MP3/M4A files)
+
+Settings → **Source** switches the Search tab between your playlists and the
+files in a Cloudflare R2 bucket, served by a Worker (`/list`, `/file/<key>`,
+`/upload/<key>`, each with `?t=<token>`). Set both in `.env` (never
+committed; on Laravel Cloud as environment variables):
+
+```bash
+CLOUD_MUSIC_URL=https://name.account.workers.dev
+CLOUD_MUSIC_TOKEN=...
+```
+
+These songs stream straight from the Worker through one reused `<audio>`
+element, so they keep playing on a locked iPhone, with lock-screen controls.
+The code is in `public/js/cloud-music.js`.
+
 ## Deployment
 
 See [DEPLOY.md](DEPLOY.md) for the Laravel Cloud walkthrough (Postgres,

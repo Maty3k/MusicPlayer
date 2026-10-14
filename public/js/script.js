@@ -568,6 +568,7 @@ function nextSong() {
     noteUserSongAsk(); // only ever the user's Next (auto-advance is playNextByLoop)
     // The queue always wins over the normal playlist/shuffle progression.
     if (playQueue.length > 0) { advanceFromQueue(); return; }
+    if (window.cloudMusic && cloudMusic.isPlaying()) { cloudMusic.step(1, true); return; }
     if (songsData.length === 0) return;
 
     // Smart shuffle: alternate between playlist and radio
@@ -595,7 +596,9 @@ function nextSong() {
 }
 
 function prevSong() {
-    if (isChangingSong || songsData.length === 0) return;
+    if (isChangingSong) return;
+    if (window.cloudMusic && cloudMusic.isPlaying()) { noteUserSongAsk(); cloudMusic.step(-1, true); return; }
+    if (songsData.length === 0) return;
     noteUserSongAsk();
     if (shuffleMode !== 'off' && songHistory.length > 0) {
         // Go back to the actual previous song that played
@@ -1679,6 +1682,9 @@ function playNextByLoop() {
         }
         return;
     }
+    // A Cloudflare song plays on through its own list (cloud-music.js),
+    // right here in the 'ended' event so a locked iPhone keeps going.
+    if (window.cloudMusic && cloudMusic.isPlaying()) { cloudMusic.step(1, false); return; }
     if (songsData.length === 0) return;
 
     // 'playlist' and 'off' both keep going; 'off' plays the playlist through
@@ -1955,6 +1961,7 @@ function songToQueueItem(song) {
         youtube_id: song.youtube_id || '',
         mp3_url: song.mp3_url || '',
         spotify_id: song.spotify_id || '',
+        cloud_key: song.cloud_key || '',
     };
 }
 
@@ -5727,6 +5734,8 @@ function recordPlay(song) {
     const prev = Array.isArray(recentSongs) ? recentSongs : [];
     recentSongs = [entry, ...prev.filter(s => songPlayKey(s) !== key)].slice(0, 12);
     updateRecentSongs();
+    // Cloudflare songs stay on this device: their URL carries the Worker token.
+    if (song.cloud_key) return;
 
     try {
         fetch('/save-music', {
@@ -11819,6 +11828,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ytResults = [];
         libDone = false;
         ytState = 'idle';
+        // Source = Cloudflare: search your own files instead (cloud-music.js)
+        if (window.cloudMusic && cloudMusic.searchActive()) {
+            cloudMusic.renderSearch(q, searchResultsEl, announce);
+            return;
+        }
         if (!q) {
             renderSearchHome();
             return;
@@ -15312,7 +15326,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (what === 'stats') window.showStatsModal();
             else if (what === 'keys') { if (window.dvKeys) window.dvKeys.open(); }
             else if (what === 'bring') window.showBringMusicModal();
-            else if (what === 'playback' || what === 'appearance' || what === 'account') {
+            else if (what === 'playback' || what === 'appearance' || what === 'source' || what === 'account') {
                 window.showSettingsModal();
                 setSettingsTab(what); // it opens on Playback
             } else if (what === 'install') install();

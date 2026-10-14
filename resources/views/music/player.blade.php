@@ -172,6 +172,8 @@
             $spotifyOn = (bool) config('services.spotify.client_id');
             // Record-cover recognition (the Song Scanner) needs a Gemini key.
             $geminiOn = (bool) config('services.gemini.key');
+            // Your own MP3/M4A files from the Cloudflare Worker (Settings → Source)
+            $cloudOn = config('services.cloud_music.url') !== '';
             // The desktop avatar's label: the name, else how the account signs in
             $acctDisplay = $acctName !== '' ? $acctName : ($acctSub !== '' ? $acctSub : 'your account');
         @endphp
@@ -210,6 +212,10 @@
                         <button type="button" role="menuitem" data-dv-acct="appearance" aria-haspopup="dialog">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>
                             <span>Appearance</span>
+                        </button>
+                        <button type="button" role="menuitem" data-dv-acct="source" aria-haspopup="dialog">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/></svg>
+                            <span>Music source</span>
                         </button>
                         <button type="button" role="menuitem" data-dv-acct="account" aria-haspopup="dialog">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>
@@ -808,6 +814,11 @@
                 <button type="button" class="m-you-row" data-m-you="appearance">
                     <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg></span>
                     <span class="m-you-text"><b>Appearance</b><small>Room colors</small></span>
+                    <svg class="m-you-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>
+                </button>
+                <button type="button" class="m-you-row" data-m-you="source">
+                    <span class="m-you-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/></svg></span>
+                    <span class="m-you-text"><b>Music source</b><small id="mYouSourceSub">Your playlists or Cloudflare</small></span>
                     <svg class="m-you-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>
                 </button>
                 <button type="button" class="m-you-row" data-m-you="account">
@@ -2110,6 +2121,9 @@
                 <button type="button" class="settings-tab" data-tab="appearance" onclick="setSettingsTab('appearance')">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>Appearance
                 </button>
+                <button type="button" class="settings-tab" data-tab="source" onclick="setSettingsTab('source')">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/></svg>Source
+                </button>
                 <button type="button" class="settings-tab" data-tab="account" onclick="setSettingsTab('account')">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>Account
                 </button>
@@ -2201,6 +2215,37 @@
                 </div>
                 <p class="settings-hint">How the sleeve with the cover and lyrics sits next to the record player: upright on its own, or tipped against the deck like the original.</p>
             </div>
+            </div>
+            </div>
+
+            <div class="settings-panel" data-panel="source">
+            <div class="settings-panel-scroll">
+            <div class="add-song-form-group">
+                <label>Where Search finds songs</label>
+                <div class="settings-source-options" id="cloudSourceOptions">
+                    <button type="button" class="settings-source-btn active" data-song-source="library" onclick="cloudMusic.setSource('library')">Your playlists</button>
+                    <button type="button" class="settings-source-btn" data-song-source="cloud" onclick="cloudMusic.setSource('cloud')" @if (! $cloudOn) disabled @endif>Cloudflare</button>
+                </div>
+                @if ($cloudOn)
+                    <p class="settings-hint">Cloudflare plays your own MP3 and M4A files. They keep playing when the phone is locked or you switch apps. Your playlists work as before.</p>
+                @else
+                    <p class="settings-hint">Cloudflare isn't set up on this server yet (CLOUD_MUSIC_URL and CLOUD_MUSIC_TOKEN in .env).</p>
+                @endif
+            </div>
+
+            @if ($cloudOn)
+            <div class="add-song-form-group">
+                <label>Cloudflare library</label>
+                <div class="settings-status" id="cloudListStatus" role="status"></div>
+                <div class="settings-source-options">
+                    <button type="button" class="settings-source-btn" onclick="cloudMusic.reload()">Reload list</button>
+                    <button type="button" class="settings-source-btn" onclick="document.getElementById('cloudUploadInput').click()">Upload files…</button>
+                </div>
+                <input type="file" id="cloudUploadInput" accept=".mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a" multiple hidden onchange="cloudMusic.upload(this)">
+                <div class="settings-status" id="cloudUploadStatus" role="status" aria-live="polite"></div>
+                <p class="settings-hint">Uploads go one after another. Files already in the bucket are skipped.</p>
+            </div>
+            @endif
             </div>
             </div>
 
@@ -2603,11 +2648,14 @@
         let recentSongs = @json($recentSongs);
         let favoriteKeys = new Set(@json($favoriteKeys));
         let shareTokens = @json((object) $shareTokens);
+        // Cloudflare Worker for your own files (null: not set up)
+        const CLOUD_MUSIC = @json($cloudOn ? ['url' => config('services.cloud_music.url'), 'token' => (string) config('services.cloud_music.token')] : null);
     </script>
     <!-- gif.js encoder for the Vinyl GIF Maker (client-side GIF encoding + worker) -->
     <script src="{{ asset('vendor/gif.js/gif.js') }}?v={{ filemtime(public_path('vendor/gif.js/gif.js')) }}" defer></script>
     <script src="{{ asset('js/player-debug.js') }}?v={{ filemtime(public_path('js/player-debug.js')) }}"></script>
     <script src="{{ asset('js/script.js') }}?v={{ filemtime(public_path('js/script.js')) }}"></script>
+    <script src="{{ asset('js/cloud-music.js') }}?v={{ filemtime(public_path('js/cloud-music.js')) }}"></script>
     <!-- Spotify Web Playback SDK (Premium streaming). Loaded after script.js so
          window.onSpotifyWebPlaybackSDKReady is defined before the SDK fires it. -->
     <script src="https://sdk.scdn.co/spotify-player.js"></script>

@@ -20883,3 +20883,8 @@ html.dv2 #dvKeysModal .dv-keys-panel { border-radius: var(--dv-r-xl); }
         animation: dvFadeOut 350ms ease-out forwards;
     }
 }
+
+/* Cloudflare source: the playing song in the Search results */
+.m-sr-row.is-playing .search-result-title { color: var(--amber); }
+/* Four Settings tabs on a phone: the labels need the room the icons took */
+@media (max-width: 600px) { .settings-tab svg { display: none; } }
