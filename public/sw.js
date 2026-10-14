@@ -27,6 +27,10 @@ const CLOUD_CACHE = 'cloud-v1';       // survives version bumps — Cloudflare d
 const RUNTIME_CACHE = 'runtime-' + VERSION;
 const RUNTIME_MAX_ENTRIES = 300;
 
+/* The app's own files (in RUNTIME): what an offline start needs besides the page. */
+const isAppFile = (url) => url.origin === self.location.origin
+    && (/^\/(css|js|vendor|icons)\//.test(url.pathname) || url.pathname === '/manifest.webmanifest');
+
 self.addEventListener('install', (event) => {
     self.skipWaiting();
 });
@@ -72,8 +76,7 @@ self.addEventListener('fetch', (event) => {
     }
 
     // --- Same-origin static assets: stale-while-revalidate ---
-    if (url.origin === self.location.origin &&
-        (/^\/(css|js|vendor|icons)\//.test(url.pathname) || url.pathname === '/manifest.webmanifest')) {
+    if (isAppFile(url)) {
         event.respondWith(staleWhileRevalidate(req));
         return;
     }
@@ -174,6 +177,39 @@ async function serveCloudList(req) {
     return new Response(copy.body, { status: 200, headers });
 }
 
+/* The page asks after keeping songs, so that an offline start works: a
+   first visit (or the first after logging in) ran before this worker was in
+   control, and the app's page and files were never stored. */
+self.addEventListener('message', (event) => {
+    const data = event.data || {};
+    if (data.type === 'keep-app' && Array.isArray(data.urls)) event.waitUntil(keepApp(data.urls));
+});
+async function keepApp(urls) {
+    try {
+        const shell = await caches.open(SHELL_CACHE);
+        if (!(await shell.match('/'))) {
+            const res = await fetch('/', { credentials: 'same-origin' });
+            const finalPath = new URL(res.url || '/', self.location.origin).pathname;
+            if (res.ok && finalPath === '/' && !/no-store/i.test(res.headers.get('Cache-Control') || '')) {
+                await shell.put('/', res);
+            }
+        }
+        const runtime = await caches.open(RUNTIME_CACHE);
+        for (const u of urls.slice(0, 40)) {
+            const url = new URL(u, self.location.origin);
+            if (!isAppFile(url)) continue;
+            if (await runtime.match(url.href, { ignoreVary: true })) continue;
+            const res = await fetch(url.href);
+            if (res.ok) {
+                await runtime.put(url.href, res);
+                await dropOldVersions(runtime, url);
+            }
+        }
+    } catch (e) {
+        // best effort: the next visit stores them anyway
+    }
+}
+
 /* <audio> asks for byte ranges, which cache.match can't answer: slice them
    out of the copy. A Blob slice reads only that part, never the whole song. */
 async function sliceForRange(cached, range) {
@@ -232,16 +268,33 @@ async function serveNavigation(req) {
     }
 }
 
+/* The app's own files. With neither this version's copy nor a network, the
+   copy of another version will do: the stored page can be a deploy ahead of
+   the files stored with it. */
 async function staleWhileRevalidate(req) {
     const cache = await caches.open(RUNTIME_CACHE);
     const cached = await cache.match(req, { ignoreVary: true });
     const network = fetch(req).then((res) => {
         if (res && (res.ok || res.type === 'opaque')) {
-            cache.put(req, res.clone()).then(() => trimCache(cache));
+            cache.put(req, res.clone())
+                .then(() => dropOldVersions(cache, new URL(req.url)))
+                .then(() => trimCache(cache))
+                .catch(() => {});
         }
         return res;
     }).catch(() => null);
-    return cached || (await network) || Response.error();
+    return cached || (await network)
+        || (await cache.match(req, { ignoreSearch: true, ignoreVary: true }))
+        || Response.error();
+}
+
+/* The app's files are kept for good (trimCache never drops them), so a new
+   version (the same path with another ?v=) replaces the old one instead of
+   piling up deploy after deploy. */
+async function dropOldVersions(cache, url) {
+    for (const key of await cache.keys(url.origin + url.pathname, { ignoreSearch: true, ignoreVary: true })) {
+        if (key.url !== url.href) await cache.delete(key);
+    }
 }
 
 async function cacheFirst(req) {
@@ -259,10 +312,12 @@ async function cacheFirst(req) {
     }
 }
 
-/* FIFO cap so cover art can't grow unbounded. */
+/* FIFO cap so cover art can't grow unbounded. The app's own files never
+   go: they are the oldest entries, and an offline start needs them (the
+   downloaded songs are no use without the player). */
 async function trimCache(cache) {
     const keys = await cache.keys();
-    if (keys.length > RUNTIME_MAX_ENTRIES) {
-        await cache.delete(keys[0]);
-    }
+    if (keys.length <= RUNTIME_MAX_ENTRIES) return;
+    const oldest = keys.find((k) => !isAppFile(new URL(k.url)));
+    if (oldest) await cache.delete(oldest);
 }
