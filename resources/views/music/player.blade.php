@@ -2500,7 +2500,8 @@
                 $c = $s['cover'] ?? '';
                 if ($c && !in_array($c, $seenCovers)) {
                     $seenCovers[] = $c;
-                    $covers[] = ['index' => $idx, 'url' => $c, 'title' => $s['title'] ?? ''];
+                    $covers[] = ['index' => $idx, 'url' => $c, 'title' => $s['title'] ?? '',
+                        'key' => \App\Models\Song::keyFor($s['youtube_id'] ?? '', $s['spotify_id'] ?? '', $s['mp3_url'] ?? '', $s['title'] ?? '', $s['artist'] ?? '')];
                 }
             }
             $meta[$id] = ['name' => $pl['name'] ?? $id, 'color' => nt_safe_css_color($pl['color'] ?? '#d4a574'), 'songCount' => count($pl['songs'] ?? []), 'coverSongIndex' => $pl['coverSongIndex'] ?? null, 'covers' => $covers];

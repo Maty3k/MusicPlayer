@@ -377,7 +377,8 @@ class MusicController extends Controller
         $playlist = is_string($slug) ? $this->findPlaylist($user, $slug) : null;
 
         if ($index === false || $index < 0 || $playlist === null
-            || ($victim = $this->songAt($playlist, $index)) === null) {
+            || ($victim = $this->songAt($playlist, $index)) === null
+            || ! $this->sameSong($victim, $request->input('key'))) {
             return ['success' => false, 'error' => 'Invalid song index'];
         }
 
@@ -516,7 +517,8 @@ class MusicController extends Controller
         $to = is_string($toSlug) ? $this->findPlaylist($user, $toSlug) : null;
 
         if ($songIndex === false || $songIndex < 0 || $from === null || $to === null
-            || ($song = $this->songAt($from, $songIndex)) === null) {
+            || ($song = $this->songAt($from, $songIndex)) === null
+            || ! $this->sameSong($song, $request->input('key'))) {
             return ['success' => false, 'error' => 'Invalid playlist or song index'];
         }
         if ($to->songs()->count() >= LibraryLimits::max('playlist_songs')) {
@@ -562,7 +564,8 @@ class MusicController extends Controller
         $to = is_string($toSlug) ? $this->findPlaylist($user, $toSlug) : null;
 
         if ($songIndex === false || $songIndex < 0 || $from === null || $to === null
-            || ($song = $this->songAt($from, $songIndex)) === null) {
+            || ($song = $this->songAt($from, $songIndex)) === null
+            || ! $this->sameSong($song, $request->input('key'))) {
             return ['success' => false, 'error' => 'Invalid playlist or song index'];
         }
         if (LibraryLimits::songsLeft($user, $to) < 1) {
@@ -590,6 +593,8 @@ class MusicController extends Controller
      * Reorder a playlist's songs (drag-to-reorder). `order` is the new sequence
      * of current positions — order[i] is the old position of the song that
      * should end up at index i. Validated as a strict permutation of 0..n-1.
+     * `keys`, the page's songs in their order before this change, must match
+     * the playlist as it is: a list that changed elsewhere isn't scrambled.
      */
     private function reorderPlaylist(Request $request, User $user): array
     {
@@ -624,6 +629,17 @@ class MusicController extends Controller
         sort($sorted);
         if ($sorted !== range(0, $n - 1)) {
             return ['success' => false, 'error' => 'Bad order'];
+        }
+        $keys = $request->input('keys');
+        if ($keys !== null) {
+            if (! is_array($keys) || count($keys) !== $n) {
+                return ['success' => false, 'error' => 'Playlist changed'];
+            }
+            foreach ($songs->values() as $i => $song) {
+                if (! $this->sameSong($song, $keys[$i] ?? null, required: true)) {
+                    return ['success' => false, 'error' => 'Playlist changed'];
+                }
+            }
         }
 
         foreach ($ints as $newPos => $oldPos) {
@@ -698,7 +714,9 @@ class MusicController extends Controller
         if ($songIndex === null || $songIndex === -1) {
             // Reset to auto-pick
             $playlist->update(['cover_song_index' => null]);
-        } elseif ($songIndex !== false && $songIndex >= 0 && $this->songAt($playlist, $songIndex) !== null) {
+        } elseif ($songIndex !== false && $songIndex >= 0
+            && ($song = $this->songAt($playlist, $songIndex)) !== null
+            && $this->sameSong($song, $request->input('key'))) {
             $playlist->update(['cover_song_index' => $songIndex]);
         } else {
             return ['success' => false, 'error' => 'Invalid song index'];
@@ -1151,6 +1169,35 @@ class MusicController extends Controller
         }
 
         return $playlist->songs()->where('position', $index)->first();
+    }
+
+    /**
+     * Whether a song edit by position means the song at that position. The
+     * page sends the song's key (script.js songPlayKey, Song::keyFor here), so
+     * an out-of-date page (opened offline, or the list changed on another
+     * device) is refused instead of changing or deleting another song, and
+     * reloads the list. Pages from before the key was sent don't send one:
+     * those still pass, unless $required.
+     */
+    private function sameSong(Song $song, mixed $key, bool $required = false): bool
+    {
+        if ($key === null || $key === '') {
+            return ! $required;
+        }
+        if (! is_string($key)) {
+            return false;
+        }
+        $mine = $song->frontendKey();
+        if ($key === $mine) {
+            return true;
+        }
+
+        // A song with no id is known by "title|artist", trimmed and lowercased
+        // on both sides; JavaScript trims more kinds of space than PHP, and
+        // case rules can differ, so compare those without spaces or case.
+        $loose = fn (string $k): string => mb_strtolower((string) preg_replace('/[\s\x{00A0}\x{FEFF}\x{2000}-\x{200B}\x{3000}]+/u', '', $k));
+
+        return str_starts_with($key, 'tt:') && str_starts_with($mine, 'tt:') && $loose($key) === $loose($mine);
     }
 
     /** Rewrite positions to 0..n-1 after a removal. */

@@ -3929,6 +3929,9 @@ let reordersPending = 0;
 let reorderChain = Promise.resolve();
 let reorderEpoch = 0;
 function saveReorder(id, arr, order, snap) {
+    // The songs as they stood before this change, in order: the server checks
+    // them against the playlist, so a list changed elsewhere isn't scrambled
+    const keys = snap.map(songPlayKey);
     reordersPending++;
     writeBegin(id);
     const epoch = reorderEpoch;
@@ -3937,7 +3940,7 @@ function saveReorder(id, arr, order, snap) {
             if (epoch !== reorderEpoch) return; // an earlier one failed: reloaded already
             let result = null;
             try {
-                result = await saveMusicRequest({ action: 'reorder', playlist: id, order });
+                result = await saveMusicRequest({ action: 'reorder', playlist: id, order, keys });
             } catch (e) { /* below */ }
             if (result && result.success) return;
             reorderEpoch++;
@@ -4006,7 +4009,7 @@ function refreshMetaCovers(id = listId(), arr = listSongs()) {
     arr.forEach((s, idx) => {
         if (s.cover && !seen.has(s.cover)) {
             seen.add(s.cover);
-            meta.covers.push({ index: idx, url: s.cover, title: s.title });
+            meta.covers.push({ index: idx, url: s.cover, title: s.title, key: songPlayKey(s) });
         }
     });
     meta.songCount = arr.length;
@@ -4126,7 +4129,9 @@ async function deleteSong(index, opts) {
     songOpInFlight = true;
     writeBegin(id);
     try {
-        result = await saveMusicRequest({ action: 'delete', index, playlist: id });
+        // The song's key too: an out-of-date list (opened offline, changed on
+        // another device) is refused instead of removing another song
+        result = await saveMusicRequest({ action: 'delete', index, playlist: id, key: songPlayKey(victim) });
     } catch (e) { /* reported below */ }
     writeEnd(id);
     songOpInFlight = false;
@@ -5227,7 +5232,8 @@ async function savePlaylistEdit() {
     const oldMeta = playlistsMeta[id];
     const nameChanged = name !== oldMeta.name;
     const colorChanged = selectedEditColor !== oldMeta.color;
-    const coverChanged = selectedCoverIndex !== (oldMeta.coverSongIndex ?? null);
+    // let: a cover the server refused doesn't count as changed below
+    let coverChanged = selectedCoverIndex !== (oldMeta.coverSongIndex ?? null);
 
     // Send rename if changed
     if (nameChanged) {
@@ -5251,12 +5257,26 @@ async function savePlaylistEdit() {
 
     // Send cover change if changed
     if (coverChanged) {
-        await fetch('/save-music', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'setCover', playlist: id, songIndex: selectedCoverIndex ?? -1 })
-        });
-        playlistsMeta[id].coverSongIndex = selectedCoverIndex;
+        const pick = selectedCoverIndex === null ? null
+            : (playlistsMeta[id].covers || []).find((c) => c.index === selectedCoverIndex);
+        let saved = null;
+        try {
+            const res = await fetch('/save-music', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'setCover', playlist: id, songIndex: selectedCoverIndex ?? -1, key: pick ? pick.key : undefined })
+            });
+            saved = await res.json();
+        } catch (e) { /* below */ }
+        if (saved && saved.success) {
+            playlistsMeta[id].coverSongIndex = selectedCoverIndex;
+        } else {
+            // Refused when the playlist changed elsewhere: its song list is out of date
+            coverChanged = false;
+            songToast(saved && saved.error === 'Invalid song index'
+                ? "The cover wasn't changed: this playlist changed somewhere else. Reload and try again."
+                : "The cover wasn't changed. Check your connection and try again.");
+        }
     }
 
     // Update DOM: record card
@@ -5613,7 +5633,7 @@ async function copySongTo(toPlaylist, songIndex, ctx) {
     songOpInFlight = true;
     writeBegin(toPlaylist);
     try {
-        result = await saveMusicRequest({ action: 'copySong', fromPlaylist, toPlaylist, songIndex });
+        result = await saveMusicRequest({ action: 'copySong', fromPlaylist, toPlaylist, songIndex, key: song ? songPlayKey(song) : undefined });
     } catch (e) { /* reported below */ }
     writeEnd(toPlaylist);
     songOpInFlight = false;
@@ -5659,7 +5679,7 @@ async function moveSongTo(toPlaylist, songIndex, ctx) {
     writeBegin(fromPlaylist);
     writeBegin(toPlaylist);
     try {
-        result = await saveMusicRequest({ action: 'moveSong', fromPlaylist, toPlaylist, songIndex });
+        result = await saveMusicRequest({ action: 'moveSong', fromPlaylist, toPlaylist, songIndex, key: movedKey || undefined });
     } catch (e) { /* reported below */ }
     writeEnd(fromPlaylist);
     writeEnd(toPlaylist);
