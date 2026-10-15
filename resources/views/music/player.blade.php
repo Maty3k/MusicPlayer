@@ -1270,6 +1270,12 @@
         })();
     </script>
 
+    <!-- iPhone Safari paints the strips behind the clock and under its
+         toolbar from fixed bars on the page's edges: these give it each
+         screen's colour (styles.css, IPHONE; hidden everywhere else) -->
+    <div class="m-edge" id="mEdgeTop" aria-hidden="true"></div>
+    <div class="m-edge" id="mEdgeBottom" aria-hidden="true"></div>
+
     <!-- Phone tab bar (portrait phones; wired in script.js's phone shell,
          hidden in the app and during Now Playing / typing) -->
     <nav id="mTabs" class="m-only" aria-label="Main">
