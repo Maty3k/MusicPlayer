@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Playlist;
 use App\Models\User;
+use App\Models\YoutubeMatch;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -194,6 +195,55 @@ class SongEditsCheckTheSongTest extends TestCase
             ->assertJson(['success' => true]);
 
         $this->assertSame(0, $mix->songs()->count());
+    }
+
+    public function test_a_key_laravel_trimmed_on_the_way_in_still_matches(): void
+    {
+        // TrimStrings trims the request's key more than JavaScript or PHP's
+        // trim would (here a right-to-left mark at the end): the stored song
+        // is compared after the same trim
+        $user = $this->user();
+        $mix = $user->playlists()->create([
+            'slug' => 'mix', 'name' => 'Mix', 'color' => '#d4a574',
+            'current_index' => 0, 'source' => 'user', 'position' => 0,
+        ]);
+        $mix->songs()->create(['position' => 0, 'title' => 'Song', 'artist' => "Band\u{200F}"]);
+
+        $this->save($user, ['action' => 'delete', 'playlist' => 'mix', 'index' => 0, 'key' => "tt:song|band\u{200F}"])
+            ->assertJson(['success' => true]);
+
+        $this->assertSame(0, $mix->songs()->count());
+    }
+
+    public function test_a_cached_youtube_match_is_stored_on_the_song_and_the_answer_says_so(): void
+    {
+        // The page gives its copy of the song the id only when it was stored:
+        // otherwise its key (yt:) and the server's (sp:) would differ and
+        // every edit of that song would be refused
+        $user = $this->user();
+        $spotifyId = '4uLU6hMCjMI75M1A2tKUQC';
+        $mix = $user->playlists()->create([
+            'slug' => 'mix', 'name' => 'Mix', 'color' => '#d4a574',
+            'current_index' => 0, 'source' => 'spotify', 'position' => 0,
+        ]);
+        $song = $mix->songs()->create(['position' => 0, 'title' => 'Title', 'artist' => 'Artist', 'spotify_id' => $spotifyId]);
+        YoutubeMatch::query()->create(['spotify_id' => YoutubeMatch::cacheKey($spotifyId, 'Title', 'Artist'), 'youtube_id' => 'abcdefghijk']);
+
+        // Pointing at no song: used for this play only
+        $this->actingAs($user)->postJson('/spotify-resolve', [
+            'spotify_id' => $spotifyId, 'title' => 'Title', 'artist' => 'Artist', 'playlist_key' => 'mix', 'song_index' => 4,
+        ])->assertOk()->assertJson(['success' => true, 'youtube_id' => 'abcdefghijk', 'cached' => true, 'saved' => false]);
+        $this->assertSame('', (string) $song->fresh()->youtube_id);
+
+        // Pointing at it: stored, and said so
+        $this->actingAs($user)->postJson('/spotify-resolve', [
+            'spotify_id' => $spotifyId, 'title' => 'Title', 'artist' => 'Artist', 'playlist_key' => 'mix', 'song_index' => 0,
+        ])->assertOk()->assertJson(['success' => true, 'youtube_id' => 'abcdefghijk', 'cached' => true, 'saved' => true]);
+        $this->assertSame('abcdefghijk', $song->fresh()->youtube_id);
+
+        // And the page's key for it (now yt:) is the server's too
+        $this->save($user, ['action' => 'delete', 'playlist' => 'mix', 'index' => 0, 'key' => 'yt:abcdefghijk'])
+            ->assertJson(['success' => true]);
     }
 
     public function test_the_page_gives_each_cover_choice_its_song_key(): void

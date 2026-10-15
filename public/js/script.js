@@ -3821,9 +3821,11 @@ function startSongDrag(e) {
 
     li.classList.add('dragging');
     document.body.classList.add('song-dragging');
-    // The list being dragged: the drop applies to it only (see finishSongDrag)
+    // The list being dragged: the drop applies to it only (see finishSongDrag),
+    // and only as it stood (a reload landing meanwhile redraws the rows later)
     const dragId = String(listId());
     const dragArr = listSongs();
+    const dragSnap = dragArr.slice();
 
     const place = (y) => {
         const others = [...list.querySelectorAll('.song-list-item:not(.discover-item):not(.radio-song-item)')]
@@ -3878,7 +3880,7 @@ function startSongDrag(e) {
         edgeFrame = 0;
         li.classList.remove('dragging');
         document.body.classList.remove('song-dragging');
-        finishSongDrag(dragId, dragArr);
+        finishSongDrag(dragId, dragArr, dragSnap);
         // A rebuild asked for mid-drag (a Discover fetch landing) runs now.
         if (songListRebuildDeferred) rebuildSongList();
     };
@@ -3891,12 +3893,15 @@ function startSongDrag(e) {
 // that's only being viewed). Another one on screen by the drop (the view
 // moved on or reloaded mid-drag): the rows are redrawn, nothing is saved.
 // Without them (a direct call), the list on screen now is the one.
-function finishSongDrag(dragId, dragArr) {
+function finishSongDrag(dragId, dragArr, dragSnap) {
     const list = document.getElementById('songList');
     if (!list) return;
     const id = String(listId());
     const arr = listSongs();
     if (dragId !== undefined && (id !== dragId || arr !== dragArr)) { rebuildSongList(); return; }
+    // Reloaded (or changed) during the drag: the rows' order refers to the list
+    // drawn before, so nothing is saved and the rows are redrawn
+    if (dragSnap && (arr.length !== dragSnap.length || arr.some((s, i) => s !== dragSnap[i]))) { rebuildSongList(); return; }
     const rows = [...list.querySelectorAll('.song-list-item:not(.discover-item):not(.radio-song-item)')];
     const order = rows.map(r => parseInt(r.getAttribute('data-index'), 10));
 
@@ -3907,6 +3912,14 @@ function finishSongDrag(dragId, dragArr) {
     // matters, and a failed save puts it back through the same reference).
     const snap = arr.slice();
     arr.splice(0, arr.length, ...order.map(oldIndex => snap[oldIndex]));
+    // The cover choices and the pinned cover follow their songs, as on the
+    // server (a cover pick names its song's position and key)
+    const coverMeta = playlistsMeta[id];
+    if (coverMeta && coverMeta.coverSongIndex != null) {
+        const c = order.indexOf(coverMeta.coverSongIndex);
+        if (c !== -1) coverMeta.coverSongIndex = c;
+    }
+    refreshMetaCovers(id, arr);
     if (arr === songsData) {
         const newCur = order.indexOf(currentSongIndex);
         if (newCur !== -1) currentSongIndex = newCur;
@@ -3998,6 +4011,17 @@ function setCrateCardCount(playlistId, count) {
     const caption = card.querySelector('.card-caption-count');
     if (caption) caption.textContent = count + (count === 1 ? ' song' : ' songs');
     card.classList.toggle('is-empty', count === 0);
+}
+
+// A playlist's cover choices from the server, for one that isn't loaded here
+// or changed elsewhere
+async function refreshCoversFromServer(id) {
+    try {
+        const data = await saveMusicRequest({ action: 'getPlaylist', playlist: id });
+        if (!data || !data.success || !data.playlist || !Array.isArray(data.playlist.songs)) return;
+        refreshMetaCovers(id, data.playlist.songs);
+        if (playlistsMeta[id]) playlistsMeta[id].coverSongIndex = data.playlist.coverSongIndex ?? null;
+    } catch (e) { /* the next pick refreshes again */ }
 }
 
 function refreshMetaCovers(id = listId(), arr = listSongs()) {
@@ -4131,7 +4155,7 @@ async function deleteSong(index, opts) {
     try {
         // The song's key too: an out-of-date list (opened offline, changed on
         // another device) is refused instead of removing another song
-        result = await saveMusicRequest({ action: 'delete', index, playlist: id, key: songPlayKey(victim) });
+        result = await saveMusicRequest({ action: 'delete', index, playlist: id, key: (opts && opts.key) || songPlayKey(victim) });
     } catch (e) { /* reported below */ }
     writeEnd(id);
     songOpInFlight = false;
@@ -5271,10 +5295,13 @@ async function savePlaylistEdit() {
         if (saved && saved.success) {
             playlistsMeta[id].coverSongIndex = selectedCoverIndex;
         } else {
-            // Refused when the playlist changed elsewhere: its song list is out of date
+            // Refused when the playlist changed elsewhere: its choices are out of
+            // date, so fetch them again for the next try
             coverChanged = false;
-            songToast(saved && saved.error === 'Invalid song index'
-                ? "The cover wasn't changed: this playlist changed somewhere else. Reload and try again."
+            const refused = saved && saved.error === 'Invalid song index';
+            if (refused) refreshCoversFromServer(id);
+            songToast(refused
+                ? "The cover wasn't changed: this playlist changed somewhere else. Pick it again."
                 : "The cover wasn't changed. Check your connection and try again.");
         }
     }
@@ -5444,6 +5471,9 @@ function showSendMenu(btn, songIndex) {
     const menu = document.createElement('div');
     menu.className = 'send-menu';
     if (useSheet) menu.classList.add('send-menu-sheet');
+    // The song it was opened for: its actions send this key, so a list that
+    // shifted under the open menu can't move or remove another song
+    menu.dataset.songKey = songPlayKey(ctx.songs[songIndex]);
 
     const song = ctx.songs[songIndex];
     if (useSheet) {
@@ -5633,7 +5663,7 @@ async function copySongTo(toPlaylist, songIndex, ctx) {
     songOpInFlight = true;
     writeBegin(toPlaylist);
     try {
-        result = await saveMusicRequest({ action: 'copySong', fromPlaylist, toPlaylist, songIndex, key: song ? songPlayKey(song) : undefined });
+        result = await saveMusicRequest({ action: 'copySong', fromPlaylist, toPlaylist, songIndex, key: (menu && menu.dataset.songKey) || (song ? songPlayKey(song) : undefined) });
     } catch (e) { /* reported below */ }
     writeEnd(toPlaylist);
     songOpInFlight = false;
@@ -5679,7 +5709,7 @@ async function moveSongTo(toPlaylist, songIndex, ctx) {
     writeBegin(fromPlaylist);
     writeBegin(toPlaylist);
     try {
-        result = await saveMusicRequest({ action: 'moveSong', fromPlaylist, toPlaylist, songIndex, key: movedKey || undefined });
+        result = await saveMusicRequest({ action: 'moveSong', fromPlaylist, toPlaylist, songIndex, key: (menu && menu.dataset.songKey) || movedKey || undefined });
     } catch (e) { /* reported below */ }
     writeEnd(fromPlaylist);
     writeEnd(toPlaylist);
@@ -6741,8 +6771,10 @@ async function playSongSource(song, cueOnly) {
 
 // Resolve a Spotify-only track to a YouTube video id. The server scrapes YT
 // search and caches the match by spotify_id. With `remember` (the default)
-// it also writes youtube_id onto the stored song and the in-memory one so
-// the next play is instant; without it the id is used for this play only.
+// it also writes youtube_id onto the stored song, and once it has, onto the
+// in-memory one too, so the next play is instant; otherwise (or when the
+// server couldn't tell which stored song it is) the id is used for this play
+// only. Page and server must agree on a song's key: edits check it.
 async function resolveYoutubeIdForSong(song, remember = true) {
     try {
         const idx = (remember && typeof songsData !== 'undefined') ? songsData.indexOf(song) : -1;
@@ -6754,7 +6786,7 @@ async function resolveYoutubeIdForSong(song, remember = true) {
             song_index: idx
         }, { retries: 2 });
         if (data.success && data.youtube_id) {
-            if (remember) song.youtube_id = data.youtube_id;
+            if (remember && data.saved) song.youtube_id = data.youtube_id;
             return data.youtube_id;
         }
     } catch (e) {}
@@ -10074,12 +10106,14 @@ if (IS_IOS) {
     // Two-tap inline delete confirm: first tap arms the row for 3s
     window.mArmDelete = function (row, songIndex, ctx) {
         if (row.classList.contains('m-confirm-armed')) {
+            // The song the menu was opened for, before closing it
+            const key = activeSendMenu ? activeSendMenu.dataset.songKey : undefined;
             closeSendMenu();
             if (songOpInFlight || reordersPending > 0) {
                 mToast('Still saving your last change…');
                 return;
             }
-            deleteSong(songIndex, { skipConfirm: true, ctx });
+            deleteSong(songIndex, { skipConfirm: true, ctx, key });
             if (window.mToast) mToast('Removed');
             return;
         }

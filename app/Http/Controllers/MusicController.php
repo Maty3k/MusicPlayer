@@ -1187,7 +1187,8 @@ class MusicController extends Controller
         if (! is_string($key)) {
             return false;
         }
-        $mine = $song->frontendKey();
+        // TrimStrings already trimmed the page's key: trim this one the same way
+        $mine = Str::trim($song->frontendKey());
         if ($key === $mine) {
             return true;
         }

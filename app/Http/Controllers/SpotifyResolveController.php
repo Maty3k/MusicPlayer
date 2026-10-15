@@ -44,7 +44,9 @@ class SpotifyResolveController extends Controller
         if ($cacheKey !== null) {
             $cached = YoutubeMatch::query()->where('spotify_id', $cacheKey)->first();
             if ($cached !== null) {
-                return response()->json(['success' => true, 'youtube_id' => $cached->youtube_id, 'cached' => true]);
+                $saved = $this->rememberOnSong($request, $playlistKey, $songIndex, $spotifyId, $title, $artist, $cached->youtube_id);
+
+                return response()->json(['success' => true, 'youtube_id' => $cached->youtube_id, 'cached' => true, 'saved' => $saved]);
             }
         }
 
@@ -65,26 +67,38 @@ class SpotifyResolveController extends Controller
             );
         }
 
-        // Persist onto the specific song — but only when the stored song is the
-        // one this request describes, so playlist_key/song_index can't be used
-        // to overwrite an arbitrary song's youtube_id with a chosen video:
-        // a Spotify track by its spotify_id, or a title-only import (no
-        // source id at all yet) by its exact title and artist.
-        if ($playlistKey !== '' && $songIndex >= 0
-            && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $playlistKey)) {
-            $playlist = $request->user()->playlists()->where('slug', $playlistKey)->first();
-            $song = $playlist?->songs->values()->get($songIndex);
-            $sameSpotifyTrack = $spotifyId !== '' && ($song->spotify_id ?? '') === $spotifyId;
-            $sameTitleOnlySong = $spotifyId === '' && $song !== null
-                && ($song->spotify_id ?? '') === '' && ($song->youtube_id ?? '') === '' && ($song->mp3_url ?? '') === ''
-                && trim((string) $song->title) === $title && trim((string) $song->artist) === $artist;
-            if ($song !== null && ($sameSpotifyTrack || $sameTitleOnlySong)) {
-                $song->youtube_id = $ytId;
-                $song->save();
-            }
-        }
+        $saved = $this->rememberOnSong($request, $playlistKey, $songIndex, $spotifyId, $title, $artist, $ytId);
 
-        return response()->json(['success' => true, 'youtube_id' => $ytId, 'cached' => false]);
+        return response()->json(['success' => true, 'youtube_id' => $ytId, 'cached' => false, 'saved' => $saved]);
+    }
+
+    /**
+     * Persist the match onto the specific song — but only when the stored song
+     * is the one this request describes, so playlist_key/song_index can't be
+     * used to overwrite an arbitrary song's youtube_id with a chosen video: a
+     * Spotify track by its spotify_id, or a title-only import (no source id at
+     * all yet) by its exact title and artist. Whether it was saved goes back to
+     * the page, which only then gives its own copy of the song the id: page and
+     * server must agree on a song's key (MusicController::sameSong).
+     */
+    private function rememberOnSong(Request $request, string $playlistKey, int $songIndex, string $spotifyId, string $title, string $artist, string $ytId): bool
+    {
+        if ($playlistKey === '' || $songIndex < 0 || ! preg_match('/^[A-Za-z0-9_-]{1,64}$/', $playlistKey)) {
+            return false;
+        }
+        $playlist = $request->user()->playlists()->where('slug', $playlistKey)->first();
+        $song = $playlist?->songs->values()->get($songIndex);
+        $sameSpotifyTrack = $spotifyId !== '' && ($song->spotify_id ?? '') === $spotifyId;
+        $sameTitleOnlySong = $spotifyId === '' && $song !== null
+            && ($song->spotify_id ?? '') === '' && ($song->youtube_id ?? '') === '' && ($song->mp3_url ?? '') === ''
+            && trim((string) $song->title) === $title && trim((string) $song->artist) === $artist;
+        if ($song === null || ! ($sameSpotifyTrack || $sameTitleOnlySong)) {
+            return false;
+        }
+        $song->youtube_id = $ytId;
+        $song->save();
+
+        return true;
     }
 
     private function searchYoutubeId(string $query): ?string
