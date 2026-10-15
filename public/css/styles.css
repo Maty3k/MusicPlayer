@@ -2447,7 +2447,7 @@ body {
     border-color: rgba(212, 165, 116, 0.25);
     box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
 }
-body.song-dragging { cursor: grabbing; user-select: none; }
+body.song-dragging { cursor: grabbing; -webkit-user-select: none; user-select: none; }
 body.song-dragging .song-list-item { transition: none; }
 
 /* Empty playlist state (sidebar) */
@@ -3047,6 +3047,7 @@ body.song-dragging .song-list-item { transition: none; }
     letter-spacing: normal;
     color: rgba(242, 232, 216, 0.75);
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -3116,6 +3117,7 @@ body.song-dragging .song-list-item { transition: none; }
     font-size: 0.78rem;
     color: rgba(212, 165, 116, 0.85);
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
     margin-bottom: 8px;
 }
@@ -6164,6 +6166,7 @@ body.song-dragging .song-list-item { transition: none; }
     gap: 10px;
     margin: 10px 0 0;
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
 }
 .vgm-toggle-row input[type="checkbox"] {
@@ -6929,6 +6932,7 @@ body.auth-page {
     font-size: 0.82rem;
     color: var(--cream-60);
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -19606,6 +19610,42 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
                clear, so strip and page meet without a line */
             .add-song-modal-backdrop { background: linear-gradient(rgba(18, 12, 8, 0), rgba(18, 12, 8, 0.6) 56px); }
             .send-menu-backdrop { background: linear-gradient(rgba(18, 12, 8, 0), rgba(18, 12, 8, 0.55) 56px); }
+        }
+    }
+}
+
+/* iPhone: zooming, scrolling and selecting where nobody meant to */
+@supports (-webkit-touch-callout: none) {
+    /* Holding a control selects its words (blue handles, Copy / Look Up)
+       unless the prefixed property says no. None of these hold a text
+       field, which would stop taking input. */
+    html[data-m-tab] button,
+    html[data-m-tab] #mTabs,
+    html[data-m-tab] #mDock,
+    html[data-m-tab] .m-rp-tile,
+    html[data-m-tab] .song-list-item,
+    html[data-m-tab] .m-you-row {
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+    }
+
+    /* The page itself must not scroll: 100vh is the height with Safari's
+       toolbar collapsed, so the body was taller than the screen and a
+       swipe shrank or grew the toolbar, moving every fixed bar with it.
+       Everything on the player page is fixed; only its lists scroll. */
+    html[data-m-tab] body { min-height: 0; }
+
+    /* A field under 16px makes iOS zoom the page in on focus, and it stays
+       zoomed: these were under the phone floor. Landscape too, where the
+       phone floors don't apply. */
+    @media (max-width: 600px), (max-height: 500px) {
+        .add-song-modal-panel input,
+        .add-song-modal-panel select,
+        .add-song-modal-panel textarea,
+        .add-song-modal-panel .spotify-import-url-row input,
+        body.auth-page input,
+        body.auth-page .add-song-form-group input {
+            font-size: 16px;
         }
     }
 }
