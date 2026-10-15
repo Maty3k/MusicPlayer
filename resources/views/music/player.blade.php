@@ -1270,6 +1270,12 @@
         })();
     </script>
 
+    <!-- iPhone Safari paints the strips behind the clock and under its
+         toolbar from fixed bars on the page's edges: these give it each
+         screen's colour (styles.css, IPHONE; hidden everywhere else) -->
+    <div class="m-edge" id="mEdgeTop" aria-hidden="true"></div>
+    <div class="m-edge" id="mEdgeBottom" aria-hidden="true"></div>
+
     <!-- Phone tab bar (portrait phones; wired in script.js's phone shell,
          hidden in the app and during Now Playing / typing) -->
     <nav id="mTabs" class="m-only" aria-label="Main">
@@ -1759,6 +1765,7 @@
                 <li>In <b>Safari</b>, tap <b>⋯</b> (or <b>Share</b>) next to the address bar, then <b>Share</b>.</li>
                 <li>Scroll to <b>Add to Home Screen</b>, keep <b>Open as Web App</b> on, and tap <b>Add</b>.</li>
                 <li>Open Music from the new icon.</li>
+                <li>The app keeps its own data: log in there, then download your songs again.</li>
             </ol>
         </div>
     </div>
@@ -2106,6 +2113,7 @@
                     <button type="button" class="settings-source-btn" id="cloudRemoveDownloadsBtn" onclick="cloudMusic.removeDownloads()">Remove downloads</button>
                 </div>
                 <p class="settings-hint">Downloaded songs play with no internet, also with the phone locked. Offline, Search lists them. To keep just one song, use the button next to it in Search. Logging out removes them from this device.</p>
+                <p class="settings-hint" id="cloudIosNote" hidden>Safari removes downloads from sites you don't open for a week. The app on your Home Screen keeps them (in Safari: Share → Add to Home Screen).</p>
             </div>
             </div>
             </div>
@@ -2521,8 +2529,10 @@
     @if ($cloudOn)
     <script src="{{ asset('js/cloud-music.js') }}?v={{ filemtime(public_path('js/cloud-music.js')) }}"></script>
     @endif
-    <!-- Spotify Web Playback SDK (Premium streaming). Loaded after script.js so
-         window.onSpotifyWebPlaybackSDKReady is defined before the SDK fires it. -->
-    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+    <!-- Spotify Web Playback SDK (Premium streaming). After script.js, so
+         window.onSpotifyWebPlaybackSDKReady is defined before the SDK fires it;
+         async, so waiting for it doesn't hold up the page (and YouTube's
+         player, which starts loading once the page is parsed). -->
+    <script src="https://sdk.scdn.co/spotify-player.js" async></script>
 </body>
 </html>

@@ -8,6 +8,12 @@ if (typeof window.__pdbgAttach !== 'function') window.__pdbgAttach = function ()
 // object when it loads; "is the API ready" checks look for YT.Player.
 if (!window.YT) window.YT = { PlayerState: { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 } };
 
+// iPhone and iPad (iPadOS asks for desktop pages and reports a Mac; a touch
+// screen gives it away). iOS controls volume with the side buttons only and
+// starts sound only inside a tap.
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 // Laravel session auth: the page carries a CSRF token in a <meta> tag. This
 // shim attaches it as X-CSRF-TOKEN on every POST-like request to our own
 // backend endpoints so the VerifyCsrfToken middleware accepts them. GET
@@ -1862,19 +1868,22 @@ function updateSleepLabel() {
     if (hint) {
         hint.textContent = sleepEndOfTrack
             ? 'Playback will pause when this track ends.'
-            : (countdown ? 'Fading out and pausing in ' + countdown + '.'
-                         : 'Fades the volume out and pauses when the timer ends.');
+            : (IS_IOS
+                ? (countdown ? 'Pausing in ' + countdown + '.' : 'Pauses when the timer ends.')
+                : (countdown ? 'Fading out and pausing in ' + countdown + '.'
+                             : 'Fades the volume out and pauses when the timer ends.'));
     }
 }
 
 // Stop playback. Timed fire fades the volume out first; an end-of-track fire
-// just pauses (the song already finished). Volume is restored for next time.
+// just pauses (the song already finished), and so does iOS, where a page
+// can't change the volume. Volume is restored for next time.
 function fireSleep(alreadyEnded) {
     const restore = (typeof currentVolume !== 'undefined') ? currentVolume : 100;
     clearSleepTimer(false);
     updateSleepLabel();
 
-    if (alreadyEnded) {
+    if (alreadyEnded || IS_IOS) {
         try { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); } catch (e) { /* no player */ }
         return;
     }
@@ -1904,7 +1913,8 @@ document.addEventListener('click', (e) => {
 // CROSSFADE — smooth fade-out/fade-in between songs (single player)
 // ============================================================
 
-let crossfadeSeconds = parseInt(localStorage.getItem('crossfadeSeconds') || '0', 10) || 0;
+// Off on iOS, where a page can't change the volume (Settings hides it there)
+let crossfadeSeconds = IS_IOS ? 0 : (parseInt(localStorage.getItem('crossfadeSeconds') || '0', 10) || 0);
 let crossfadeInTimer = null;
 let crossfadeFadingOut = false;
 
@@ -2422,8 +2432,11 @@ function updateSleeveProgress() {
 
     if (fill) fill.style.width = pct + '%';
     if (knob) knob.style.left = pct + '%';
-    if (elapsedEl) elapsedEl.textContent = formatTime(current);
-    if (totalEl) totalEl.textContent = formatTime(duration);
+    // Text only when it changes: the tick runs ten times a second
+    const elapsed = formatTime(current);
+    const total = formatTime(duration);
+    if (elapsedEl && elapsedEl.textContent !== elapsed) elapsedEl.textContent = elapsed;
+    if (totalEl && totalEl.textContent !== total) totalEl.textContent = total;
 
     // Mobile dock groove (display:none on desktop; the write is harmless)
     const dockProgress = document.getElementById('mDockProgress');
@@ -5464,7 +5477,7 @@ function showSendMenu(btn, songIndex) {
         }
         html += '<div class="send-menu-divider"></div>';
         html += `<button type="button" class="send-menu-item send-menu-delete" onclick="event.stopPropagation(); mArmDelete(this, ${songIndex}, ${ctxArg})">
-            <span class="send-menu-delete-icon" aria-hidden="true">&#10005;</span>
+            <span class="send-menu-delete-icon" aria-hidden="true"><svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1.5 1.5l9 9M10.5 1.5l-9 9"/></svg></span>
             <span class="send-menu-name">Remove from this playlist</span>
         </button>`;
         html += `<button type="button" class="send-menu-cancel" onclick="event.stopPropagation(); closeSendMenu()">Cancel</button>`;
@@ -6426,11 +6439,13 @@ function createMp3Player() {
         _audio: audio,
         _state: -1,
         loadVideoById: function(url) {
+            this._priming = false;
             this._state = 3;
             this._audio.src = url;
             this._audio.play().catch(onPlayRefused);
         },
         cueVideoById: function(url) {
+            this._priming = false;
             this._state = 5;
             this._audio.src = url;
             this._audio.load();
@@ -6459,10 +6474,12 @@ function createMp3Player() {
     };
 
     audio.addEventListener('playing', () => {
+        if (mp3PlayerProxy._priming) return; // the iOS first-tap step (below)
         mp3PlayerProxy._state = 1;
         if (ytPlayer === mp3PlayerProxy) onPlayerStateChange({ data: 1 });
     });
     audio.addEventListener('pause', () => {
+        if (mp3PlayerProxy._priming) return; // the iOS first-tap step's own pause (below)
         if (!audio.ended) {
             mp3PlayerProxy._state = 2;
             if (ytPlayer === mp3PlayerProxy) onPlayerStateChange({ data: 2 });
@@ -6473,6 +6490,7 @@ function createMp3Player() {
         if (ytPlayer === mp3PlayerProxy) onPlayerStateChange({ data: 0 });
     });
     audio.addEventListener('waiting', () => {
+        if (mp3PlayerProxy._priming) return;
         mp3PlayerProxy._state = 3;
     });
     // A file that won't load (deleted upload, dead link, bad format).
@@ -6485,6 +6503,34 @@ function createMp3Player() {
     });
 
     return mp3PlayerProxy;
+}
+
+// iOS starts a media element with sound only inside a tap, or once that same
+// element was started by one. Songs that start on their own (after a YouTube
+// song, or once YouTube is ready) were refused with "Tap play to continue".
+// So the first tap makes the song engine ready: a muted play() and pause()
+// inside it are enough, loaded or not (nothing sounds, other apps' audio
+// goes on).
+if (IS_IOS) {
+    document.addEventListener('click', function readyMp3Engine(e) {
+        if (!e.isTrusted) return;
+        document.removeEventListener('click', readyMp3Engine, true);
+        if (!mp3PlayerProxy) createMp3Player();
+        const a = mp3PlayerProxy._audio;
+        if (!a.paused) return; // started by this tap already
+        // Loaded but never started counts too (a song cued at page load). Its
+        // own events must not reach the player state (a new src cancels them
+        // and clears the flag), and muted it can't make a sound or stop other
+        // apps' audio.
+        mp3PlayerProxy._priming = true;
+        a.addEventListener('pause', () => { mp3PlayerProxy._priming = false; }, { once: true });
+        setTimeout(() => { mp3PlayerProxy._priming = false; }, 1000);
+        const muted = a.muted;
+        a.muted = true;
+        a.play().catch(() => {});
+        a.pause();
+        a.muted = muted;
+    }, true);
 }
 
 // Switch active player based on song source
@@ -9964,6 +10010,21 @@ document.addEventListener('DOMContentLoaded', () => {
     updateOfflineButton();
 });
 
+// iOS: no Crossfade (it fades by changing the volume, which a page can't
+// do there), and a word on downloads in a Safari tab (Safari clears a site's
+// saved data after a week without a visit; the installed app keeps it).
+if (IS_IOS) {
+    document.addEventListener('DOMContentLoaded', () => {
+        const crossfade = document.getElementById('crossfadeOptions');
+        const group = crossfade && crossfade.closest('.add-song-form-group');
+        if (group) group.style.display = 'none';
+        const sub = document.querySelector('[data-m-you="playback"] small');
+        if (sub) sub.textContent = 'Lyrics, record crackle';
+        const note = document.getElementById('cloudIosNote');
+        if (note && window.matchMedia('(display-mode: browser)').matches) note.hidden = false;
+    });
+}
+
 // ============================================================
 // MOBILE V2 — phone-browser shell (dock, sheets, gestures)
 // ============================================================
@@ -10422,6 +10483,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.addEventListener('popstate', (event) => {
+        const fromApp = pendingBack;
         pendingBack = false;
         clearTimeout(backWatchdog);
         const depth = (event.state && typeof event.state.mDepth === 'number')
@@ -10431,6 +10493,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // user swiped forward after closing a sheet) — snap back.
             traverse(layerStack.length - depth);
             return;
+        }
+        // The browser's own back (on iPhone, the edge swipe that already
+        // slid the screen away): the closes below skip their animation
+        // (styles.css, IPHONE; nothing changes elsewhere)
+        if (!fromApp) {
+            htmlEl.classList.add('m-ua-back');
+            requestAnimationFrame(() => requestAnimationFrame(() => htmlEl.classList.remove('m-ua-back')));
         }
         // Pop first, close after: a closeFn may open a layer (the welcome
         // card re-guards itself), and that must land above the new depth.
@@ -13171,7 +13240,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (status) {
             const mins = deadline ? Math.max(1, Math.ceil((deadline - Date.now()) / 60000)) : 0;
             status.textContent = endOfTrack ? 'Pausing when this song ends.'
-                : (mins ? `Pausing in ${mins} min.` : 'Fades the music out and pauses.');
+                : (mins ? `Pausing in ${mins} min.` : (IS_IOS ? 'Pauses the music.' : 'Fades the music out and pauses.'));
         }
         const off = document.getElementById('mSleepOff');
         if (off) off.hidden = !(endOfTrack || deadline);
