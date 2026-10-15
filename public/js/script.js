@@ -6439,11 +6439,13 @@ function createMp3Player() {
         _audio: audio,
         _state: -1,
         loadVideoById: function(url) {
+            this._priming = false;
             this._state = 3;
             this._audio.src = url;
             this._audio.play().catch(onPlayRefused);
         },
         cueVideoById: function(url) {
+            this._priming = false;
             this._state = 5;
             this._audio.src = url;
             this._audio.load();
@@ -6472,6 +6474,7 @@ function createMp3Player() {
     };
 
     audio.addEventListener('playing', () => {
+        if (mp3PlayerProxy._priming) return; // the iOS first-tap step (below)
         mp3PlayerProxy._state = 1;
         if (ytPlayer === mp3PlayerProxy) onPlayerStateChange({ data: 1 });
     });
@@ -6505,22 +6508,28 @@ function createMp3Player() {
 // iOS starts a media element with sound only inside a tap, or once that same
 // element was started by one. Songs that start on their own (after a YouTube
 // song, or once YouTube is ready) were refused with "Tap play to continue".
-// So the first tap makes the song engine ready: a play() inside it is enough,
-// even with nothing loaded yet (nothing sounds, other apps' audio goes on).
+// So the first tap makes the song engine ready: a muted play() and pause()
+// inside it are enough, loaded or not (nothing sounds, other apps' audio
+// goes on).
 if (IS_IOS) {
     document.addEventListener('click', function readyMp3Engine(e) {
         if (!e.isTrusted) return;
         document.removeEventListener('click', readyMp3Engine, true);
         if (!mp3PlayerProxy) createMp3Player();
         const a = mp3PlayerProxy._audio;
-        if (a.src || !a.paused) return; // already started by a song
-        // Its 'waiting' and 'pause' must not reach the player state: this tap
-        // may start a song on the same element right after (Search, a file)
+        if (!a.paused) return; // started by this tap already
+        // Loaded but never started counts too (a song cued at page load). Its
+        // own events must not reach the player state (a new src cancels them
+        // and clears the flag), and muted it can't make a sound or stop other
+        // apps' audio.
         mp3PlayerProxy._priming = true;
         a.addEventListener('pause', () => { mp3PlayerProxy._priming = false; }, { once: true });
         setTimeout(() => { mp3PlayerProxy._priming = false; }, 1000);
+        const muted = a.muted;
+        a.muted = true;
         a.play().catch(() => {});
         a.pause();
+        a.muted = muted;
     }, true);
 }
 

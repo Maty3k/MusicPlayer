@@ -2113,7 +2113,7 @@
                     <button type="button" class="settings-source-btn" id="cloudRemoveDownloadsBtn" onclick="cloudMusic.removeDownloads()">Remove downloads</button>
                 </div>
                 <p class="settings-hint">Downloaded songs play with no internet, also with the phone locked. Offline, Search lists them. To keep just one song, use the button next to it in Search. Logging out removes them from this device.</p>
-                <p class="settings-hint" id="cloudIosNote" hidden>On iPhone, Safari removes downloads from sites you don't open for a week. The installed app keeps them (You → Install the app).</p>
+                <p class="settings-hint" id="cloudIosNote" hidden>Safari removes downloads from sites you don't open for a week. The app on your Home Screen keeps them (in Safari: Share → Add to Home Screen).</p>
             </div>
             </div>
             </div>

@@ -19576,6 +19576,9 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
             html[data-m-tab].m-pv #mEdgeTop,
             html[data-m-tab].m-you #mEdgeTop { display: none; }
             html[data-m-tab] #mEdgeBottom { bottom: 0; display: none; background: rgb(8 7 7); }
+            /* Search's field sticks below the strip (and its 8px ring meets
+               it), not under it */
+            html[data-m-tab] #mSearchPage .m-search-field { top: 20px; }
 
             /* Now Playing: dark at both edges (its own colour at the bottom),
                the top fading into the cover art. Its header moves down by
@@ -19703,13 +19706,15 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
         html[data-m-tab] .music-main { padding-bottom: 10px; }
     }
 
-    /* Landscape (Safari tab or app): the song list keeps clear of the
-       Dynamic Island's side */
+    /* Landscape (Safari tab or app): the song list and Now Playing keep
+       clear of the Dynamic Island's side. On the content, so Now Playing's
+       cover-art backdrop still reaches the edge; the list keeps its width. */
     @media (min-width: 601px) and (max-height: 500px) and (pointer: coarse) {
-        #music-section {
+        .music-sidebar {
             padding-left: env(safe-area-inset-left, 0px);
-            padding-right: env(safe-area-inset-right, 0px);
+            width: calc(300px + env(safe-area-inset-left, 0px));
         }
+        .music-main { padding-right: env(safe-area-inset-right, 0px); }
     }
 }
 
