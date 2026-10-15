@@ -10422,6 +10422,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.addEventListener('popstate', (event) => {
+        const fromApp = pendingBack;
         pendingBack = false;
         clearTimeout(backWatchdog);
         const depth = (event.state && typeof event.state.mDepth === 'number')
@@ -10431,6 +10432,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // user swiped forward after closing a sheet) — snap back.
             traverse(layerStack.length - depth);
             return;
+        }
+        // The browser's own back (on iPhone, the edge swipe that already
+        // slid the screen away): the closes below skip their animation
+        // (styles.css, IPHONE; nothing changes elsewhere)
+        if (!fromApp) {
+            htmlEl.classList.add('m-ua-back');
+            requestAnimationFrame(() => requestAnimationFrame(() => htmlEl.classList.remove('m-ua-back')));
         }
         // Pop first, close after: a closeFn may open a layer (the welcome
         // card re-guards itself), and that must land above the new depth.

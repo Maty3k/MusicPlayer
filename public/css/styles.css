@@ -19649,3 +19649,16 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
         }
     }
 }
+
+/* iPhone: Safari's back swipe already animated the screen away, so the
+   app's own closing animation must not play a second time (script.js
+   sets the class for two frames on a back the app didn't start) */
+@supports (-webkit-touch-callout: none) {
+    .m-ua-back .music-player-view,
+    .m-ua-back .music-sidebar,
+    .m-ua-back .music-main,
+    .m-ua-back .vinyl-crate-view,
+    .m-ua-back #mTabs {
+        transition: none !important;
+    }
+}
