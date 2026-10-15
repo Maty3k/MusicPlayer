@@ -2432,8 +2432,11 @@ function updateSleeveProgress() {
 
     if (fill) fill.style.width = pct + '%';
     if (knob) knob.style.left = pct + '%';
-    if (elapsedEl) elapsedEl.textContent = formatTime(current);
-    if (totalEl) totalEl.textContent = formatTime(duration);
+    // Text only when it changes: the tick runs ten times a second
+    const elapsed = formatTime(current);
+    const total = formatTime(duration);
+    if (elapsedEl && elapsedEl.textContent !== elapsed) elapsedEl.textContent = elapsed;
+    if (totalEl && totalEl.textContent !== total) totalEl.textContent = total;
 
     // Mobile dock groove (display:none on desktop; the write is harmless)
     const dockProgress = document.getElementById('mDockProgress');
@@ -5474,7 +5477,7 @@ function showSendMenu(btn, songIndex) {
         }
         html += '<div class="send-menu-divider"></div>';
         html += `<button type="button" class="send-menu-item send-menu-delete" onclick="event.stopPropagation(); mArmDelete(this, ${songIndex}, ${ctxArg})">
-            <span class="send-menu-delete-icon" aria-hidden="true">&#10005;</span>
+            <span class="send-menu-delete-icon" aria-hidden="true"><svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1.5 1.5l9 9M10.5 1.5l-9 9"/></svg></span>
             <span class="send-menu-name">Remove from this playlist</span>
         </button>`;
         html += `<button type="button" class="send-menu-cancel" onclick="event.stopPropagation(); closeSendMenu()">Cancel</button>`;

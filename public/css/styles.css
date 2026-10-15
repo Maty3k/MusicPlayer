@@ -19712,3 +19712,17 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
         }
     }
 }
+
+/* ============================================================
+   Small polish (every phone): the 'now playing' bars rest while the
+   music is paused and grow from the bottom like an equalizer; Now
+   Playing's progress bar stops restarting a 0.3s transition on every
+   100ms tick (it was laid out and repainted on every frame for as long
+   as music played; ten steps a second look just as smooth).
+   ============================================================ */
+@media (max-width: 600px) {
+    .song-list-playing-indicator span { transform-origin: bottom; }
+    body:not(.m-playing) .song-list-playing-indicator span { animation-play-state: paused; }
+    .sleeve-progress-fill { transition: none; }
+    .sleeve-progress-knob { transition: opacity 0.2s; }
+}
