@@ -8,6 +8,12 @@ if (typeof window.__pdbgAttach !== 'function') window.__pdbgAttach = function ()
 // object when it loads; "is the API ready" checks look for YT.Player.
 if (!window.YT) window.YT = { PlayerState: { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 } };
 
+// iPhone and iPad (iPadOS asks for desktop pages and reports a Mac; a touch
+// screen gives it away). iOS controls volume with the side buttons only and
+// starts sound only inside a tap.
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 // Laravel session auth: the page carries a CSRF token in a <meta> tag. This
 // shim attaches it as X-CSRF-TOKEN on every POST-like request to our own
 // backend endpoints so the VerifyCsrfToken middleware accepts them. GET
@@ -6463,6 +6469,7 @@ function createMp3Player() {
         if (ytPlayer === mp3PlayerProxy) onPlayerStateChange({ data: 1 });
     });
     audio.addEventListener('pause', () => {
+        if (mp3PlayerProxy._priming) return; // the iOS first-tap step's own pause (below)
         if (!audio.ended) {
             mp3PlayerProxy._state = 2;
             if (ytPlayer === mp3PlayerProxy) onPlayerStateChange({ data: 2 });
@@ -6473,6 +6480,7 @@ function createMp3Player() {
         if (ytPlayer === mp3PlayerProxy) onPlayerStateChange({ data: 0 });
     });
     audio.addEventListener('waiting', () => {
+        if (mp3PlayerProxy._priming) return;
         mp3PlayerProxy._state = 3;
     });
     // A file that won't load (deleted upload, dead link, bad format).
@@ -6485,6 +6493,28 @@ function createMp3Player() {
     });
 
     return mp3PlayerProxy;
+}
+
+// iOS starts a media element with sound only inside a tap, or once that same
+// element was started by one. Songs that start on their own (after a YouTube
+// song, or once YouTube is ready) were refused with "Tap play to continue".
+// So the first tap makes the song engine ready: a play() inside it is enough,
+// even with nothing loaded yet (nothing sounds, other apps' audio goes on).
+if (IS_IOS) {
+    document.addEventListener('click', function readyMp3Engine(e) {
+        if (!e.isTrusted) return;
+        document.removeEventListener('click', readyMp3Engine, true);
+        if (!mp3PlayerProxy) createMp3Player();
+        const a = mp3PlayerProxy._audio;
+        if (a.src || !a.paused) return; // already started by a song
+        // Its 'waiting' and 'pause' must not reach the player state: this tap
+        // may start a song on the same element right after (Search, a file)
+        mp3PlayerProxy._priming = true;
+        a.addEventListener('pause', () => { mp3PlayerProxy._priming = false; }, { once: true });
+        setTimeout(() => { mp3PlayerProxy._priming = false; }, 1000);
+        a.play().catch(() => {});
+        a.pause();
+    }, true);
 }
 
 // Switch active player based on song source

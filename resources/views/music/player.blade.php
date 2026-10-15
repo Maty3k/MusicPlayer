@@ -2527,8 +2527,10 @@
     @if ($cloudOn)
     <script src="{{ asset('js/cloud-music.js') }}?v={{ filemtime(public_path('js/cloud-music.js')) }}"></script>
     @endif
-    <!-- Spotify Web Playback SDK (Premium streaming). Loaded after script.js so
-         window.onSpotifyWebPlaybackSDKReady is defined before the SDK fires it. -->
-    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+    <!-- Spotify Web Playback SDK (Premium streaming). After script.js, so
+         window.onSpotifyWebPlaybackSDKReady is defined before the SDK fires it;
+         async, so waiting for it doesn't hold up the page (and YouTube's
+         player, which starts loading once the page is parsed). -->
+    <script src="https://sdk.scdn.co/spotify-player.js" async></script>
 </body>
 </html>
