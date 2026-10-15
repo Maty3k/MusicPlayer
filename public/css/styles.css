@@ -19662,3 +19662,53 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
         transition: none !important;
     }
 }
+
+/* iPhone home-screen app: the page runs under the clock and the home
+   bar (in a Safari tab both insets are 0, so nothing changes there) */
+@supports (-webkit-touch-callout: none) {
+    @media (max-width: 600px) {
+        /* Tall sheets stop below the clock too */
+        .add-song-modal-panel,
+        #scanModal .add-song-modal-panel {
+            max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px));
+        }
+        #settingsModal .add-song-modal-panel,
+        #spotifyImportModal .add-song-modal-panel {
+            height: min(86dvh, calc(100dvh - 24px - env(safe-area-inset-top, 0px)));
+        }
+        .bring-modal .add-song-modal-panel {
+            max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px));
+        }
+        #setupWizard .setup-panel {
+            min-height: min(720px, calc(100dvh - 24px - env(safe-area-inset-top, 0px)));
+            max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px));
+        }
+
+        /* Home and Library: a solid band behind the clock, as Search and
+           the playlists already have, instead of covers scrolling under it */
+        html[data-m-tab] #vinylCrateView::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 2;
+            height: env(safe-area-inset-top, 0px);
+            background: color-mix(in srgb, var(--ink) 65%, #000);
+            pointer-events: none;
+        }
+
+        /* Now Playing added the home-bar inset twice (its tools row has it
+           already) */
+        html[data-m-tab] .music-main { padding-bottom: 10px; }
+    }
+
+    /* Landscape (Safari tab or app): the song list keeps clear of the
+       Dynamic Island's side */
+    @media (min-width: 601px) and (max-height: 500px) and (pointer: coarse) {
+        #music-section {
+            padding-left: env(safe-area-inset-left, 0px);
+            padding-right: env(safe-area-inset-right, 0px);
+        }
+    }
+}
