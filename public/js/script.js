@@ -1868,19 +1868,22 @@ function updateSleepLabel() {
     if (hint) {
         hint.textContent = sleepEndOfTrack
             ? 'Playback will pause when this track ends.'
-            : (countdown ? 'Fading out and pausing in ' + countdown + '.'
-                         : 'Fades the volume out and pauses when the timer ends.');
+            : (IS_IOS
+                ? (countdown ? 'Pausing in ' + countdown + '.' : 'Pauses when the timer ends.')
+                : (countdown ? 'Fading out and pausing in ' + countdown + '.'
+                             : 'Fades the volume out and pauses when the timer ends.'));
     }
 }
 
 // Stop playback. Timed fire fades the volume out first; an end-of-track fire
-// just pauses (the song already finished). Volume is restored for next time.
+// just pauses (the song already finished), and so does iOS, where a page
+// can't change the volume. Volume is restored for next time.
 function fireSleep(alreadyEnded) {
     const restore = (typeof currentVolume !== 'undefined') ? currentVolume : 100;
     clearSleepTimer(false);
     updateSleepLabel();
 
-    if (alreadyEnded) {
+    if (alreadyEnded || IS_IOS) {
         try { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); } catch (e) { /* no player */ }
         return;
     }
@@ -1910,7 +1913,8 @@ document.addEventListener('click', (e) => {
 // CROSSFADE — smooth fade-out/fade-in between songs (single player)
 // ============================================================
 
-let crossfadeSeconds = parseInt(localStorage.getItem('crossfadeSeconds') || '0', 10) || 0;
+// Off on iOS, where a page can't change the volume (Settings hides it there)
+let crossfadeSeconds = IS_IOS ? 0 : (parseInt(localStorage.getItem('crossfadeSeconds') || '0', 10) || 0);
 let crossfadeInTimer = null;
 let crossfadeFadingOut = false;
 
@@ -9994,6 +9998,21 @@ document.addEventListener('DOMContentLoaded', () => {
     updateOfflineButton();
 });
 
+// iOS: no Crossfade (it fades by changing the volume, which a page can't
+// do there), and a word on downloads in a Safari tab (Safari clears a site's
+// saved data after a week without a visit; the installed app keeps it).
+if (IS_IOS) {
+    document.addEventListener('DOMContentLoaded', () => {
+        const crossfade = document.getElementById('crossfadeOptions');
+        const group = crossfade && crossfade.closest('.add-song-form-group');
+        if (group) group.style.display = 'none';
+        const sub = document.querySelector('[data-m-you="playback"] small');
+        if (sub) sub.textContent = 'Lyrics, record crackle';
+        const note = document.getElementById('cloudIosNote');
+        if (note && window.matchMedia('(display-mode: browser)').matches) note.hidden = false;
+    });
+}
+
 // ============================================================
 // MOBILE V2 — phone-browser shell (dock, sheets, gestures)
 // ============================================================
@@ -13209,7 +13228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (status) {
             const mins = deadline ? Math.max(1, Math.ceil((deadline - Date.now()) / 60000)) : 0;
             status.textContent = endOfTrack ? 'Pausing when this song ends.'
-                : (mins ? `Pausing in ${mins} min.` : 'Fades the music out and pauses.');
+                : (mins ? `Pausing in ${mins} min.` : (IS_IOS ? 'Pauses the music.' : 'Fades the music out and pauses.'));
         }
         const off = document.getElementById('mSleepOff');
         if (off) off.hidden = !(endOfTrack || deadline);

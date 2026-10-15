@@ -1765,6 +1765,7 @@
                 <li>In <b>Safari</b>, tap <b>⋯</b> (or <b>Share</b>) next to the address bar, then <b>Share</b>.</li>
                 <li>Scroll to <b>Add to Home Screen</b>, keep <b>Open as Web App</b> on, and tap <b>Add</b>.</li>
                 <li>Open Music from the new icon.</li>
+                <li>The app keeps its own data: log in there, then download your songs again.</li>
             </ol>
         </div>
     </div>
@@ -2112,6 +2113,7 @@
                     <button type="button" class="settings-source-btn" id="cloudRemoveDownloadsBtn" onclick="cloudMusic.removeDownloads()">Remove downloads</button>
                 </div>
                 <p class="settings-hint">Downloaded songs play with no internet, also with the phone locked. Offline, Search lists them. To keep just one song, use the button next to it in Search. Logging out removes them from this device.</p>
+                <p class="settings-hint" id="cloudIosNote" hidden>On iPhone, Safari removes downloads from sites you don't open for a week. The installed app keeps them (You → Install the app).</p>
             </div>
             </div>
             </div>
