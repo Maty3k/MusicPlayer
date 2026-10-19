@@ -1736,7 +1736,19 @@ function playNextByLoop() {
     if (sleepEndOfTrack) { fireSleep(true); return; }
     // The queue plays before returning to the playlist/loop progression
     // (repeat one too).
-    if (playQueue.length > 0) { advanceFromQueue({ auto: true }); return; }
+    if (playQueue.length > 0) {
+        if (advanceFromQueue({ auto: true })) return;
+        // A song change still going (switchSong holds isChangingSong until
+        // it has saved): the queue waits for it rather than lose its head.
+        // A song asked for meanwhile wins.
+        const seq = songRequestSeq;
+        let waited = 0;
+        (function retry() {
+            if (isChangingSong && waited < 5000) { waited += 100; setTimeout(retry, 100); return; }
+            if (songRequestSeq === seq && !isChangingSong) playNextByLoop();
+        })();
+        return;
+    }
     // The queue ran out: the list it interrupted goes on. With repeat one,
     // the song that was on repeat comes back, not the last queued one (a
     // song that isn't from the queue just repeats, below).
@@ -2128,9 +2140,17 @@ function queueSong(song, atFront) {
 }
 
 // The song sheet's Play next / Add to queue: `index` into the list ctx
-// names (see songCtx)
+// names (see songCtx). It must be the song the sheet was opened for: a list
+// that shifted under the open sheet (a song removed or moved meanwhile)
+// holds another one at that index, so that is refused, as Remove is.
 function queueFromSheet(index, ctx, atFront) {
     const song = songCtx(ctx).songs[index];
+    const want = activeSendMenu ? activeSendMenu.dataset.songKey : '';
+    if (want && (!song || songPlayKey(song) !== want)) {
+        closeSendMenu();
+        songToast('This list changed. Open the song’s menu again.');
+        return;
+    }
     if (song) queueSong(song, atFront);
     closeSendMenu();
 }
@@ -2161,14 +2181,18 @@ function looseAddToPlaylist(index) {
     if (song && typeof window.mShowAddToSheet === 'function') window.mShowAddToSheet(songFields(song));
 }
 
-// Shared advance: log history, pop the head, play it (from nextSong /
-// playNextByLoop when the queue is non-empty; opts.auto from the latter).
+// Shared advance (Next, a song's end): log history, pop the head, play it.
+// False, changing nothing, while a song change is still going: it would
+// drop the head and play nothing (playRadioSong refuses meanwhile).
+// playNextByLoop tries again; a tap on Next is ignored, as everywhere.
 function advanceFromQueue(opts) {
+    if (isChangingSong || playQueue.length === 0) return false;
     noteQueueStart();
     songHistory.push(currentRadioSong ? { type: 'radio', song: currentRadioSong } : currentSongIndex);
     const q = playQueue.shift();
     afterQueueChange();
     playFromQueue(q, opts);
+    return true;
 }
 
 // Play a queued song now. Reuses the one-off radio path, which leaves the
@@ -2249,9 +2273,10 @@ function removeFromQueue(i) {
     }
 }
 
-// Tap a queued song to jump to it now — drops the ones before it.
+// Tap a queued song to jump to it now — drops the ones before it. Not while
+// a song change is still going: those songs would go and nothing would play.
 function playQueueItem(i) {
-    if (i < 0 || i >= playQueue.length) return;
+    if (i < 0 || i >= playQueue.length || isChangingSong) return;
     noteUserSongAsk();
     noteQueueStart();
     songHistory.push(currentRadioSong ? { type: 'radio', song: currentRadioSong } : currentSongIndex);
