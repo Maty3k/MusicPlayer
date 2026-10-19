@@ -468,6 +468,45 @@ window.cloudMusic = (() => {
         step(1, byUser, true);
     }
 
+    // Up next's "Next from Cloudflare": the songs Next plays after the
+    // playing one (anchored: after the song the queue interrupted), in
+    // order, as step walks them. Shuffled there's no telling: none.
+    function upcoming(count, anchored) {
+        if (typeof shuffleMode !== 'undefined' && shuffleMode !== 'off') return [];
+        let list = order.length ? order : songs;
+        let at = pos;
+        if (!anchored) {
+            const cur = currentRadioSong && currentRadioSong.cloud_key;
+            if (!list[at] || list[at].cloud_key !== cur) at = list.findIndex((s) => s.cloud_key === cur);
+            if (at < 0) { list = songs; at = list.findIndex((s) => s.cloud_key === cur); }
+        }
+        const n = list.length;
+        const limited = cantStream();
+        // Loop off: the list plays through once (step's own rule for a song's end)
+        const wrap = typeof loopMode === 'undefined' || loopMode !== 'off';
+        const out = [];
+        for (let k = 1; k <= n && out.length < count; k++) {
+            let i = at + k;
+            if (i >= n) {
+                if (!wrap) break;
+                i %= n;
+            }
+            if (i === at) break; // round to the playing song
+            if (!limited || downloaded.has(list[i].cloud_key)) out.push(list[i]);
+        }
+        return out;
+    }
+
+    // A song of the list picked in Up next's "Next from": on from there
+    function jumpTo(key) {
+        if (typeof isChangingSong !== 'undefined' && isChangingSong) return;
+        if (!order.length) order = songs.slice();
+        const i = order.findIndex((s) => s.cloud_key === key);
+        if (i < 0) return;
+        if (pos >= 0 && pos !== i) history.push(pos);
+        start(order, i, true);
+    }
+
     function markShownRow() {
         const el = document.getElementById('mSearchResults');
         if (!el || !searchActive()) return;
@@ -1090,6 +1129,8 @@ window.cloudMusic = (() => {
         // The queue (script.js): the list's place before it, and after it
         anchor,
         resume,
+        upcoming,
+        jumpTo,
         searchActive,
         renderSearch,
         displayName: (key) => splitName(cleanName(key)),

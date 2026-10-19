@@ -2190,8 +2190,9 @@ function advanceFromQueue(opts) {
     noteQueueStart();
     songHistory.push(currentRadioSong ? { type: 'radio', song: currentRadioSong } : currentSongIndex);
     const q = playQueue.shift();
-    afterQueueChange();
     playFromQueue(q, opts);
+    // Drawn once the song has started: Up next's "Now playing" is it
+    afterQueueChange();
     return true;
 }
 
@@ -2214,7 +2215,8 @@ function saveQueue() {
 }
 
 // Restore the queue from a previous session (device-local). Normalizes each
-// entry to the queue-item shape and caps the length defensively.
+// entry to the queue-item shape and caps the length defensively. A list
+// drawn already (the desktop's side panel, while this file loaded) shows it.
 function restoreQueue() {
     try {
         const parsed = JSON.parse(localStorage.getItem(QUEUE_STORAGE_KEY) || '[]');
@@ -2226,6 +2228,7 @@ function restoreQueue() {
         }
     } catch (e) { playQueue = []; }
     updateQueueBadge();
+    renderQueue();
 }
 
 function updateQueueBadge() {
@@ -2261,6 +2264,13 @@ function hideQueueModal() {
     if (modal) modal.classList.remove('active');
 }
 
+// The Up next window is open (phones and the app: the desktop shows the
+// list in its side panel)
+function queueWindowOpen() {
+    const modal = document.getElementById('queueModal');
+    return !!modal && modal.classList.contains('active');
+}
+
 function clearQueue() {
     playQueue = [];
     afterQueueChange();
@@ -2282,8 +2292,8 @@ function playQueueItem(i) {
     songHistory.push(currentRadioSong ? { type: 'radio', song: currentRadioSong } : currentSongIndex);
     const item = playQueue[i];
     playQueue.splice(0, i + 1);
-    afterQueueChange();
     playFromQueue(item);
+    afterQueueChange();
 }
 
 // Drag-to-reorder within the queue (pointer-based, mouse + touch). Reorders the
@@ -2335,10 +2345,74 @@ function queueCoverHtml(song, cls) {
         : `<div class="${cls} queue-cover-empty"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg></div>`;
 }
 
+// ---- "Next from": what plays after the queue (the Up next window and the
+// desktop's side panel)
+const NEXT_FROM_MAX = 5;
+
+// The playing list's next songs as Next plays them (no shuffle): from the
+// row after the current one (the row itself while it hasn't started), round
+// to the top unless repeat is off, and never back round to the playing row.
+// The same rule as nextSong: while a queued or radio song plays, the list
+// resumes after its current row (currentRowStarted is true then), not on it.
+function nextIndices() {
+    if (!Array.isArray(songsData) || !songsData.length || shuffleMode !== 'off') return [];
+    const n = songsData.length;
+    const started = currentRowStarted();
+    const first = started ? currentSongIndex + 1 : currentSongIndex;
+    // (the current row only plays when no queued or radio song does)
+    const rowPlaying = started && !currentRadioSong;
+    const out = [];
+    for (let k = 0; out.length < NEXT_FROM_MAX && k < n; k++) {
+        let i = first + k;
+        if (i >= n) {
+            if (loopMode === 'off') break;
+            i %= n;
+        }
+        if (rowPlaying && i === currentSongIndex) break;
+        if (songsData[i]) out.push(i);
+    }
+    return out;
+}
+
+// The list the queue goes back to (or the one playing, with no queued song
+// on): its name, and its next songs in order. Shuffled, only its name: the
+// order isn't known ahead.
+function nextFrom() {
+    const shuffled = shuffleMode !== 'off';
+    if (window.cloudMusic && (queueReturn ? queueReturn.list === 'cloud' : cloudListOn())) {
+        return {
+            name: 'Cloudflare',
+            shuffled,
+            any: cloudMusic.size() > 0,
+            // While the queue plays, from the song it interrupted
+            rows: shuffled ? [] : cloudMusic.upcoming(NEXT_FROM_MAX, !!queueReturn).map((song) => ({ song, key: song.cloud_key })),
+        };
+    }
+    return {
+        name: playingListName(),
+        shuffled,
+        any: Array.isArray(songsData) && songsData.length > 0,
+        rows: nextIndices().map((index) => ({ song: songsData[index], index })),
+    };
+}
+
+function nextFromHtml() {
+    const next = nextFrom();
+    if (!next.name || !next.any) return '';
+    const head = `<div class="queue-section-label dv-nf-label">Next from ${escapeHtml(next.name)}</div>`;
+    if (next.shuffled) return head + '<p class="dv-nf-note">Shuffle is on: songs are picked as they play.</p>';
+    if (!next.rows.length) return '';
+    return head + `<ol class="queue-list dv-nf-list">${next.rows.map((r) => {
+        const s = r.song;
+        const which = r.key !== undefined ? `data-nf-key="${escapeHtml(r.key)}"` : `data-nf-index="${r.index}"`;
+        return `<li class="queue-item dv-nf-item"><button type="button" class="dv-nf-row" ${which}>${queueCoverHtml(s, 'queue-item-cover')}<span class="queue-item-info"><span class="queue-item-title">${escapeHtml(s.title)}</span><span class="queue-item-artist">${escapeHtml(s.artist)}</span></span></button></li>`;
+    }).join('')}</ol>`;
+}
+
 function renderQueue() {
     const body = document.getElementById('queueBody');
     if (!body) return;
-    const nowSong = currentRadioSong || (Array.isArray(songsData) ? songsData[currentSongIndex] : null);
+    const nowSong = playingSong();
     const nowHtml = nowSong ? `
         <div class="queue-section-label">Now playing</div>
         <div class="queue-now">
@@ -2376,16 +2450,39 @@ function renderQueue() {
                     </li>`).join('')}
             </ol>`;
     }
-    body.innerHTML = nowHtml + listHtml;
+    // Then what comes after the queue
+    body.innerHTML = nowHtml + listHtml + nextFromHtml();
 }
 
-// Now Playing's "Playing from" follows the song: a song change ends in
-// updateAmpDisplay, its index and radio state settled
+// Up next's "Next from" songs play now, from their list
+(function nextFromClicks() {
+    const body = document.getElementById('queueBody');
+    if (!body) return;
+    body.addEventListener('click', (e) => {
+        const row = e.target.closest('.dv-nf-row');
+        if (!row) return;
+        if (row.dataset.nfKey !== undefined) {
+            if (!window.cloudMusic) return;
+            noteUserSongAsk();
+            cloudMusic.jumpTo(row.dataset.nfKey);
+            return;
+        }
+        const i = parseInt(row.dataset.nfIndex, 10);
+        if (!(i >= 0 && i < songsData.length)) return;
+        noteUserSongAsk();
+        switchSong(i);
+    });
+})();
+
+// The open Up next window and Now Playing's "Playing from" follow the song:
+// a song change ends in updateAmpDisplay, its index and radio state settled
+// (the desktop's side panel keeps up the same way: desktopPanel)
 (function followSongChanges() {
     const orig = window.updateAmpDisplay;
     if (typeof orig !== 'function') return;
     window.updateAmpDisplay = function () {
         const out = orig.apply(this, arguments);
+        if (queueWindowOpen()) renderQueue();
         if (typeof window.mSyncNpFrom === 'function') window.mSyncNpFrom();
         return out;
     };
@@ -15397,8 +15494,9 @@ if (IS_IOS) {
     // Up next is the queue window's own list (#queueBody, renderQueue and
     // friends): on the desktop it lives here, and openQueueModal opens the
     // panel instead of the window (phones and the app keep the window).
-    // Under it, "Next from <the playing playlist>": its next few songs in
-    // order (shuffle on: just a note, the order isn't known ahead). Lyrics
+    // Under it, "Next from <the playing playlist, or Cloudflare>": its next
+    // few songs in order (shuffle on: just a note, the order isn't known
+    // ahead; renderQueue draws it, for the phone's window too). Lyrics
     // is the sleeve's own lyrics zone (#sleeveLyrics and its controls, fed
     // by the lyrics loader as always), moved in here while the tab shows,
     // except while Now Playing is open: its page shows them, and the tab
@@ -15422,7 +15520,6 @@ if (IS_IOS) {
         const zoneNext = zone ? zone.nextElementSibling : null;
         const lyricsBox = $('sleeveLyrics');
         const KEY = 'dvPanel';
-        const NEXT_MAX = 5;
 
         let tab = 'queue';
         let open = false;
@@ -15568,53 +15665,13 @@ if (IS_IOS) {
             return origOpenQueue.apply(this, arguments);
         };
 
-        const esc = (v) => escapeHtml(String(v == null ? '' : v));
-        const playingName = () => {
-            const meta = typeof playlistsMeta === 'object' && playlistsMeta ? playlistsMeta[String(activePlaylistId)] : null;
-            return meta && meta.name ? meta.name : '';
-        };
-        // The playing list's next songs as Next plays them (no shuffle): from
-        // the row after the current one (the row itself while it hasn't
-        // started), round to the top unless repeat is off, and never back
-        // round to the playing row. The same rule as nextSong: while a queued
-        // or radio song plays, the list resumes after its current row
-        // (currentRowStarted is true then), not on it.
-        function nextIndices() {
-            if (!Array.isArray(songsData) || !songsData.length || shuffleMode !== 'off') return [];
-            const n = songsData.length;
-            const started = currentRowStarted();
-            const first = started ? currentSongIndex + 1 : currentSongIndex;
-            // (the current row only plays when no queued or radio song does)
-            const rowPlaying = started && !currentRadioSong;
-            const out = [];
-            for (let k = 0; out.length < NEXT_MAX && k < n; k++) {
-                let i = first + k;
-                if (i >= n) {
-                    if (loopMode === 'off') break;
-                    i %= n;
-                }
-                if (rowPlaying && i === currentSongIndex) break;
-                if (songsData[i]) out.push(i);
-            }
-            return out;
-        }
-        function nextFromHtml() {
-            const name = playingName();
-            if (!name || !Array.isArray(songsData) || !songsData.length) return '';
-            const head = `<div class="queue-section-label dv-nf-label">Next from ${esc(name)}</div>`;
-            if (shuffleMode !== 'off') return head + '<p class="dv-nf-note">Shuffle is on: songs are picked as they play.</p>';
-            const list = nextIndices();
-            if (!list.length) return '';
-            return head + `<ol class="queue-list dv-nf-list">${list.map((i) => {
-                const s = songsData[i];
-                return `<li class="queue-item dv-nf-item" data-nf="${i}"><button type="button" class="dv-nf-row" data-nf-index="${i}">${queueCoverHtml(s, 'queue-item-cover')}<span class="queue-item-info"><span class="queue-item-title">${esc(s.title)}</span><span class="queue-item-artist">${esc(s.artist)}</span></span></button></li>`;
-            }).join('')}</ol>`;
-        }
-        // What the list shows: re-rendered only when that changes
+        // What the list shows (with "Next from", renderQueue's own:
+        // nextFrom): re-rendered only when that changes
         function signature() {
-            const now = currentRadioSong || (Array.isArray(songsData) ? songsData[currentSongIndex] : null);
-            const next = nextIndices().map((i) => i + ':' + songsData[i].title + ':' + songsData[i].cover).join(',');
-            return [now ? now.title + '|' + now.artist + '|' + now.cover : '', currentSongIndex, shuffleMode, loopMode, playingName(), next].join('~');
+            const now = playingSong();
+            const next = nextFrom();
+            const rows = next.rows.map((r) => (r.key !== undefined ? r.key : r.index) + ':' + r.song.title + ':' + r.song.cover).join(',');
+            return [now ? now.title + '|' + now.artist + '|' + now.cover : '', currentSongIndex, shuffleMode, loopMode, next.name, rows].join('~');
         }
         let lastSig = null;
         function refreshQueue() {
@@ -15669,26 +15726,18 @@ if (IS_IOS) {
             focusAfter = null;
             const out = origRender.apply(this, arguments);
             if (here) {
-                queueBody.insertAdjacentHTML('beforeend', nextFromHtml());
                 decorate();
                 lastSig = signature();
                 restoreFocus(spot);
             }
             return out;
         };
+        // Playing a queued song drops the ones before it: focus the new first.
+        // (A "Next from" song plays from renderQueue's own click handler.)
         bodies.queue.addEventListener('click', (e) => {
-            // Playing a queued song drops the ones before it: focus the new first
             if (e.target.closest('.queue-item-play, .queue-item-info')) {
                 const a = document.activeElement;
                 if (a && queueBody.contains(a)) focusAfter = { q: 0, cls: 'queue-item-play' };
-            }
-            // A "Next from" song plays now, from the playing list
-            const row = e.target.closest('.dv-nf-row');
-            if (row) {
-                const i = parseInt(row.dataset.nfIndex, 10);
-                if (!(i >= 0 && i < songsData.length)) return;
-                noteUserSongAsk();
-                switchSong(i);
             }
         }, true);
         // Alt+↑/↓ moves a queued song (the drag handle's keyboard twin)

@@ -10770,6 +10770,41 @@ html[data-theme="greenroom"] {
     font-size: 0.9rem;
 }
 
+/* "Next from <the playlist, or Cloudflare>" under the queue, in the window
+   (the desktop's side panel styles its own) */
+#queueModal .dv-nf-label {
+    margin-top: 20px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+#queueModal .dv-nf-item { padding: 0; }
+#queueModal .dv-nf-row {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+#queueModal .dv-nf-row:active { background: rgba(255, 245, 233, 0.07); }
+#queueModal .dv-nf-row .queue-item-info { display: flex; flex-direction: column; }
+#queueModal .dv-nf-note {
+    margin: 0 4px;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--cream-60);
+}
+
 /* Stats */
 .stats-range { margin: 0 0 18px; }
 
