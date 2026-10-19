@@ -14,6 +14,10 @@
 //   C. The Install sheet: Brave on iPhone first sends you to Safari (with
 //      this site's address) for Safari's steps; Safari shows only those
 //      steps, and Brave on Android keeps its own browser's steps.
+//   D. Safari and Brave: the page itself can't be pulled down
+//      (overscroll-behavior-y: none on the root, and only there); the
+//      crate, Search, a playlist, You, Now Playing and a sheet keep their
+//      own behaviour and still scroll by wheel.
 // Writes to /save-music are faked (reads go through).
 const L = require('../lib');
 const APP = L.APP;
@@ -92,6 +96,62 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         };
     });
     const backdrop = (p, sel) => p.evaluate((sel) => { const el = document.querySelector(sel); return el ? getComputedStyle(el).backgroundImage : null; }, sel);
+    // A scroller wheeled from its top (made taller than its box first if
+    // it isn't), then put back
+    async function wheel(p, sel, filler) {
+        const box = await p.evaluate(({ sel, filler }) => {
+            const el = document.querySelector(sel);
+            if (!el || !el.getClientRects().length) return null;
+            if (el.scrollHeight <= el.clientHeight + 40) {
+                const spacer = document.createElement('div');
+                spacer.className = 'scroll-spacer';
+                spacer.style.cssText = 'height: 2000px; flex: 0 0 auto;';
+                (filler ? document.querySelector(filler) : el).appendChild(spacer);
+            }
+            el.scrollTop = 0;
+            const r = el.getBoundingClientRect();
+            const cs = getComputedStyle(el);
+            return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + Math.min(r.height / 2, 260)), overflow: cs.overflowY, own: cs.overscrollBehaviorY };
+        }, { sel, filler });
+        if (!box) return null;
+        await p.mouse.move(box.x, box.y);
+        await p.mouse.wheel(0, 400);
+        await p.waitForTimeout(500);
+        box.scrolled = await p.evaluate((sel) => {
+            const el = document.querySelector(sel);
+            const top = el.scrollTop;
+            document.querySelectorAll('.scroll-spacer').forEach((x) => x.remove());
+            el.scrollTop = 0;
+            return top;
+        }, sel);
+        return box;
+    }
+
+    async function pulls(p, tag) {
+        const root = await p.evaluate(() => ({ html: getComputedStyle(document.documentElement).overscrollBehaviorY, body: getComputedStyle(document.body).overscrollBehaviorY }));
+        check(`D ${tag}: the page can't be pulled down (the root only)`, root.html === 'none' && root.body === 'auto', root);
+        const lists = {};
+        lists.crate = await wheel(p, '#roomCenter');
+        await p.evaluate(() => document.querySelector('#mTabs .m-tab[data-tab="search"]').click()); await p.waitForTimeout(600);
+        lists.search = await wheel(p, '#mSearchPage', '#mSearchResults');
+        await p.evaluate(() => document.querySelector('#mTabs .m-tab[data-tab="home"]').click()); await p.waitForTimeout(600);
+        await p.evaluate(() => openPlayerView()); await p.waitForTimeout(800);
+        lists.playlist = await wheel(p, '#musicSidebar');
+        await p.evaluate(() => history.back()); await p.waitForTimeout(800);
+        await p.evaluate(() => document.getElementById('mAvatarBtn').click()); await p.waitForTimeout(800);
+        lists.you = await wheel(p, '#mYouPage');
+        await p.evaluate(() => history.back()); await p.waitForTimeout(800);
+        await p.evaluate(() => window.mOpenNowPlaying()); await p.waitForTimeout(900);
+        lists.np = await wheel(p, '#musicPlayerView .music-main');
+        await p.evaluate(() => history.back()); await p.waitForTimeout(900);
+        await p.evaluate(() => showSettingsModal()); await p.waitForTimeout(700);
+        lists.sheet = await wheel(p, '#settingsModal .add-song-modal-panel');
+        await p.evaluate(() => hideSettingsModal()); await p.waitForTimeout(500);
+        for (const [name, l] of Object.entries(lists)) {
+            check(`D ${tag}: ${name} still scrolls, with its own overscroll (${l ? l.own : '?'})`, !!l && /auto|scroll/.test(l.overflow) && l.own !== 'none' && l.scrolled > 0, l);
+        }
+    }
+
     // The Install sheet as it opens when the browser offers no prompt
     async function installSheet(p) {
         await p.evaluate(() => window.mShowInstallSheet()); await p.waitForTimeout(500);
@@ -133,6 +193,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         check('A Safari: Now Playing has both strips and the fade, and its header moves down (18px, grab 16px)', t.np.np && t.np.top.display === 'block' && t.np.top.bg === 'rgb(10, 8, 8)' && t.np.top.after !== 'none' && t.np.bottom.display === 'block' && t.np.headerPad === '18px' && t.np.grabTop === '16px', t.np);
         check('A Safari: sheet and menu backdrops start clear at the top', /^linear-gradient/.test(t.sheet || '') && /^linear-gradient/.test(t.menu || ''), { sheet: t.sheet, menu: t.menu });
         check('C Safari: the Install sheet shows Safari\'s steps, without the Brave line', t.install.ios && !t.install.brave && !t.install.android, t.install);
+        await pulls(p, 'Safari');
         check('A Safari: errors', p.__errs.length === 0, p.__errs);
         await ctx.close();
     }
@@ -147,6 +208,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         check(`B Brave (${how}): sheet and menu backdrops dim all the way up`, t.sheet === 'none' && t.menu === 'none', { sheet: t.sheet, menu: t.menu });
         check(`C Brave (${how}): the Install sheet first says to open this site in Safari, then Safari's steps`, t.install.brave && t.install.ios && !t.install.android
             && t.install.text === `Brave can't add apps to the Home Screen. Open ${t.install.host} in Safari, then:`, t.install);
+        if (opts.brave) await pulls(p, 'Brave');
         check(`B Brave (${how}): errors`, p.__errs.length === 0, p.__errs);
         await ctx.close();
     }

@@ -19779,6 +19779,12 @@ html.dv2 #mSearchResults .m-sr-yt .search-result-info { padding-right: 34px; }
        Everything on the player page is fixed; only its lists scroll. */
     html[data-m-tab] body { min-height: 0; }
 
+    /* Nor be pulled down: a drag past the top of a list could reach the
+       page, and Safari's and Brave's pull-to-refresh would reload it
+       mid-song. The root only (the property isn't inherited): every list
+       keeps its own scrolling and bounce. */
+    html[data-m-tab] { overscroll-behavior-y: none; }
+
     /* A field under 16px makes iOS zoom the page in on focus, and it stays
        zoomed: these were under the phone floor. Landscape too, where the
        phone floors don't apply. */
