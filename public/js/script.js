@@ -465,10 +465,14 @@ function bumpSongCount(id) {
     setCrateCardCount(id, meta.songCount);
 }
 
-// The song sheet acts on one of two lists: the one on screen (a row's ⋯), or
-// the playing one ('np': Now Playing's ⋯). Now Playing's song must never be
-// looked up in a list that's only being viewed: Remove would hit another song.
+// The song sheet acts on one of three lists: the one on screen (a row's ⋯),
+// the playing one ('np': Now Playing's ⋯), or songs that aren't rows of a
+// playlist ('one': Search hits, Cloudflare songs, the song playing from the
+// queue or the radio; see showLooseSongMenu). Now Playing's song must never
+// be looked up in a list that's only being viewed: Remove would hit another song.
+let looseSongs = [];
 function songCtx(key) {
+    if (key === 'one') return { id: '', songs: looseSongs };
     return key === 'np'
         ? { id: String(activePlaylistId), songs: songsData }
         : { id: String(listId()), songs: listSongs() };
@@ -1994,7 +1998,9 @@ function setSettingsTab(tab) {
 // UP-NEXT QUEUE — songs the user queues jump ahead of the playlist
 // ============================================================
 
-function songToQueueItem(song) {
+// A song's own fields (what a playlist stores), from any song-shaped object:
+// a list row, a Search hit, a Cloudflare song, a queued one
+function songFields(song) {
     return {
         title: song.title || '',
         artist: song.artist || '',
@@ -2003,29 +2009,74 @@ function songToQueueItem(song) {
         youtube_id: song.youtube_id || '',
         mp3_url: song.mp3_url || '',
         spotify_id: song.spotify_id || '',
-        cloud_key: song.cloud_key || '',
     };
 }
 
-// Add the playlist song at `index` to the end of the queue. ctx: which list
-// the index is into (see songCtx).
-function queueAdd(index, ctx) {
-    const song = songCtx(ctx).songs[index];
-    if (!song) return;
-    playQueue.push(songToQueueItem(song));
+// A queued song: a copy of the song's own fields (and its Cloudflare key)
+function songToQueueItem(song) {
+    return Object.assign(songFields(song), { cloud_key: song.cloud_key || '' });
+}
+
+// The song playing (or last loaded): a queued, radio or Cloudflare song, or
+// the playing list's current row (while that row hasn't started, the track
+// from before is what plays)
+function playingSong() {
+    if (currentRadioSong) return currentRadioSong;
+    if (!currentRowStarted() && lastRequestedSong) return lastRequestedSong;
+    return Array.isArray(songsData) ? songsData[currentSongIndex] || null : null;
+}
+
+// Put a song in the queue: at its end, or (atFront: Play next) after the
+// songs already put there with Play next, in the order they came. Any
+// song-shaped object: it goes in as a copy.
+function queueSong(song, atFront) {
+    if (!song || !song.title) return false;
+    const item = songToQueueItem(song);
+    if (atFront) {
+        item._next = true;
+        let at = 0;
+        while (at < playQueue.length && playQueue[at]._next) at++;
+        playQueue.splice(at, 0, item);
+    } else {
+        playQueue.push(item);
+    }
     afterQueueChange();
-    showToast('Added to queue');
+    showToast(atFront ? 'Playing next' : 'Added to queue');
+    return true;
+}
+
+// The song sheet's Play next / Add to queue: `index` into the list ctx
+// names (see songCtx)
+function queueFromSheet(index, ctx, atFront) {
+    const song = songCtx(ctx).songs[index];
+    if (song) queueSong(song, atFront);
     closeSendMenu();
 }
 
-// Insert the playlist song at `index` at the front of the queue.
+function queueAdd(index, ctx) {
+    queueFromSheet(index, ctx, false);
+}
+
 function queuePlayNext(index, ctx) {
-    const song = songCtx(ctx).songs[index];
-    if (!song) return;
-    playQueue.unshift(songToQueueItem(song));
-    afterQueueChange();
-    showToast('Playing next');
+    queueFromSheet(index, ctx, true);
+}
+
+// The song sheet for a song that isn't a row of a playlist: a Search hit, a
+// Cloudflare song, the song playing from the queue or the radio. songs: the
+// list its button belongs to, as it is now (a redraw makes a new one). The
+// sheet offers only what doesn't go by position (see showSendMenu).
+function showLooseSongMenu(btn, songs, index) {
+    if (!btn || !Array.isArray(songs) || !songs[index]) return;
+    looseSongs = songs;
+    showSendMenu(btn, index, 'one');
+}
+
+// The 'one' sheet's "Add to playlist…" (YouTube songs): the Search page's
+// own picker, which adds the song itself rather than a position
+function looseAddToPlaylist(index) {
+    const song = looseSongs[index];
     closeSendMenu();
+    if (song && typeof window.mShowAddToSheet === 'function') window.mShowAddToSheet(songFields(song));
 }
 
 // Shared advance: log history, pop the head, play it (from nextSong /
@@ -5465,11 +5516,14 @@ function onSendMenuOutsideClick(e) {
     }
 }
 
-function showSendMenu(btn, songIndex) {
+function showSendMenu(btn, songIndex, ctxWanted) {
     closeSendMenu();
     // Now Playing's ⋯ acts on the playing list; a row's on the list on screen
     // (they differ while the phone shows a playlist that isn't playing).
-    const ctxKey = btn && btn.id === 'mNpKebab' ? 'np' : 'list';
+    // ctxWanted 'one': a song that isn't a playlist row (showLooseSongMenu)
+    // gets only what doesn't go by position: no copy, move or remove.
+    const ctxKey = ctxWanted || (btn && btn.id === 'mNpKebab' ? 'np' : 'list');
+    const loose = ctxKey === 'one';
     const ctx = songCtx(ctxKey);
     const ctxArg = `'${ctxKey}'`;
     if (!ctx.songs[songIndex]) return; // e.g. Now Playing after its playlist emptied
@@ -5482,8 +5536,10 @@ function showSendMenu(btn, songIndex) {
     menu.className = 'send-menu';
     if (useSheet) menu.classList.add('send-menu-sheet');
     // The song it was opened for: its actions send this key, so a list that
-    // shifted under the open menu can't move or remove another song
+    // shifted under the open menu can't move or remove another song (and
+    // its title names the desktop's menu when no row shows it)
     menu.dataset.songKey = songPlayKey(ctx.songs[songIndex]);
+    menu.dataset.songTitle = ctx.songs[songIndex].title || '';
 
     const song = ctx.songs[songIndex];
     if (useSheet) {
@@ -5514,18 +5570,31 @@ function showSendMenu(btn, songIndex) {
     html += row('', `queuePlayNext(${songIndex}, ${ctxArg})`, icon('<path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 15l4 3-4 3"/><path d="M21 18h-6"/>'), 'Play next');
     html += row('', `queueAdd(${songIndex}, ${ctxArg})`, icon('<path d="M4 6h12M4 12h12M4 18h8"/><path d="M18 15v6M15 18h6"/>'), 'Add to queue');
     // The phone playlist screen hides the row hearts (any pointer at that
-    // width), so favoriting lives in this menu there.
+    // width), so favoriting lives in this menu there. A song that isn't a
+    // row has no heart of its own anywhere (the like works for any song,
+    // Cloudflare ones too: they are kept by their address).
     const heartsHidden = !!document.documentElement.dataset.mTab && window.matchMedia('(max-width: 600px)').matches;
-    if ((useSheet || heartsHidden) && song && ctx.id !== 'favorites') {
+    if ((useSheet || heartsHidden || loose) && song && ctx.id !== 'favorites') {
         const liked = favoriteKeys.has(songPlayKey(song));
         html += row(` send-menu-like${liked ? ' is-fav' : ''}`, `likeFromSheet(${songIndex}, ${ctxArg})`,
             icon('<path d="M20.8 4.6a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.07a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.8-8.85a5.5 5.5 0 0 0 0-7.78z"/>', liked ? 'currentColor' : 'none'),
             liked ? 'Remove from Favorites' : 'Add to Favorites', ` aria-pressed="${liked}"`);
     }
 
-    const targets = Object.keys(playlistsMeta).filter(id => id !== ctx.id
+    const targets = loose ? [] : Object.keys(playlistsMeta).filter(id => id !== ctx.id
         && !(id === 'favorites' && song && favoriteKeys.has(songPlayKey(song))));
-    if (useSheet) {
+    if (loose) {
+        // A YouTube song goes to a playlist through the Search page's own
+        // picker (by the song itself)
+        if (song.youtube_id && !song.cloud_key && typeof window.mShowAddToSheet === 'function') {
+            html += row('', `looseAddToPlaylist(${songIndex})`,
+                icon('<path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><path d="M19 17v6M16 20h6"/>'), 'Add to playlist…');
+        }
+        if (useSheet) {
+            html += `<button type="button" class="send-menu-cancel" onclick="event.stopPropagation(); closeSendMenu()">Cancel</button>`;
+            html += '</div>';
+        }
+    } else if (useSheet) {
         // One "Add to playlist…" instead of every playlist twice (send / keep a copy).
         if (targets.length) {
             html += row(' send-menu-open-picker', 'showSongPicker()',
@@ -6042,6 +6111,7 @@ function renderSearchResults(list, q) {
         return;
     }
     // Click by array index — never inline the slug into the onclick attribute.
+    // Each hit's ⋯ queues or likes it (the list as it is now).
     results.innerHTML = list.map((r, i) => {
         const cover = safeUrl(r.cover);
         const coverHtml = cover
@@ -6049,14 +6119,17 @@ function renderSearchResults(list, q) {
             : `<div class="search-result-cover search-result-cover-empty">${STATS_EMPTY_COVER}</div>`;
         const artist = r.artist ? `<span class="search-result-artist">${escapeHtml(r.artist)}</span>` : '';
         const color = /^#[0-9a-fA-F]{6}$/.test(r.playlistColor || '') ? r.playlistColor : '#d4a574';
-        return `<button type="button" class="search-result" onclick="playSearchResult(${i})">
-            ${coverHtml}
-            <span class="search-result-info">
-                <span class="search-result-title">${escapeHtml(r.title)}</span>
-                ${artist}
-            </span>
-            <span class="search-result-pl" style="--pl-color:${color}">${escapeHtml(r.playlistName)}</span>
-        </button>`;
+        return `<div class="search-result-line">
+            <button type="button" class="search-result" onclick="playSearchResult(${i})">
+                ${coverHtml}
+                <span class="search-result-info">
+                    <span class="search-result-title">${escapeHtml(r.title)}</span>
+                    ${artist}
+                </span>
+                <span class="search-result-pl" style="--pl-color:${color}">${escapeHtml(r.playlistName)}</span>
+            </button>
+            <button type="button" class="m-sr-more" onclick="showLooseSongMenu(this, librarySearchResults, ${i})" aria-label="More options for ${escapeHtml(r.title)}"></button>
+        </div>`;
     }).join('');
 }
 
@@ -11809,7 +11882,7 @@ if (IS_IOS) {
 
     // A re-render keeps keyboard / TalkBack focus on the same row where it
     // can, and in the results otherwise (not on <body>).
-    const FOCUS_KEYS = ['lib', 'open', 'yt', 'add', 'link', 'playlist', 'cloud', 'cloudDl', 'cloudAll'];
+    const FOCUS_KEYS = ['lib', 'open', 'libMore', 'yt', 'add', 'ytMore', 'link', 'playlist', 'cloud', 'cloudDl', 'cloudMore', 'cloudAll'];
     const cssString = (v) => (window.CSS && CSS.escape ? CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&'));
     function keepingFocus(render) {
         const el = document.activeElement;
@@ -11978,6 +12051,7 @@ if (IS_IOS) {
                         </span>
                     </button>
                     <button type="button" class="m-sr-open" data-open="${i}" style="--pl-color:${color}" aria-label="Open in ${escapeHtml(r.playlistName)}"><span class="search-result-pl">${escapeHtml(r.playlistName)}</span></button>
+                    <button type="button" class="m-sr-more" data-lib-more="${i}" aria-label="More options for ${escapeHtml(r.title)}"></button>
                 </div>`;
             }).join('');
     }
@@ -12003,6 +12077,7 @@ if (IS_IOS) {
                 <button type="button" class="m-sr-add" data-add="${i}" aria-label="Add ${escapeHtml(song.title)} to a playlist">
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                 </button>
+                <button type="button" class="m-sr-more" data-yt-more="${i}" aria-label="More options for ${escapeHtml(song.title)}"></button>
             </div>`;
         }).join('');
     }
@@ -12191,9 +12266,18 @@ if (IS_IOS) {
     if (searchResultsEl) {
         searchResultsEl.addEventListener('click', (e) => {
             const q = searchInput ? searchInput.value.trim() : '';
-            const t = e.target.closest('[data-lib], [data-open], [data-yt], [data-add], [data-recent], [data-recent-x], [data-clear-recent], [data-playlist], [data-link]');
+            const t = e.target.closest('[data-lib], [data-open], [data-lib-more], [data-yt], [data-add], [data-yt-more], [data-recent], [data-recent-x], [data-clear-recent], [data-playlist], [data-link]');
             if (!t) return;
             const d = t.dataset;
+            // A row's ⋯: queue it, like it (and a YouTube one: add it to a
+            // playlist), from the rows as they are on screen. The phone
+            // keyboard would cover the sheet.
+            if (d.libMore !== undefined || d.ytMore !== undefined) {
+                if (searchInput && document.activeElement === searchInput) searchInput.blur();
+                if (d.libMore !== undefined) showLooseSongMenu(t, shownLib, parseInt(d.libMore, 10));
+                else showLooseSongMenu(t, shownYt.map(songFromYoutube), parseInt(d.ytMore, 10));
+                return;
+            }
             if (d.lib !== undefined || d.open !== undefined) {
                 const hit = shownLib[parseInt(d.lib !== undefined ? d.lib : d.open, 10)];
                 if (!hit) return;
@@ -13504,15 +13588,16 @@ if (IS_IOS) {
         return out;
     };
 
-    // NP header kebab: song options for the current track. During smart-
-    // shuffle radio, the playing track is NOT in the playlist and
-    // currentSongIndex points at an unrelated song — never open the sheet
-    // on the wrong target.
+    // NP header kebab: song options for the current track. A song that
+    // isn't a row of the playing playlist (a Cloudflare song, one from the
+    // queue or the radio, a Search one-off) gets its own sheet: queue it,
+    // like it, but nothing that goes by position (currentSongIndex points
+    // at an unrelated song then — never open the row's sheet on it).
     const npKebab = document.getElementById('mNpKebab');
     if (npKebab) {
         npKebab.addEventListener('click', () => {
             if (typeof currentRadioSong !== 'undefined' && currentRadioSong) {
-                if (window.mToast) mToast('Radio track — not in this playlist');
+                showLooseSongMenu(npKebab, [currentRadioSong], 0);
                 return;
             }
             if (!songsData[currentSongIndex]) return; // the playlist emptied
@@ -14751,7 +14836,8 @@ if (IS_IOS) {
             if (!isDesk() || !pop || pop.classList.contains('send-menu-sheet')) return out;
             const row = btn && btn.closest ? btn.closest(ROWS) : null;
             const titleNode = row ? row.querySelector('.song-list-title') : null;
-            const title = titleNode ? titleNode.textContent : '';
+            // (a Search hit's ⋯: the song the menu is for)
+            const title = titleNode ? titleNode.textContent : (pop.dataset.songTitle || '');
             pop.setAttribute('role', 'menu');
             pop.setAttribute('aria-label', title ? `${title}: song options` : 'Song options');
             pop.querySelectorAll('.send-menu-divider').forEach((d) => d.setAttribute('role', 'separator'));
@@ -14871,8 +14957,8 @@ if (IS_IOS) {
     // and volume knob hide (the bar has them; their DOM and syncs stay).
     // Its control bay keeps pitch and gets the turntable extras: crackle
     // (in step with Settings and the sidebar's) and ⋯ (Make a GIF, Show in
-    // playlist). Same DOM as the phone's Now Playing sheet: the new pieces
-    // are display:none off the desktop.
+    // playlist, Play next, Add to queue). Same DOM as the phone's Now
+    // Playing sheet: the new pieces are display:none off the desktop.
     // ============================================================
     (function desktopNowPlaying() {
         const $ = (id) => document.getElementById(id);
@@ -15056,7 +15142,9 @@ if (IS_IOS) {
         if (crackleBtn) crackleBtn.addEventListener('click', () => { toggleCrackle(); syncCrackle(); });
         if (railCrackle) new MutationObserver(syncCrackle).observe(railCrackle, { attributes: true, attributeFilter: ['data-crackle'] });
 
-        // ---- ⋯: Make a GIF, Show in playlist (a popover over the page)
+        // ---- ⋯: Make a GIF, Show in playlist, Play next and Add to queue
+        // (the song playing, again: whichever list it came from) — a
+        // popover over the page
         const items = () => (menu ? [...menu.querySelectorAll('[role="menuitem"]')] : []);
         function place() {
             const r = moreBtn.getBoundingClientRect();
@@ -15110,7 +15198,9 @@ if (IS_IOS) {
                 if (!it) return;
                 // Focus back on ⋯ first: the GIF window returns there
                 setMenu(false, true);
-                if (it.dataset.dvNp === 'gif') window.openVinylGifModal();
+                const action = it.dataset.dvNp;
+                if (action === 'gif') window.openVinylGifModal();
+                else if (action === 'next' || action === 'queue') queueSong(playingSong(), action === 'next');
                 else showInPlaylist();
             });
             menu.addEventListener('keydown', (e) => {

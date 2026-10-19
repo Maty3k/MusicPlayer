@@ -269,7 +269,7 @@ const QUERY = 'song 1'; // seeded titles are "Song N of <playlist>"
             const end = (await look(p)).focus;
             await p.keyboard.press('Escape');
             const back = (await look(p)).focus;
-            check(`${tag} F End goes to the last result (the last +), Esc back to the field`, end === `add=${YT.length - 1}` && back === 'mSearchInput', { end, back });
+            check(`${tag} F End goes to the last result's last button (its ⋯), Esc back to the field`, end === `ytMore=${YT.length - 1}` && back === 'mSearchInput', { end, back });
 
             // ---- G. A pasted YouTube playlist link offers the import
             const url = 'https://www.youtube.com/playlist?list=PLabcdefghij0123';

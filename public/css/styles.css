@@ -19520,6 +19520,61 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded {
 }
 html.dv2 #mSearchResults .m-sr-dl:hover { background: var(--dv-hover); color: var(--cream); }
 html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
+/* A Search row's ⋯ (Cloudflare, library and YouTube rows, and the library
+   search window's hits): the song sheet for songs that aren't playlist
+   rows. A playlist row's ⋯ (.song-send-btn): its glyph and colour, 44px on
+   phones, the desktop list's size there. */
+#mSearchResults .m-sr-more,
+#searchResults .m-sr-more {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: rgba(212, 165, 116, 0.8);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.m-sr-more::after {
+    content: '\22EF';
+    font-size: 1.4rem;
+    line-height: 1;
+}
+#mSearchResults .m-sr-more:active,
+#searchResults .m-sr-more:active { opacity: 0.7; }
+#mSearchResults .m-sr-more:focus-visible,
+#searchResults .m-sr-more:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+#searchResults .m-sr-more:hover { background: rgba(212, 165, 116, 0.08); }
+/* The library search window: a hit and its ⋯ side by side */
+.search-result-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.search-result-line .search-result {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+html.dv2 #mSearchResults .m-sr-more {
+    width: 36px;
+    height: 36px;
+    color: color-mix(in srgb, var(--cream) 70%, transparent);
+}
+html.dv2 #mSearchResults .m-sr-more::after { font-size: 1.3rem; }
+html.dv2 #mSearchResults .m-sr-more:hover { background: var(--dv-hover); color: var(--cream); }
+/* A YouTube card: at its bottom right, under the + on the cover (the order
+   Tab and the arrow keys take), the title kept clear of it */
+html.dv2 #mSearchResults .m-sr-yt .m-sr-more {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+}
+html.dv2 #mSearchResults .m-sr-yt .search-result-info { padding-right: 34px; }
 /* Settings → Source → On this device: a button that can't act now looks it,
    but stays focusable (aria-disabled, not disabled) */
 .settings-source-btn[aria-disabled="true"] { opacity: 0.45; pointer-events: none; }

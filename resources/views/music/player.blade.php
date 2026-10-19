@@ -1254,6 +1254,8 @@
         <div class="dv-np-menu" id="dvNpMenu" role="menu" aria-label="More for this song" hidden>
             <button type="button" role="menuitem" data-dv-np="gif">Make a GIF</button>
             <button type="button" role="menuitem" data-dv-np="show">Show in playlist</button>
+            <button type="button" role="menuitem" data-dv-np="next">Play next</button>
+            <button type="button" role="menuitem" data-dv-np="queue">Add to queue</button>
         </div>
     </div>
     {{-- Show the bar from the first paint when the playing list has songs

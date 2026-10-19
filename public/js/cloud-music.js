@@ -290,11 +290,13 @@ window.cloudMusic = (() => {
                     + ' aria-pressed="' + (here || busy) + '" aria-busy="' + busy + '" aria-label="Keep ' + escapeHtml(s.title) + (s.artist ? ' by ' + escapeHtml(s.artist) : '') + ' on this device">'
                     + (busy ? SPIN : (here ? CHECK : DOWN)) + '</button>'
                 : '';
+            // Queue it, like it: the song sheet for songs that aren't playlist rows (script.js)
+            const more = '<button type="button" class="m-sr-more" data-cloud-more="' + i + '"' + key + ' aria-label="More options for ' + escapeHtml(s.title) + '"></button>';
             return '<div class="m-sr-row' + active + '">'
                 + '<button type="button" class="search-result" data-cloud="' + i + '"' + key + ' aria-label="Play ' + escapeHtml(s.title) + (s.artist ? ' by ' + escapeHtml(s.artist) : '') + '">'
                 + '<div class="search-result-cover search-result-cover-empty">' + NOTE + '</div>'
                 + '<span class="search-result-info"><span class="search-result-title">' + escapeHtml(s.title) + '</span>' + artist + '</span>'
-                + '</button>' + keep + '</div>';
+                + '</button>' + keep + more + '</div>';
         }).join('');
         if (n > MAX_ROWS) html += '<div class="m-search-hint m-search-hint-sm">Showing ' + MAX_ROWS + ' of ' + n + '. Type to narrow it down; Play all plays every one.</div>';
         // The library results' wrapper: the desktop Search page styles its rows by it
@@ -310,6 +312,17 @@ window.cloudMusic = (() => {
             if (s) toggleSong(s.cloud_key);
             return;
         }
+        // The phone keyboard would stay up (and keep the player dock hidden,
+        // or cover the song sheet)
+        const input = document.getElementById('mSearchInput');
+        const more = e.target.closest('[data-cloud-more]');
+        if (more) {
+            const i = parseInt(more.dataset.cloudMore, 10);
+            if (!shown[i] || typeof showLooseSongMenu !== 'function') return;
+            if (input && document.activeElement === input) input.blur();
+            showLooseSongMenu(more, shown, i); // Play next, Add to queue, ♥
+            return;
+        }
         const t = e.target.closest('[data-cloud], [data-cloud-all]');
         if (!t) return;
         const list = shown.slice();
@@ -322,8 +335,6 @@ window.cloudMusic = (() => {
         else if (typeof shuffleMode !== 'undefined' && shuffleMode !== 'off') idx = Math.floor(Math.random() * list.length);
         history = [];
         start(list, idx, true); // synchronous: this tap is what unlocks audio on iOS
-        // The phone keyboard would stay up (and keep the player dock hidden)
-        const input = document.getElementById('mSearchInput');
         if (input && document.activeElement === input) input.blur();
     }
 
