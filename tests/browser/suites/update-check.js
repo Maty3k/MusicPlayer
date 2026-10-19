@@ -50,7 +50,8 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         p.__loads = 0; p.on('load', () => p.__loads++);
         p.__asks = 0;
         p.__answer = opts.answer || { build: 'same' };
-        await p.route(/youtube\.com|sdk\.scdn|spotify\.com|lrclib\.net/, r => r.abort());
+        // Covers and web fonts too: a reload's load event mustn't wait on other servers
+        await p.route(/youtube\.com|ytimg\.com|sdk\.scdn|spotify\.com|lrclib\.net|fonts\.(googleapis|gstatic)\.com/, r => r.abort());
         await p.route('**/save-music', async (route) => {
             const body = JSON.parse(route.request().postData() || '{}');
             if (READS.includes(body.action)) return route.continue();
@@ -118,6 +119,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
     async function settle(p) {
         await p.waitForTimeout(1200);
         for (let i = 0; i < 50 && p.__navs > p.__loads; i++) await p.waitForTimeout(200);
+        await p.waitForLoadState('domcontentloaded').catch(() => {});
         await p.waitForTimeout(300);
     }
     // Polls the page (real time) until fn says yes, for up to ms
