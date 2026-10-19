@@ -2272,8 +2272,39 @@ function queueWindowOpen() {
 }
 
 function clearQueue() {
+    clearTimeout(queueClearTimer);
+    queueClearArmed = 0;
     playQueue = [];
     afterQueueChange();
+}
+
+// Clear takes a second tap within 3 s (there's no undo). Until then its
+// label says so, also across a redraw.
+let queueClearArmed = 0; // until when a tap on Clear clears
+let queueClearTimer = 0;
+function queueClearLabel() {
+    if (Date.now() >= queueClearArmed) return 'Clear';
+    return document.documentElement.classList.contains('dv2') ? 'Click again to clear' : 'Tap again to clear';
+}
+function paintQueueClear() {
+    const label = queueClearLabel();
+    document.querySelectorAll('#queueBody .queue-clear-btn').forEach((b) => {
+        b.classList.toggle('is-armed', label !== 'Clear');
+        b.textContent = label;
+    });
+}
+function armClearQueue() {
+    if (Date.now() < queueClearArmed) {
+        clearQueue();
+        return;
+    }
+    queueClearArmed = Date.now() + 3000;
+    clearTimeout(queueClearTimer);
+    queueClearTimer = setTimeout(() => {
+        queueClearArmed = 0;
+        paintQueueClear();
+    }, 3000);
+    paintQueueClear();
 }
 
 function removeFromQueue(i) {
@@ -2296,18 +2327,73 @@ function playQueueItem(i) {
     afterQueueChange();
 }
 
-// Drag-to-reorder within the queue (pointer-based, mouse + touch). Reorders the
-// DOM live via insertBefore; on release rebuilds playQueue to match.
+// Near a scroller's top or bottom edge, keep it scrolling while a row is
+// dragged, so the row can travel further than one screen: one animation-
+// frame loop, stopped for good on release. place(y) puts the row under the
+// pointer again as the list moves; inset: what covers the scroller's edges.
+function edgeScroller(scroller, place, inset = {}) {
+    let lastY = 0;
+    let frame = 0;
+    let stopped = false;
+    const tick = () => {
+        frame = 0;
+        if (stopped) return;
+        const box = scroller.getBoundingClientRect();
+        const zone = 64;
+        const top = Math.max(box.top, 0) + (inset.top || 0);
+        const bottom = Math.min(box.bottom, window.innerHeight) - (inset.bottom || 0);
+        let dy = 0;
+        if (lastY < top + zone) dy = -Math.ceil((top + zone - lastY) / 4);
+        else if (lastY > bottom - zone) dy = Math.ceil((lastY - (bottom - zone)) / 4);
+        if (!dy) return;
+        const before = scroller.scrollTop;
+        scroller.scrollTop += Math.max(-24, Math.min(24, dy));
+        if (scroller.scrollTop !== before) {
+            place(lastY);
+            frame = requestAnimationFrame(tick);
+        }
+    };
+    return {
+        move(y) {
+            lastY = y;
+            if (!frame && !stopped) frame = requestAnimationFrame(tick);
+        },
+        stop() {
+            stopped = true;
+            if (frame) cancelAnimationFrame(frame);
+            frame = 0;
+        },
+    };
+}
+
+// What scrolls the queue: #queueBody in the Up next window (or the sheet
+// around it, when that scrolls instead), the side panel's body on the desktop
+function queueScroller() {
+    const body = document.getElementById('queueBody');
+    for (let el = body; el && el !== document.body; el = el.parentElement) {
+        const oy = getComputedStyle(el).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return el;
+    }
+    return body;
+}
+
+// Drag-to-reorder within the queue (pointer-based, mouse + touch). Reorders
+// the DOM live via insertBefore; on release rebuilds playQueue to match.
+// Redraws wait for the drop (a song ending mid-drag would drop the row).
+let queueDragging = false;
+let queueRedrawWaiting = false;
 function startQueueDrag(e) {
     e.preventDefault();
     e.stopPropagation();
-    const list = document.querySelector('#queueBody .queue-list');
+    const list = document.querySelector('#queueBody .queue-list:not(.dv-nf-list)');
     const li = e.currentTarget.closest('.queue-item');
-    if (!list || !li) return;
+    if (!list || !li || queueDragging) return;
+    queueDragging = true;
     li.classList.add('dragging');
+    // The queue as the rows show it: their indexes mean these songs
+    const snap = playQueue.slice();
 
-    const move = (ev) => {
-        const y = ev.clientY;
+    const place = (y) => {
         const others = [...list.querySelectorAll('.queue-item')].filter(r => r !== li);
         let placed = false;
         for (const r of others) {
@@ -2316,25 +2402,47 @@ function startQueueDrag(e) {
         }
         if (!placed && others.length) others[others.length - 1].after(li);
     };
+    const edge = edgeScroller(queueScroller(), place);
+    const move = (ev) => {
+        place(ev.clientY);
+        edge.move(ev.clientY);
+    };
     const end = () => {
         document.removeEventListener('pointermove', move);
         document.removeEventListener('pointerup', end);
         document.removeEventListener('pointercancel', end);
+        edge.stop();
         li.classList.remove('dragging');
-        finishQueueDrag();
+        queueDragging = false;
+        finishQueueDrag(snap);
     };
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', end);
     document.addEventListener('pointercancel', end);
 }
 
-function finishQueueDrag() {
-    const list = document.querySelector('#queueBody .queue-list');
-    if (!list) return;
-    const order = [...list.querySelectorAll('.queue-item')].map(el => parseInt(el.getAttribute('data-qindex'), 10));
-    if (order.length !== playQueue.length || order.some(isNaN)) { renderQueue(); return; }
-    if (order.every((v, i) => v === i)) return; // no change
-    playQueue = order.map(qi => playQueue[qi]);
+// snap: the queue when the drag started. A song that left it meanwhile (it
+// started playing) drops out of the new order; one that came meanwhile (a
+// Play next) has its own place, so the drag goes and the rows are redrawn.
+function finishQueueDrag(snap) {
+    const list = document.querySelector('#queueBody .queue-list:not(.dv-nf-list)');
+    const base = snap || playQueue;
+    const order = list ? [...list.querySelectorAll('.queue-item')].map(el => parseInt(el.getAttribute('data-qindex'), 10)) : [];
+    const redraw = () => {
+        queueRedrawWaiting = false;
+        renderQueue();
+    };
+    if (!list || order.length !== base.length || order.some(isNaN) || playQueue.some((s) => !base.includes(s))) {
+        redraw();
+        return;
+    }
+    const next = order.map((qi) => base[qi]).filter((s) => playQueue.includes(s));
+    if (next.every((s, i) => s === playQueue[i])) {
+        if (queueRedrawWaiting) redraw(); // no change: the redraw held back
+        return;
+    }
+    playQueue = next;
+    queueRedrawWaiting = false;
     afterQueueChange(); // re-renders (fresh indices), updates badge, persists
 }
 
@@ -2409,9 +2517,15 @@ function nextFromHtml() {
     }).join('')}</ol>`;
 }
 
+// Returns false when it drew nothing (no list, or a drag holding it back)
 function renderQueue() {
     const body = document.getElementById('queueBody');
-    if (!body) return;
+    if (!body) return false;
+    // A redraw would drop the row being dragged: it waits for the drop
+    if (queueDragging) {
+        queueRedrawWaiting = true;
+        return false;
+    }
     const nowSong = playingSong();
     const nowHtml = nowSong ? `
         <div class="queue-section-label">Now playing</div>
@@ -2427,10 +2541,11 @@ function renderQueue() {
     if (playQueue.length === 0) {
         listHtml = `<div class="queue-empty">Nothing queued yet. Open any song's menu and choose “Play next” or “Add to queue.”</div>`;
     } else {
+        const clear = queueClearLabel();
         listHtml = `
             <div class="queue-section-head">
                 <span class="queue-section-label">Up next · ${playQueue.length}</span>
-                <button type="button" class="queue-clear-btn" onclick="clearQueue()">Clear</button>
+                <button type="button" class="queue-clear-btn${clear === 'Clear' ? '' : ' is-armed'}" onclick="armClearQueue()">${clear}</button>
             </div>
             <ol class="queue-list">
                 ${playQueue.map((s, i) => `
@@ -2452,6 +2567,7 @@ function renderQueue() {
     }
     // Then what comes after the queue
     body.innerHTML = nowHtml + listHtml + nextFromHtml();
+    return true;
 }
 
 // Up next's "Next from" songs play now, from their list
@@ -4119,45 +4235,23 @@ function startSongDrag(e) {
     };
 
     // Near the scroller's top or bottom edge, keep scrolling so a song can
-    // travel further than one screen: one animation-frame loop, stopped for
-    // good on release.
-    const scroller = songListScroller() || list;
-    const phoneScreen = onPhonePlaylistScreen();
-    let lastY = e.clientY;
-    let edgeFrame = 0;
+    // travel further than one screen (the phone playlist screen's top bar
+    // and the mini player with the tabs cover its edges there)
+    const edge = edgeScroller(songListScroller() || list, place,
+        onPhonePlaylistScreen() ? { top: 52, bottom: 140 } : {});
     let ended = false;
-    const edgeScroll = () => {
-        edgeFrame = 0;
-        if (ended) return;
-        const box = scroller.getBoundingClientRect();
-        const zone = 64;
-        const top = Math.max(box.top, 0) + (phoneScreen ? 52 : 0);
-        const bottom = Math.min(box.bottom, window.innerHeight) - (phoneScreen ? 140 : 0);
-        let dy = 0;
-        if (lastY < top + zone) dy = -Math.ceil((top + zone - lastY) / 4);
-        else if (lastY > bottom - zone) dy = Math.ceil((lastY - (bottom - zone)) / 4);
-        if (!dy) return;
-        const before = scroller.scrollTop;
-        scroller.scrollTop += Math.max(-24, Math.min(24, dy));
-        if (scroller.scrollTop !== before) {
-            place(lastY);
-            edgeFrame = requestAnimationFrame(edgeScroll);
-        }
-    };
 
     const move = (ev) => {
         if (ended) return;
-        lastY = ev.clientY;
-        place(lastY);
-        if (!edgeFrame) edgeFrame = requestAnimationFrame(edgeScroll);
+        place(ev.clientY);
+        edge.move(ev.clientY);
     };
     const end = () => {
         ended = true;
         document.removeEventListener('pointermove', move);
         document.removeEventListener('pointerup', end);
         document.removeEventListener('pointercancel', end);
-        if (edgeFrame) cancelAnimationFrame(edgeFrame);
-        edgeFrame = 0;
+        edge.stop();
         li.classList.remove('dragging');
         document.body.classList.remove('song-dragging');
         finishSongDrag(dragId, dragArr, dragSnap);
@@ -15725,7 +15819,8 @@ if (IS_IOS) {
             const spot = here ? (focusAfter || focusSpot()) : null;
             focusAfter = null;
             const out = origRender.apply(this, arguments);
-            if (here) {
+            // (nothing drawn while a drag holds it back: the drop draws)
+            if (here && out !== false) {
                 decorate();
                 lastSig = signature();
                 restoreFocus(spot);

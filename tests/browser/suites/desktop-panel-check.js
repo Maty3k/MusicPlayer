@@ -3,7 +3,8 @@
 // icon rail). Checks the bar's queue button opening it on Up next (not the
 // queue window) with focus on its tab; the queue there (now playing, the
 // queued songs; Alt+arrows and the drag handle reorder them, × removes one,
-// a click plays one, Clear empties it, focus staying in the panel); a song
+// a click plays one, Clear (pressed twice) empties it, focus staying in the
+// panel); a song
 // row's ⋯ → Add to queue showing up in it; the playlist page's ⋯ → Up next
 // opening it; "Next from <the playing playlist>" (shuffle off: its next
 // songs, which play when clicked; shuffle on: a note); the bar's lyrics
@@ -217,13 +218,18 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             const played = await p.evaluate(() => ({ radio: currentRadioSong && currentRadioSong.title }));
             check(`${tag} B clicking a queued song plays it now (those before it leave the queue) and Now playing shows it`,
                 played.radio === 'Queued Bravo' && pl.queue.length === 0 && pl.empty && pl.now === 'Queued Bravo', { played, queue: pl.queue, now: pl.now });
-            // Clear
+            // Clear: a second press within 3 s (the first says so, focus staying on it)
             await seedQueue(p, ['Queued Delta', 'Queued Echo']);
             await p.waitForTimeout(100);
             await p.focus('#dvPanel .queue-clear-btn');
             await p.keyboard.press('Enter'); await p.waitForTimeout(150);
+            const c0 = await p.evaluate(() => ({ label: document.querySelector('#dvPanel .queue-clear-btn').textContent.trim(), n: playQueue.length,
+                focus: !!document.activeElement && document.activeElement.classList.contains('queue-clear-btn') }));
+            await p.keyboard.press('Enter'); await p.waitForTimeout(150);
             const c = await panelState(p);
-            check(`${tag} B Clear empties the queue ("Nothing queued yet"), the badge goes, focus stays in the panel`, c.queue.length === 0 && c.items.length === 0 && c.empty && c.badge === '' && c.focusInPanel && c.shown, { queue: c.queue, empty: c.empty, badge: c.badge, focus: c.focus });
+            check(`${tag} B Clear asks for a second press ("Click again to clear", the queue kept), then empties the queue ("Nothing queued yet"), the badge goes, focus stays in the panel`,
+                c0.label === 'Click again to clear' && c0.n === 2 && c0.focus
+                && c.queue.length === 0 && c.items.length === 0 && c.empty && c.badge === '' && c.focusInPanel && c.shown, { c0, queue: c.queue, empty: c.empty, badge: c.badge, focus: c.focus });
             check(`${tag} B errors`, p.__errs.length === 0, p.__errs);
             await ctx.close();
         }

@@ -10770,6 +10770,15 @@ html[data-theme="greenroom"] {
     font-size: 0.9rem;
 }
 
+/* Clear, armed: a second tap within 3 s clears (there's no undo) */
+.queue-clear-btn.is-armed,
+[data-theme] .queue-clear-btn.is-armed,
+html.dv2 #dvPanel .queue-clear-btn.is-armed {
+    background: rgba(232, 93, 117, 0.18);
+    border-color: rgba(232, 93, 117, 0.45);
+    color: #ffb3bf;
+}
+
 /* "Next from <the playlist, or Cloudflare>" under the queue, in the window
    (the desktop's side panel styles its own) */
 #queueModal .dv-nf-label {
@@ -10803,6 +10812,23 @@ html[data-theme="greenroom"] {
     font-size: 0.85rem;
     line-height: 1.45;
     color: var(--cream-60);
+}
+
+/* Phones: a 44px handle at the row's right edge, clear of the cover (a near
+   miss there plays the song now and drops the ones above it), and a 44px ×
+   beside it */
+@media (max-width: 600px), (max-height: 500px) and (pointer: coarse) {
+    #queueModal .queue-drag-handle {
+        order: 1;
+        width: 44px;
+        height: 44px;
+        margin: 0 -4px 0 0;
+    }
+    #queueModal .queue-drag-handle svg { width: 18px; height: 18px; }
+    #queueModal .queue-item-remove {
+        width: 44px;
+        height: 44px;
+    }
 }
 
 /* Stats */
@@ -19717,6 +19743,7 @@ html.dv2 #mSearchResults .m-sr-yt .search-result-info { padding-right: 34px; }
     html[data-m-tab] #mDock,
     html[data-m-tab] .m-rp-tile,
     html[data-m-tab] .song-list-item,
+    html[data-m-tab] .queue-item,
     html[data-m-tab] .m-you-row {
         -webkit-user-select: none;
         -webkit-touch-callout: none;
