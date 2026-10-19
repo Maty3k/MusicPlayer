@@ -10486,8 +10486,9 @@ if (IS_IOS) {
 // back into view (at most every 5 minutes), comes back online, is restored
 // by Back, 30 s after it opens and every half hour while in view.
 // A newer build reloads the page by itself only at rest: online, nothing
-// played for 10 minutes, nothing saving or downloading, no sheet, Now
-// Playing or text field open, untouched for a minute, and open for 30 s.
+// played for 10 minutes, nothing saving, downloading or uploading, no
+// sheet, menu, Now Playing or text field open, untouched for a minute, and
+// open for 30 s.
 // And only once per build in a tab: while a deploy rolls over, old and new
 // servers answer in turn, and a reload can land on an old one (or on the
 // offline copy). Otherwise the offer at the top asks. A playing song is
@@ -10501,7 +10502,7 @@ if (IS_IOS) {
 
     const GAP = 5 * 60 * 1000;      // asks at most this often on its own
     const EVERY = 30 * 60 * 1000;   // while it stays in view
-    const SETTLED = 30 * 1000;      // a page this new neither asks nor reloads by itself
+    const SETTLED = 30 * 1000;      // open this long before reloading by itself; the least gap between asks
     const QUIET = 60 * 1000;        // untouched this long before reloading by itself
     const SILENT = 10 * 60 * 1000;  // nothing played this long: a paused song keeps its place
     const LATER = 60 * 60 * 1000;   // how long "Later" hides the offer
@@ -10547,7 +10548,7 @@ if (IS_IOS) {
         const now = Date.now();
         if (navigator.onLine === false || performance.now() < SETTLED) return false;
         if (playing() || now - playedAt < SILENT || now - touchedAt < QUIET) return false;
-        // Saving or downloading: a reload would drop it
+        // Saving, downloading or uploading: a reload would drop it
         if (songOpInFlight || reordersPending > 0 || importInProgress || importSaving || offlineSaving) return false;
         if (window.cloudMusic && typeof cloudMusic.busy === 'function' && cloudMusic.busy()) return false;
         // Something open a reload would close: Now Playing (the phone's
