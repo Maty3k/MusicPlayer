@@ -636,8 +636,39 @@ function setActiveSongRow(index) {
     });
 }
 
-// Switch song from sidebar
-async function switchSong(index) {
+// The record change, then the song: the crackle and the animation first, as
+// always. An automatic change (opts.auto: a song ended, an unplayable one
+// skipped) on an iPhone, or any change while the page is hidden, starts the
+// song first, inside the event that asked for it, and animates after: a
+// locked iPhone lets a song start only there (nothing awaited before it,
+// no timer), and suspends a page that has gone quiet.
+async function changeRecord(song, opts) {
+    if (document.hidden || (IS_IOS && opts && opts.auto)) {
+        updateMediaSession(song);
+        resetSleeveProgress();
+        playSongSource(song, false);
+        animateRecordChange(song).catch(() => {});
+        return;
+    }
+    // Play vinyl crackle before song change. On phones the crackle still
+    // plays, but delays the track start by at most 300ms.
+    if (window.matchMedia('(max-width: 600px)').matches) {
+        await Promise.race([playCrackleSound(), new Promise(r => setTimeout(r, 300))]);
+    } else {
+        await playCrackleSound();
+    }
+    await animateRecordChange(song);
+
+    // Reset progress bar for new song
+    resetSleeveProgress();
+
+    // Update player with new song (YouTube or MP3)
+    playSongSource(song, false);
+}
+
+// Switch song from sidebar. opts.auto: the player moving on by itself (see
+// changeRecord).
+async function switchSong(index, opts) {
     pdbg('tap song #' + (index + 1), songsData[index] ? songsData[index].title : '');
     if (index === currentSongIndex && !currentRadioSong && !currentRowUnloaded) return;
     if (!songsData[index]) return;
@@ -674,21 +705,8 @@ async function switchSong(index) {
         // could land the highlight on the wrong row.
         setActiveSongRow(index);
 
-        // Animate the record change
-        // Play vinyl crackle before song change. On phones the crackle still
-        // plays, but delays the track start by at most 300ms.
-        if (window.matchMedia('(max-width: 600px)').matches) {
-            await Promise.race([playCrackleSound(), new Promise(r => setTimeout(r, 300))]);
-        } else {
-            await playCrackleSound();
-        }
-        await animateRecordChange(song);
-
-        // Reset progress bar for new song
-        resetSleeveProgress();
-
-        // Update player with new song (YouTube or MP3)
-        playSongSource(song, false);
+        // Animate the record change, start the song (YouTube or MP3)
+        await changeRecord(song, opts);
 
         // Save to server, naming the playing list as it is now (the phone may
         // show another one; the server's active playlist can lag behind)
@@ -1236,7 +1254,9 @@ function syncRadioLoading() {
     indicator.style.display = want ? '' : 'none';
 }
 
-async function playRadioSong(song) {
+// A song from outside the playing list: the radio, a preview, the queue.
+// opts.auto: the player moving on by itself (see changeRecord).
+async function playRadioSong(song, opts) {
     if (isChangingSong) return;
     isChangingSong = true;
 
@@ -1256,21 +1276,8 @@ async function playRadioSong(song) {
             document.querySelectorAll('.song-list-item:not(.radio-song-item)').forEach(item => item.classList.remove('active'));
         }
 
-        // Animate the record change
-        // Play vinyl crackle before song change. On phones the crackle still
-        // plays, but delays the track start by at most 300ms.
-        if (window.matchMedia('(max-width: 600px)').matches) {
-            await Promise.race([playCrackleSound(), new Promise(r => setTimeout(r, 300))]);
-        } else {
-            await playCrackleSound();
-        }
-        await animateRecordChange(song);
-
-        // Reset progress bar
-        resetSleeveProgress();
-
-        // Load in player
-        playSongSource(song, false);
+        // Animate the record change, load it in the player
+        await changeRecord(song, opts);
 
         updateAmpDisplay();
         loadLyricsForSong(song);
@@ -1697,11 +1704,14 @@ function renderDiscoverSection() {
     return html;
 }
 
+// The player moving on by itself (a song ended, an unplayable one skipped).
+// Every song it starts is { auto: true }: on an iPhone it starts inside the
+// event (changeRecord).
 function playNextByLoop() {
     // Sleep timer set to "end of track" — stop here instead of auto-advancing.
     if (sleepEndOfTrack) { fireSleep(true); return; }
     // The queue plays before returning to the playlist/loop progression.
-    if (playQueue.length > 0) { advanceFromQueue(); return; }
+    if (playQueue.length > 0) { advanceFromQueue({ auto: true }); return; }
     if (loopMode === 'single') {
         // Replay current song (even if it's a radio song)
         if (ytPlayer && ytPlayer.seekTo) {
@@ -1733,7 +1743,7 @@ function playNextByLoop() {
         songHistory.push(currentRadioSong ? {type: 'radio', song: currentRadioSong} : currentSongIndex);
         const radioSong = radioPool.shift();
         smartShuffleNextIsRadio = false;
-        playRadioSong(radioSong);
+        playRadioSong(radioSong, { auto: true });
         return;
     }
 
@@ -1751,7 +1761,7 @@ function playNextByLoop() {
         // one-song playlist, so top the pool up from here.
         if (shuffleMode === 'smart' && radioPool.length > 0) {
             songHistory.push(currentSongIndex);
-            playRadioSong(radioPool.shift());
+            playRadioSong(radioPool.shift(), { auto: true });
             return;
         }
         const only = songsData[currentSongIndex];
@@ -1765,7 +1775,7 @@ function playNextByLoop() {
         smartShuffleNextIsRadio = true;
     }
 
-    switchSong(nextIndex);
+    switchSong(nextIndex, { auto: true });
 }
 
 // Loop 'off': has every playlist song had its turn? In order, that's the
@@ -2019,18 +2029,18 @@ function queuePlayNext(index, ctx) {
 }
 
 // Shared advance: log history, pop the head, play it (from nextSong /
-// playNextByLoop when the queue is non-empty).
-function advanceFromQueue() {
+// playNextByLoop when the queue is non-empty; opts.auto from the latter).
+function advanceFromQueue(opts) {
     songHistory.push(currentRadioSong ? { type: 'radio', song: currentRadioSong } : currentSongIndex);
     const q = playQueue.shift();
     afterQueueChange();
-    playFromQueue(q);
+    playFromQueue(q, opts);
 }
 
 // Play a queued song now. Reuses the one-off radio path, which leaves the
 // playlist's currentSongIndex untouched so it resumes once the queue drains.
-function playFromQueue(song) {
-    if (song) playRadioSong(song);
+function playFromQueue(song, opts) {
+    if (song) playRadioSong(song, opts);
 }
 
 function afterQueueChange() {
