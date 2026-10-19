@@ -14898,6 +14898,15 @@ button.send-menu-cancel {
 
     .m-you-logout-form { margin: 28px 0 0; }
 
+    /* The build this phone runs, under Log out */
+    .m-you-version {
+        margin: 16px 0 0;
+        text-align: center;
+        font-size: 0.8rem;
+        font-variant-numeric: tabular-nums;
+        color: color-mix(in srgb, var(--cream) 65%, transparent);
+    }
+
     /* How to install, when the browser offers no prompt */
     .m-install-steps {
         margin: 4px 0 6px;

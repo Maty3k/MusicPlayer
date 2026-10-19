@@ -26,6 +26,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    {{-- This page's build (App\Support\AppBuild): script.js compares it with
+         /version to notice a deploy that came out after the page opened --}}
+    <meta name="app-build" content="{{ \App\Support\AppBuild::id() }}">
     <title>Music Player</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#14262b">
@@ -723,6 +726,8 @@
                 @csrf
                 <button type="submit" class="m-you-logout">Log out</button>
             </form>
+            {{-- Which version this phone runs, to read out when asked --}}
+            <p class="m-you-version" id="mYouVersion">Version {{ \App\Support\AppBuild::label() }}</p>
         </section>
 
         <!-- Music Player View (hidden initially) -->
@@ -2196,6 +2201,8 @@
                     @csrf
                     <button type="submit" class="add-song-btn-cancel">Log out</button>
                 </form>
+                {{-- Every layout reaches this (desktop, landscape, the app) --}}
+                <p class="settings-hint" id="settingsVersion">Version {{ \App\Support\AppBuild::label() }}</p>
             </div>
             </div>
             </div>

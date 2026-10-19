@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AppVersionController;
 use App\Http\Controllers\Auth\AccountController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
@@ -37,6 +38,11 @@ Route::get('/setup-check', SetupCheckController::class)
         // L13's forgery middleware calls $request->session() even on GET.
         PreventRequestForgery::class,
     ]);
+
+// The build this server runs, for open pages to notice a deploy (script.js,
+// "New versions"). Outside the web group: no session or cookies, so no
+// database, and a signed-out page still gets the answer.
+Route::get('/version', AppVersionController::class)->withoutMiddleware('web');
 
 // Public read-only view of a shared playlist (no auth). Sessions stay on so
 // the page knows whether the viewer is logged in (for the "add" button).
