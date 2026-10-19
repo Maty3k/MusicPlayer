@@ -1042,6 +1042,9 @@ body {
     text-align: center;
 }
 
+/* Its display: flex would beat the hidden attribute */
+.app-flash-offer[hidden] { display: none; }
+
 .app-flash-actions { display: inline-flex; gap: 8px; }
 
 .app-flash-btn {
@@ -1067,6 +1070,11 @@ body {
 .app-flash-btn-quiet:hover { background: rgba(255, 245, 233, 0.14); color: var(--cream); }
 
 .app-flash-btn:focus-visible { outline: 2px solid var(--cream-60); outline-offset: 2px; }
+
+/* Thumb-sized on touch screens */
+@media (pointer: coarse) {
+    .app-flash-btn { min-height: 44px; padding-inline: 18px; }
+}
 
 .record-card {
     position: relative;
@@ -14359,6 +14367,10 @@ button.send-menu-cancel {
         bottom: auto;
         pointer-events: none;
     }
+
+    /* The offers at the top (a new version, a shared playlist) would sit
+       on Now Playing's chevron and ⋯: they wait under it until it closes */
+    body.m-np-open .app-flash-offer { visibility: hidden; }
 }
 
 /* Short phones: the tools row costs height, so the record shrinks rather

@@ -46,6 +46,7 @@ window.cloudMusic = (() => {
     let deckFor = null;      // the order it was dealt for
     let shown = [];          // the rows on screen in Search
     let audioHooked = false;
+    let uploads = 0;         // upload batches going (they carry on after Settings closes)
 
     // On this device (see "On this device" below)
     const OFFLINE_CACHE = 'cloud-v1';          // sw.js serves it
@@ -561,13 +562,15 @@ window.cloudMusic = (() => {
         const tooBig = ok.filter((f) => f.size > MAX_BYTES).length;
 
         say('Checking what is already there…');
+        uploads++;
         load(true).then(() => {
-            if (listState !== 'done') { say("Couldn't load the list, so nothing was uploaded.", 'err'); return; }
+            if (listState !== 'done') { uploads--; say("Couldn't load the list, so nothing was uploaded.", 'err'); return; }
             const have = new Set(songs.map((s) => s.cloud_key));
             const todo = ok.filter((f) => f.size <= MAX_BYTES && !have.has(f.name));
             let skipped = ok.length - tooBig - todo.length;
             let done = 0, failed = 0, lastError = '';
             const finish = (extra) => {
+                uploads--;
                 const parts = [done + ' uploaded'];
                 if (skipped) parts.push(skipped + ' already there');
                 if (tooBig) parts.push(tooBig + ' over 40 MB');
@@ -617,7 +620,7 @@ window.cloudMusic = (() => {
                 say('Uploading ' + label);
                 xhr.send(form);
             };
-            if (!todo.length && !tooBig) { say('All ' + ok.length + ' already in the bucket.', 'ok'); return; }
+            if (!todo.length && !tooBig) { uploads--; say('All ' + ok.length + ' already in the bucket.', 'ok'); return; }
             if (!todo.length) { finish(''); return; }
             next(0);
         });
@@ -1141,5 +1144,7 @@ window.cloudMusic = (() => {
         removeKeys,
         keyOf,
         isKept: (key) => downloaded.has(key),
+        // A download run or an upload going: a reload would drop it (script.js, "New versions")
+        busy: () => runs.size > 0 || uploads > 0,
     };
 })();

@@ -50,6 +50,17 @@ class AppVersionTest extends TestCase
             ->assertSeeInOrder(['class="settings-logout-form"', 'id="settingsVersion"'], false);
     }
 
+    // script.js shows it when a newer build can't load by itself (music on, a sheet open…)
+    public function test_the_new_version_offer_starts_hidden_for_the_script_to_show(): void
+    {
+        $this->actingAs($this->listener())->get('/')
+            ->assertOk()
+            ->assertSee('<div class="app-flash app-flash-offer" id="appUpdateOffer" role="status" hidden>', false)
+            ->assertSee('<span>A new version of the app is ready.</span>', false)
+            ->assertSee('<button type="button" class="app-flash-btn" id="appUpdateNow">Refresh</button>', false)
+            ->assertSee('<button type="button" class="app-flash-btn app-flash-btn-quiet" id="appUpdateLater">Later</button>', false);
+    }
+
     public function test_the_label_is_the_build_as_a_utc_date(): void
     {
         $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/', AppBuild::label());

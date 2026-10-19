@@ -10477,6 +10477,147 @@ if (IS_IOS) {
 }
 
 // ============================================================
+// NEW VERSIONS
+// A page can stay open for days on a phone (a tab that plays in the
+// background, the home-screen app, which has no reload button), and only
+// a reload brings a deploy in. The page knows its build (<meta
+// name="app-build">, App\Support\AppBuild) and asks /version when it comes
+// back into view (at most every 5 minutes), comes back online, is restored
+// by Back, 30 s after it opens and every half hour while in view.
+// A newer build reloads the page by itself only at rest: online, nothing
+// played for 10 minutes, nothing saving or downloading, no sheet, Now
+// Playing or text field open, untouched for a minute, and open for 30 s.
+// And only once per build in a tab: while a deploy rolls over, old and new
+// servers answer in turn, and a reload can land on an old one (or on the
+// offline copy). Otherwise the offer at the top asks. A playing song is
+// never cut.
+// ============================================================
+(function newVersions() {
+    const meta = document.querySelector('meta[name="app-build"]');
+    const mine = meta ? Number(meta.content) || 0 : 0;
+    const offer = document.getElementById('appUpdateOffer');
+    if (!mine || !offer) return;
+
+    const GAP = 5 * 60 * 1000;      // asks at most this often on its own
+    const EVERY = 30 * 60 * 1000;   // while it stays in view
+    const SETTLED = 30 * 1000;      // a page this new neither asks nor reloads by itself
+    const QUIET = 60 * 1000;        // untouched this long before reloading by itself
+    const SILENT = 10 * 60 * 1000;  // nothing played this long: a paused song keeps its place
+    const LATER = 60 * 60 * 1000;   // how long "Later" hides the offer
+    const vinyl = document.getElementById('vinyl');
+    let newest = mine;              // the newest build an answer named
+    let askedAt = 0;
+    let asking = false;
+    let touchedAt = 0;
+    let playedAt = 0;               // when the music last started or stopped
+    let laterUntil = 0;
+
+    // After a reload for a new build: say so, if it reached that build
+    try {
+        const to = Number(sessionStorage.getItem('appUpdatingTo')) || 0;
+        if (to) {
+            sessionStorage.removeItem('appUpdatingTo');
+            if (mine >= to) document.addEventListener('DOMContentLoaded', () => setTimeout(() => showBulkToast('Updated to the newest version'), 400));
+        }
+    } catch (e) { /* storage blocked */ }
+
+    // #vinyl.playing is the play state of every engine (onPlayerStateChange)
+    const playing = () => isChangingSong || (!!vinyl && vinyl.classList.contains('playing'));
+    if (vinyl) {
+        // Started or stopped: the music was on just now
+        new MutationObserver((records) => {
+            const was = records.some((r) => /(^|\s)playing(\s|$)/.test(r.oldValue || ''));
+            if (was || vinyl.classList.contains('playing')) playedAt = Date.now();
+        }).observe(vinyl, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+    }
+    ['pointerdown', 'keydown', 'wheel'].forEach((type) => {
+        document.addEventListener(type, () => { touchedAt = Date.now(); }, { capture: true, passive: true });
+    });
+
+    // A text field in use (a slider or a switch doesn't count)
+    function typing() {
+        const el = document.activeElement;
+        if (!el || el === document.body) return false;
+        if (el.isContentEditable || el.matches('textarea, select')) return true;
+        return el.tagName === 'INPUT' && !/^(button|checkbox|color|file|hidden|image|radio|range|reset|submit)$/i.test(el.type);
+    }
+
+    function atRest() {
+        const now = Date.now();
+        if (navigator.onLine === false || performance.now() < SETTLED) return false;
+        if (playing() || now - playedAt < SILENT || now - touchedAt < QUIET) return false;
+        // Saving or downloading: a reload would drop it
+        if (songOpInFlight || reordersPending > 0 || importInProgress || importSaving || offlineSaving) return false;
+        if (window.cloudMusic && typeof cloudMusic.busy === 'function' && cloudMusic.busy()) return false;
+        // Something open a reload would close: Now Playing (the phone's
+        // sheet, the desktop deck), a sheet or window, a song menu
+        if (document.body.classList.contains('m-np-open') || document.querySelector('#musicPlayerView.active.dv-deck')) return false;
+        if (document.querySelector('.add-song-modal.active, .vgm-modal.active, .send-menu')) return false;
+        return !typing();
+    }
+
+    // Notes in this tab that it reloads by itself for this build, and says
+    // whether it may: once per build, and never without storage (it
+    // couldn't remember, so it could go round)
+    function mayReloadFor(build) {
+        try {
+            if ((Number(sessionStorage.getItem('appReloadedFor')) || 0) >= build) return false;
+            sessionStorage.setItem('appReloadedFor', String(build));
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function reload() {
+        try { sessionStorage.setItem('appUpdatingTo', String(newest)); } catch (e) { /* the reload still brings it */ }
+        location.reload();
+    }
+
+    function act() {
+        if (newest <= mine) return;
+        if (atRest() && mayReloadFor(newest)) { reload(); return; }
+        if (Date.now() >= laterUntil) offer.hidden = false;
+    }
+
+    // force: a reason to ask now (just opened, Back, online), still at most every 30 s
+    async function ask(force) {
+        const now = Date.now();
+        if (asking || document.hidden || navigator.onLine === false) return;
+        if (now - askedAt < (force ? SETTLED : GAP)) return;
+        asking = true;
+        askedAt = now;
+        const stop = new AbortController();
+        const timer = setTimeout(() => stop.abort(), 8000);
+        try {
+            const res = await fetch('/version', { cache: 'no-store', signal: stop.signal });
+            const build = res.ok ? Number((await res.json()).build) || 0 : 0;
+            // Only a newer build counts: an older one is a server the deploy hasn't reached yet
+            if (build > newest) newest = build;
+            if (build) act(); // the site just answered: online, and up
+        } catch (e) {
+            // Offline, slow, waking up, or not JSON: the next return into view asks again
+        } finally {
+            clearTimeout(timer);
+            asking = false;
+        }
+    }
+
+    const refreshBtn = document.getElementById('appUpdateNow');
+    const laterBtn = document.getElementById('appUpdateLater');
+    if (refreshBtn) refreshBtn.addEventListener('click', reload);
+    if (laterBtn) laterBtn.addEventListener('click', () => {
+        offer.hidden = true;
+        laterUntil = Date.now() + LATER;
+    });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) ask(false); });
+    window.addEventListener('pageshow', (e) => { if (e.persisted) ask(true); });
+    window.addEventListener('online', () => ask(true));
+    setInterval(() => ask(false), EVERY);
+    setTimeout(() => ask(true), SETTLED);
+})();
+
+// ============================================================
 // MOBILE V2 — phone-browser shell (dock, sheets, gestures)
 // ============================================================
 // Lives at the END of script.js on purpose: top-level bindings like
