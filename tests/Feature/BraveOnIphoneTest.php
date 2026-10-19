@@ -22,6 +22,14 @@ class BraveOnIphoneTest extends TestCase
         ]);
     }
 
+    // Dark Reader skips a page that carries this
+    public function test_night_mode_leaves_the_page_alone(): void
+    {
+        $this->actingAs($this->member())->get('/')
+            ->assertOk()
+            ->assertSeeInOrder(['<head>', '<meta name="darkreader-lock">', '</head>'], false);
+    }
+
     public function test_the_install_sheet_first_sends_brave_to_safari(): void
     {
         $this->actingAs($this->member())->get('/')

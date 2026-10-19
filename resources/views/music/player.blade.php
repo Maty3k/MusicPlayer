@@ -32,6 +32,8 @@
     <title>Music Player</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#14262b">
+    {{-- Brave's Night Mode (Dark Reader) would recolour a page that is dark already --}}
+    <meta name="darkreader-lock">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
