@@ -1320,8 +1320,8 @@ function addRadioSidebarItem(song) {
     // As for the playlist's own rows: offline, only non-MP3 rows grey out
     li.dataset.src = song.mp3_url ? 'mp3' : (song.youtube_id ? 'yt' : 'spotify');
     const radioCover = safeUrl(song.cover);
-    // A Cloudflare song (cloud-music.js) gets no "add to playlist": that path
-    // only stores YouTube songs. Here, so every re-render keeps it that way.
+    // A Cloudflare song (cloud-music.js) gets no "add to playlist" (♥ keeps
+    // it, in Favorites). Here, so every re-render keeps it that way.
     const saveBtn = song.cloud_key ? ''
         : currentRadioSongSaved
         ? '<button class="song-save-btn" disabled title="Added to playlist">&#10003;</button>'
@@ -1340,7 +1340,7 @@ function addRadioSidebarItem(song) {
                 <span></span><span></span><span></span><span></span>
             </div>
         </div>
-        <span class="radio-badge" title="${song.cloud_key ? 'From Cloudflare' : 'Recommended song'}">
+        <span class="radio-badge" title="${song._queued ? 'From your queue' : (song.cloud_key ? 'From Cloudflare' : 'Recommended song')}">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/>
                 <circle cx="4" cy="18" r="2"/>
@@ -1360,13 +1360,10 @@ function removeRadioSidebarItem() {
 
 async function saveRadioSong() {
     if (!currentRadioSong) return;
-    const song = {
-        title: currentRadioSong.title,
-        artist: currentRadioSong.artist,
-        album: '',
-        cover: currentRadioSong.cover,
-        youtube_id: currentRadioSong.youtube_id
-    };
+    // Its file and Spotify id too (the server checks both): a queued upload,
+    // MP3 link or Spotify song saved without them would come back as some
+    // YouTube match. Keyed the same, its row then shows ✓ (joinList).
+    const song = songFields(currentRadioSong);
     // The radio row only shows in the playing list: that's where it goes,
     // named now (another playlist may start playing before the answer).
     const id = String(activePlaylistId);
