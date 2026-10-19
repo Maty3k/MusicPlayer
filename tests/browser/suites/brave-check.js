@@ -11,11 +11,16 @@
 //   B. Brave (navigator.brave, and the user agent's " Brave" alone):
 //      html.m-brave and IS_BRAVE; no strips anywhere, the usual spacing
 //      (header 6px, grab 4px, field 8px) and plain backdrops.
+//   C. The Install sheet: Brave on iPhone first sends you to Safari (with
+//      this site's address) for Safari's steps; Safari shows only those
+//      steps, and Brave on Android keeps its own browser's steps.
 // Writes to /save-music are faked (reads go through).
 const L = require('../lib');
 const APP = L.APP;
 const READS = ['getPlaylist', 'searchLibrary', 'stats', 'getAll'];
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1';
+// Brave on Android sends Chrome's user agent (and has navigator.brave)
+const ANDROID = 'Mozilla/5.0 (Linux; Android 15; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36';
 const results = [];
 const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
 
@@ -87,6 +92,16 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         };
     });
     const backdrop = (p, sel) => p.evaluate((sel) => { const el = document.querySelector(sel); return el ? getComputedStyle(el).backgroundImage : null; }, sel);
+    // The Install sheet as it opens when the browser offers no prompt
+    async function installSheet(p) {
+        await p.evaluate(() => window.mShowInstallSheet()); await p.waitForTimeout(500);
+        const out = await p.evaluate(() => {
+            const shown = (id) => { const el = document.getElementById(id); return !!el && !el.hidden && el.getClientRects().length > 0; };
+            return { brave: shown('mInstallBrave'), ios: shown('mInstallStepsIos'), android: shown('mInstallSteps'), text: document.getElementById('mInstallBrave').textContent.trim(), host: location.host };
+        });
+        await p.evaluate(() => window.mHideInstallSheet()); await p.waitForTimeout(500);
+        return out;
+    }
 
     // Home, Search, Now Playing, a sheet and a song menu, each as the page shows it
     async function tour(p) {
@@ -103,6 +118,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         await p.evaluate(() => showSendMenu(document.getElementById('mNpKebab'), currentSongIndex)); await p.waitForTimeout(500);
         out.menu = await backdrop(p, '.send-menu-backdrop');
         await p.evaluate(() => closeSendMenu()); await p.waitForTimeout(300);
+        out.install = await installSheet(p);
         return out;
     }
 
@@ -116,6 +132,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         check('A Safari: Search\'s strip takes its colour, and the field sits below it (20px)', t.search.tab === 'search' && t.search.top.display === 'block' && t.search.top.bg !== t.home.top.bg && t.search.fieldTop === '20px', { search: t.search, homeBg: t.home.top.bg });
         check('A Safari: Now Playing has both strips and the fade, and its header moves down (18px, grab 16px)', t.np.np && t.np.top.display === 'block' && t.np.top.bg === 'rgb(10, 8, 8)' && t.np.top.after !== 'none' && t.np.bottom.display === 'block' && t.np.headerPad === '18px' && t.np.grabTop === '16px', t.np);
         check('A Safari: sheet and menu backdrops start clear at the top', /^linear-gradient/.test(t.sheet || '') && /^linear-gradient/.test(t.menu || ''), { sheet: t.sheet, menu: t.menu });
+        check('C Safari: the Install sheet shows Safari\'s steps, without the Brave line', t.install.ios && !t.install.brave && !t.install.android, t.install);
         check('A Safari: errors', p.__errs.length === 0, p.__errs);
         await ctx.close();
     }
@@ -128,7 +145,18 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         check(`B Brave (${how}): no strips on Home or Search, the room's top untouched, the field at its usual 8px`, t.home.top.display === 'none' && t.home.bottom.display === 'none' && t.home.roomBefore === 'none' && t.search.tab === 'search' && t.search.top.display === 'none' && t.search.fieldTop === '8px', { home: t.home, search: t.search });
         check(`B Brave (${how}): no strips or fade on Now Playing, its header at the usual 6px (grab 4px)`, t.np.np && t.np.top.display === 'none' && t.np.top.after === 'none' && t.np.bottom.display === 'none' && t.np.headerPad === '6px' && t.np.grabTop === '4px', t.np);
         check(`B Brave (${how}): sheet and menu backdrops dim all the way up`, t.sheet === 'none' && t.menu === 'none', { sheet: t.sheet, menu: t.menu });
+        check(`C Brave (${how}): the Install sheet first says to open this site in Safari, then Safari's steps`, t.install.brave && t.install.ios && !t.install.android
+            && t.install.text === `Brave can't add apps to the Home Screen. Open ${t.install.host} in Safari, then:`, t.install);
         check(`B Brave (${how}): errors`, p.__errs.length === 0, p.__errs);
+        await ctx.close();
+    }
+
+    // ---- C: Brave on Android installs apps itself ----
+    {
+        const { ctx, p } = await open({ brave: true, ua: ANDROID });
+        const install = await installSheet(p);
+        check('C Brave on Android: its own browser\'s steps, no Safari', install.android && !install.ios && !install.brave, install);
+        check('C Brave on Android: errors', p.__errs.length === 0, p.__errs);
         await ctx.close();
     }
 

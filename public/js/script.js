@@ -10462,8 +10462,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // iOS: no Crossfade (it fades by changing the volume, which a page can't
-// do there), and a word on downloads in a Safari tab (Safari clears a site's
-// saved data after a week without a visit; the installed app keeps it).
+// do there), and a word on downloads in a browser tab (Safari, Brave and the
+// other iPhone browsers clear a site's saved data after a week without a
+// visit; the app added from Safari keeps it).
 if (IS_IOS) {
     document.addEventListener('DOMContentLoaded', () => {
         const crossfade = document.getElementById('crossfadeOptions');
@@ -11832,8 +11833,11 @@ if (IS_IOS) {
         if (!installSheet) return;
         const android = document.getElementById('mInstallSteps');
         const ios = document.getElementById('mInstallStepsIos');
+        // Brave on iPhone can't add apps to the Home Screen: the steps are Safari's
+        const brave = document.getElementById('mInstallBrave');
         if (android) android.hidden = isIos;
         if (ios) ios.hidden = !isIos;
+        if (brave) brave.hidden = !(isIos && window.IS_BRAVE);
         installSheet.classList.add('active');
         const close = installSheet.querySelector('.add-song-modal-close');
         if (close) close.focus({ preventScroll: true });

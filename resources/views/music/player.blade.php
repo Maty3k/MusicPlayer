@@ -1783,6 +1783,8 @@
                 <li>Tap <b>Install app</b>, or <b>Add to Home screen</b> and then <b>Install</b>.</li>
                 <li>Open Music from the new icon. You can remove the old one.</li>
             </ol>
+            {{-- Brave on iPhone has no Add to Home Screen (script.js shows this there) --}}
+            <p class="m-sleep-status" id="mInstallBrave" hidden>Brave can't add apps to the Home Screen. Open <b>{{ request()->getHttpHost() }}</b> in Safari, then:</p>
             <ol class="m-install-steps" id="mInstallStepsIos" hidden>
                 <li>In <b>Safari</b>, tap <b>⋯</b> (or <b>Share</b>) next to the address bar, then <b>Share</b>.</li>
                 <li>Scroll to <b>Add to Home Screen</b>, keep <b>Open as Web App</b> on, and tap <b>Add</b>.</li>
@@ -2135,7 +2137,7 @@
                     <button type="button" class="settings-source-btn" id="cloudRemoveDownloadsBtn" onclick="cloudMusic.removeDownloads()">Remove downloads</button>
                 </div>
                 <p class="settings-hint">Downloaded songs play with no internet, also with the phone locked. Offline, Search lists them. To keep just one song, use the button next to it in Search. Logging out removes them from this device.</p>
-                <p class="settings-hint" id="cloudIosNote" hidden>Safari removes downloads from sites you don't open for a week. The app on your Home Screen keeps them (in Safari: Share → Add to Home Screen).</p>
+                <p class="settings-hint" id="cloudIosNote" hidden>On iPhone, the browser removes downloads from sites you don't open for a week. The app on your Home Screen keeps them (add it in Safari: Share → Add to Home Screen).</p>
             </div>
             </div>
             </div>
