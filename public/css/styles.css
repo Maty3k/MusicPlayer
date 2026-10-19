@@ -19693,12 +19693,15 @@ html.dv2 #mSearchResults .m-sr-yt .search-result-info { padding-right: 34px; }
            showed as a line above Safari's toolbar */
         .send-menu-sheet { border-width: 1px 0 0; }
 
-        /* ---- In a Safari tab: what Safari paints at the edges ---- */
+        /* ---- In a Safari tab: what Safari paints at the edges ----
+           Not in Brave (html.m-brave, player.blade.php): its own bars are
+           opaque and cover that paint, so the strips would only show as
+           bands there, and everything else keeps its usual place */
         @media (display-mode: browser) {
             /* Real fixed strips in the colour each screen has at that edge
                (player.blade.php), so Safari's strips match the screen
                instead of keeping an earlier screen's colour */
-            html[data-m-tab] .m-edge {
+            html[data-m-tab]:not(.m-brave) .m-edge {
                 display: block;
                 position: fixed;
                 left: 0;
@@ -19707,21 +19710,21 @@ html.dv2 #mSearchResults .m-sr-yt .search-result-info { padding-right: 34px; }
                 z-index: 201; /* over the page and Now Playing, under the tab bar, the dock and sheets */
                 pointer-events: none;
             }
-            html[data-m-tab] #mEdgeTop { top: 0; background: var(--ink); }
-            html[data-m-tab="search"] #mEdgeTop { background: var(--sleeve); }
+            html[data-m-tab]:not(.m-brave) #mEdgeTop { top: 0; background: var(--ink); }
+            html[data-m-tab="search"]:not(.m-brave) #mEdgeTop { background: var(--sleeve); }
             /* The playlist screen and You have sticky bars Safari reads */
-            html[data-m-tab].m-pv #mEdgeTop,
-            html[data-m-tab].m-you #mEdgeTop { display: none; }
-            html[data-m-tab] #mEdgeBottom { bottom: 0; display: none; background: rgb(8 7 7); }
+            html[data-m-tab].m-pv:not(.m-brave) #mEdgeTop,
+            html[data-m-tab].m-you:not(.m-brave) #mEdgeTop { display: none; }
+            html[data-m-tab]:not(.m-brave) #mEdgeBottom { bottom: 0; display: none; background: rgb(8 7 7); }
             /* Search's field sticks below the strip (and its 8px ring meets
                it), not under it */
-            html[data-m-tab] #mSearchPage .m-search-field { top: 20px; }
+            html[data-m-tab]:not(.m-brave) #mSearchPage .m-search-field { top: 20px; }
 
             /* Now Playing: dark at both edges (its own colour at the bottom),
                the top fading into the cover art. Its header moves down by
                the strip. */
-            html[data-m-tab] body.m-np-open #mEdgeTop { display: block; background: rgb(10 8 8); }
-            html[data-m-tab] body.m-np-open #mEdgeTop::after {
+            html[data-m-tab]:not(.m-brave) body.m-np-open #mEdgeTop { display: block; background: rgb(10 8 8); }
+            html[data-m-tab]:not(.m-brave) body.m-np-open #mEdgeTop::after {
                 content: '';
                 position: absolute;
                 top: 100%;
@@ -19730,13 +19733,13 @@ html.dv2 #mSearchResults .m-sr-yt .search-result-info { padding-right: 34px; }
                 height: 16px;
                 background: linear-gradient(rgb(10 8 8), rgba(10, 8, 8, 0));
             }
-            html[data-m-tab] body.m-np-open #mEdgeBottom { display: block; }
-            html[data-m-tab] #mNpHeader { padding-top: 18px; }
-            html[data-m-tab] #mNpHeader .m-grab { top: 16px; }
+            html[data-m-tab]:not(.m-brave) body.m-np-open #mEdgeBottom { display: block; }
+            html[data-m-tab]:not(.m-brave) #mNpHeader { padding-top: 18px; }
+            html[data-m-tab]:not(.m-brave) #mNpHeader .m-grab { top: 16px; }
 
             /* Home and Library start in the strip's colour (the room's
                vignette and glow darkened and warmed the very top) */
-            html[data-m-tab] .room-bg::before {
+            html[data-m-tab]:not(.m-brave) .room-bg::before {
                 content: '';
                 position: absolute;
                 inset: 0 0 auto;
@@ -19748,8 +19751,8 @@ html.dv2 #mSearchResults .m-sr-yt .search-result-info { padding-right: 34px; }
 
             /* A dimming sheet can't reach Safari's strip: its top stays
                clear, so strip and page meet without a line */
-            .add-song-modal-backdrop { background: linear-gradient(rgba(18, 12, 8, 0), rgba(18, 12, 8, 0.6) 56px); }
-            .send-menu-backdrop { background: linear-gradient(rgba(18, 12, 8, 0), rgba(18, 12, 8, 0.55) 56px); }
+            html:not(.m-brave) .add-song-modal-backdrop { background: linear-gradient(rgba(18, 12, 8, 0), rgba(18, 12, 8, 0.6) 56px); }
+            html:not(.m-brave) .send-menu-backdrop { background: linear-gradient(rgba(18, 12, 8, 0), rgba(18, 12, 8, 0.55) 56px); }
         }
     }
 }

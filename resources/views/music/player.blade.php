@@ -62,6 +62,12 @@
            and a reload reopens the tab its history entry was on. */
         (function () {
             var root = document.documentElement;
+            // Brave (on iPhone a WebKit browser like Safari, with opaque bars
+            // of its own): Safari's edge strips would only add bands there
+            // (styles.css, IPHONE), and it can't add apps to the Home Screen
+            // (script.js, the Install sheet)
+            window.IS_BRAVE = !!navigator.brave || /\bBrave\b/.test(navigator.userAgent);
+            if (window.IS_BRAVE) root.classList.add('m-brave');
             if (window.ReactNativeWebView || new URLSearchParams(location.search).has('app')) {
                 root.classList.add('app-shell');
                 return;
