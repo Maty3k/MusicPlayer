@@ -350,6 +350,9 @@ window.cloudMusic = (() => {
         if (list !== order) { deck = []; deckFor = null; }
         order = list;
         pos = idx;
+        // A list song starts: a queued song played from here on notes this
+        // list as the one to come back to (script.js's queueReturn)
+        queueReturn = null;
         if (byUser && typeof noteUserSongAsk === 'function') noteUserSongAsk();
 
         currentRadioSong = song;
@@ -371,15 +374,23 @@ window.cloudMusic = (() => {
         markShownRow();
     }
 
-    // Next (dir 1) or back (dir -1) through the list the song came from.
-    // Offline (or with the server failing), only through the songs on this device.
-    function step(dir, byUser) {
+    // The playing song's place: in the list it came from, or else in the
+    // whole list (a Cloudflare song started elsewhere, e.g. Jump back in)
+    function locate() {
         if (!order.length) order = songs.slice();
         const cur = currentRadioSong && currentRadioSong.cloud_key;
         if (!order[pos] || order[pos].cloud_key !== cur) {
             pos = order.findIndex((s) => s.cloud_key === cur);
             if (pos < 0) { order = songs.slice(); pos = order.findIndex((s) => s.cloud_key === cur); }
         }
+    }
+
+    // Next (dir 1) or back (dir -1) through the list the song came from.
+    // Offline (or with the server failing), only through the songs on this
+    // device. keepPos: on from the place anchor() pinned (the song the queue
+    // interrupted), not from the song playing now (a queued one).
+    function step(dir, byUser, keepPos) {
+        if (keepPos) { if (!order.length) order = songs.slice(); } else locate();
         const n = order.length;
         if (!n) return;
         const limited = cantStream();
@@ -442,6 +453,19 @@ window.cloudMusic = (() => {
         }
         if (next < 0) return;
         start(order, next, byUser);
+    }
+
+    // ---- The queue (script.js) interrupting the list ----
+    // A queued song is about to start: pin the list's place to the song
+    // playing now, so the list goes on after it, not after a queued song
+    function anchor() {
+        locate();
+    }
+    // The queue ran out: on from the pinned place, or (again: repeat one)
+    // that song once more
+    function resume(byUser, again) {
+        if (again && order[pos]) { start(order, pos, byUser); return; }
+        step(1, byUser, true);
     }
 
     function markShownRow() {
@@ -1063,6 +1087,9 @@ window.cloudMusic = (() => {
         isPlaying,
         size: () => order.length || songs.length, // the list the playing song came from
         step,
+        // The queue (script.js): the list's place before it, and after it
+        anchor,
+        resume,
         searchActive,
         renderSearch,
         displayName: (key) => splitName(cleanName(key)),
