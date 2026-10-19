@@ -42,6 +42,8 @@ window.cloudMusic = (() => {
     let order = [];          // the list the playing song came from
     let pos = -1;            // its index in there
     let history = [];        // indexes played before (Back while shuffled)
+    let deck = [];           // shuffled: indexes of `order` still to come this pass
+    let deckFor = null;      // the order it was dealt for
     let shown = [];          // the rows on screen in Search
     let audioHooked = false;
 
@@ -333,6 +335,8 @@ window.cloudMusic = (() => {
     function start(list, idx, byUser) {
         const song = list[idx];
         if (!song) return;
+        // Another list: its shuffle deals a pass of its own
+        if (list !== order) { deck = []; deckFor = null; }
         order = list;
         pos = idx;
         if (byUser && typeof noteUserSongAsk === 'function') noteUserSongAsk();
@@ -393,9 +397,31 @@ window.cloudMusic = (() => {
             if (next < 0) next = walk(from, -1, true);
         } else {
             if (shuffled && n > 1) {
-                const pool = [];
-                for (let i = 0; i < n; i++) if (i !== pos && playable(i)) pool.push(i);
-                next = pool.length ? pool[Math.floor(Math.random() * pool.length)] : walk(from, 1, true);
+                // A pass at a time, like a playlist's shuffle: every song
+                // that can play comes once before any comes again. A song
+                // that can't play now (offline) is skipped for this pass.
+                const deal = () => {
+                    deck = [];
+                    for (let i = 0; i < n; i++) if (i !== pos && playable(i)) deck.push(i);
+                    for (let i = deck.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [deck[i], deck[j]] = [deck[j], deck[i]];
+                    }
+                    deckFor = order;
+                };
+                let dealt = deckFor !== order;
+                if (dealt) deal();
+                while (next < 0) {
+                    if (!deck.length) {
+                        if (dealt) break; // nothing else can play
+                        deal();
+                        dealt = true;
+                        continue;
+                    }
+                    const i = deck.shift();
+                    if (i !== pos && i < n && playable(i)) next = i;
+                }
+                if (next < 0) next = walk(from, 1, true);
             } else {
                 // Loop off: the list played through, stop (a tap on Next still wraps)
                 next = walk(from, 1, byUser || typeof loopMode === 'undefined' || loopMode !== 'off');
