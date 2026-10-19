@@ -12,6 +12,8 @@ login.js        log the five test accounts in and save their sessions
 fix-active.js   put demo/few/mid/many back on Favorites
 run-all.js      run every suite (reset before each), print N/M per suite, gate
 suites/         the suites (+ v11-a11y-lib.js for the axe scan)
+fixtures/       stand-ins a suite starts itself (queue-check: a Cloudflare Worker
+                on 127.0.0.1:8787, with the app on port 8125 pointed at it)
 ```
 
 The accounts come from `database/seeders/BrowserTestSeeder.php`:

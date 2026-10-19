@@ -106,6 +106,7 @@ const SUITES = [
     { name: 'desktop-a11y-check' },
     { name: 'desktop-polish-check' },
     { name: 'cleanup-check' },
+    { name: 'queue-check' },
     { name: 'back-check', verify: verifyBack },
     { name: 'keys-check', verify: verifyKeys },
     { name: 'v11-a11y-axe', verify: verifyAxe, before: () => fs.rmSync(path.join(L.ARTIFACTS, 'v11-a11y', 'axe-all.json'), { force: true }) },
