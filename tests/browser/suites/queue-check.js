@@ -14,7 +14,8 @@
 //      starts the queued song again.
 //   E. Up next shows the song that plays after Play now and after a song's
 //      end, while it is open.
-//   F. A queued song that fails moves on to the next queued one.
+//   F. A queued song that fails moves on to the next queued one (with
+//      repeat one too).
 //   G. A reload brings the queue back.
 //   H. Repeat one: the queue still plays first, then the song on repeat.
 //   I. The phone's drag handle is 44px at the row's right edge and
@@ -38,6 +39,7 @@
 //      going: the change decides (the list to go back to stays).
 //   P. Up next's "Next from Cloudflare" after a Cloudflare song played on
 //      its own (Jump back in): its rows play when tapped.
+//   Q. The + on a queued song's row saves the song whole.
 // The page includes the Cloudflare source only when CLOUD_MUSIC_URL and
 // CLOUD_MUSIC_TOKEN are set, and the shared server runs without them, so
 // this suite starts its own pair: a stand-in Worker on 127.0.0.1:8787
@@ -538,6 +540,22 @@ async function run(b) {
         await p.evaluate(() => hideQueueModal()); await p.waitForTimeout(400);
     });
 
+    // ---- F with repeat one: a failed queued song isn't the song on repeat
+    // (repeat one on its own stops at a song that can't play)
+    await part('F repeat one', {}, async (p) => {
+        await searchTab(p);
+        await p.evaluate(() => { shuffleMode = 'off'; shuffleQueue = []; loopMode = 'single'; });
+        await tapIn(p, '#mSearchResults [data-cloud="0"]'); await settle(p);
+        await enqueue(p, [MISSING, KEY(2)]);
+        await p.evaluate(() => { window.__toasts = []; });
+        await end(p);
+        const moved = await until(p, (k) => !!currentRadioSong && currentRadioSong.cloud_key === k && !isChangingSong, KEY(2), 10000);
+        const f = await now(p);
+        const ft = await p.evaluate(() => window.__toasts.slice());
+        check('F with repeat one on: a queued song that can\'t play is skipped for the next queued one, not stopped at',
+            moved && f.queued && f.queue.length === 0 && ft.some((x) => /“Missing” can't play: .*Skipping to the next song/.test(x)), { f, ft });
+    });
+
     // ---- K. Desktop: the ⋯ there, Now Playing, and songs started inside 'ended'
     await part('K', { vp: { width: 1024, height: 768 }, phone: false }, async (p) => {
         await order(p);
@@ -794,6 +812,26 @@ async function run(b) {
             u.nfLabel === 'Next from Cloudflare' && u.nf.join('|') === 'Cloud 6|Cloud 7|Cloud 8|Cloud 1|Cloud 2', u);
         check('P a row there plays when tapped (not only songs of the list played before), and Next goes on in the order shown',
             p1.cloud === KEY(6) && p2.cloud === KEY(7), { p1, p2 });
+    });
+
+    // ---- Q. The + on a queued song's row: the song whole, file and Spotify id
+    await part('Q', {}, async (p) => {
+        await order(p);
+        const song = { title: 'Own Upload', artist: 'Tester', album: 'Demos', cover: '', youtube_id: '',
+            mp3_url: '/cloud-music/file?key=' + encodeURIComponent(KEY(7)), spotify_id: '4uLU6hMCjMI75M1A2tKUQC' };
+        await p.evaluate((s) => queueSong(s, false), song);
+        await p.evaluate(() => nextSong()); await settle(p);
+        const row = await p.evaluate(() => {
+            const li = document.querySelector('#songList .radio-song-item');
+            const btn = li ? li.querySelector('.song-save-btn') : null;
+            if (btn) btn.click();
+            return { btn: !!btn, title: li ? li.querySelector('.song-list-title').textContent : null };
+        });
+        await p.waitForTimeout(500);
+        const add = p.__posts.filter((x) => x.action === 'add').pop();
+        check('Q the + on a queued upload\'s row saves it with its file, Spotify id and album (not as a title-only copy)',
+            row.btn && row.title === 'Own Upload' && !!add && !!add.song && add.song.mp3_url === song.mp3_url
+            && add.song.spotify_id === song.spotify_id && add.song.album === 'Demos', { row, add });
     });
 }
 
