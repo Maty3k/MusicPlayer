@@ -44,6 +44,9 @@
 //      Cloudflare song from Jump back in, Up next and a new queue follow
 //      the Cloudflare list (the playlist went back to before had played
 //      through).
+//   S. The playlist emptied while queued songs play: after them the last
+//      queued Cloudflare song's list goes on (with repeat one, that song
+//      repeats).
 // The page includes the Cloudflare source only when CLOUD_MUSIC_URL and
 // CLOUD_MUSIC_TOKEN are set, and the shared server runs without them, so
 // this suite starts its own pair: a stand-in Worker on 127.0.0.1:8787
@@ -868,6 +871,42 @@ async function run(b) {
             r3.cloud === KEY(6) && !r3.queued && u.nfLabel === 'Next from Cloudflare' && u.nf.join('|') === 'Cloud 7|Cloud 8', { r3, u });
         check('R ...and a song queued then notes the Cloudflare list: after it, the song after Cloud 6 plays (not the playlist, nor a stop)',
             r4.queued && r4.cloud === KEY(2) && r4.back === 'cloud' && r5.cloud === KEY(7) && !r5.queued, { r4, r5 });
+    });
+
+    // ---- S. The playlist emptied while queued songs play (all its songs
+    // removed): no playlist to go back to
+    await part('S', {}, async (p) => {
+        await order(p);
+        await p.evaluate(() => playListRow(1)); await settle(p);
+        await enqueue(p, [KEY(3), KEY(5)]);
+        const s1 = await end(p);
+        await p.evaluate(() => { songsData.splice(0); rebuildSongList(); });
+        await p.evaluate(() => openQueueModal()); await p.waitForTimeout(500);
+        const u = await queueLook(p);
+        await p.evaluate(() => hideQueueModal()); await p.waitForTimeout(400);
+        const s2 = await end(p);
+        const s3 = await end(p);
+        check('S the playlist emptied mid-queue: Up next says "Next from Cloudflare", from the song after the last queued one',
+            s1.queued && s1.cloud === KEY(3) && s1.back === 'playlist' && u.items.join('|') === 'Cloud 5' && u.nfLabel === 'Next from Cloudflare' && u.nf[0] === 'Cloud 6', { s1, u });
+        check('S ...and after the queue the last queued Cloudflare song\'s list goes on (Cloud 6), not a stop',
+            s2.queued && s2.cloud === KEY(5) && s3.cloud === KEY(6) && !s3.queued, { s2, s3 });
+    });
+    await part('S repeat one', {}, async (p) => {
+        await p.evaluate(() => { shuffleMode = 'off'; shuffleQueue = []; loopMode = 'single'; });
+        await p.evaluate(() => playListRow(1)); await settle(p);
+        await enqueue(p, [KEY(3)]);
+        const s1 = await end(p);
+        await p.evaluate(() => { songsData.splice(0); rebuildSongList(); });
+        // A song that repeats starts over from 0 s
+        await p.evaluate(() => {
+            window.__seeks = [];
+            const seek = mp3PlayerProxy.seekTo;
+            mp3PlayerProxy.seekTo = function (s) { window.__seeks.push(s); return seek.apply(this, arguments); };
+        });
+        const s2 = await end(p);
+        const seeks = await p.evaluate(() => window.__seeks.slice());
+        check('S with repeat one: the row on repeat went with the playlist, so the queued song repeats (not a stop)',
+            s1.queued && s1.cloud === KEY(3) && s2.cloud === KEY(3) && seeks.join('|') === '0', { s1, s2, seeks });
     });
 }
 

@@ -2082,9 +2082,14 @@ let queueReturn = null;
 
 // The note while it counts: a queued song plays, so its run isn't over.
 // A song that isn't queued leaves the note in place (playRadioSong, a
-// playlist opened), but it's only a leftover then.
-function queueNote() {
-    return currentRadioSong && currentRadioSong._queued ? queueReturn : null;
+// playlist opened), but it's only a leftover then. Nor does a playlist
+// with no songs left count (all removed meanwhile): there's nothing to go
+// back to, so the last queued song's own list goes on, as when nothing
+// was noted. again (repeat one): the radio song noted still comes back.
+function queueNote(again) {
+    const from = currentRadioSong && currentRadioSong._queued ? queueReturn : null;
+    if (from && from.list === 'playlist' && !songsData.length && !(again && from.song)) return null;
+    return from;
 }
 
 // A list has played: a radio, preview or Cloudflare song is on (not one
@@ -2142,9 +2147,13 @@ function cloudNextPlace() {
 // (currentSongIndex doesn't move while queued songs play). The note stays
 // until the playlist's row starts (switchSong clears it): meanwhile the
 // last queued song mustn't pass for one with no list noted (cloudListOn).
+// With nothing to go back to (queueNote), a note left goes too.
 function returnFromQueue(byUser, again) {
-    const from = queueNote();
-    if (!from) return false;
+    const from = queueNote(again);
+    if (!from) {
+        queueReturn = null;
+        return false;
+    }
     if (from.list === 'cloud' && window.cloudMusic) {
         queueReturn = null;
         cloudMusic.resume(byUser, again);
