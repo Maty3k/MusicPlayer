@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Session\Middleware\AuthenticateSession;
 
@@ -28,6 +29,19 @@ class EndSessionsOnPasswordChange extends AuthenticateSession
 {
     public function handle($request, Closure $next)
     {
+        // Laravel 13.38 no longer signs anyone in with a "stay signed in"
+        // cookie made under an older password, so a device whose session ran
+        // out arrives as a guest. End it the way a session ends here: drop
+        // the cookie and say why on the login page (once, so it can't loop).
+        if ($request->hasSession() && ! $request->user() && $this->cookieOutlivedItsPassword($request)) {
+            $cookies = $this->guard()->getCookieJar();
+            $cookies->queue($cookies->forget($this->guard()->getRecallerName()));
+
+            if (! ($request->routeIs('login') && $request->query('ended'))) {
+                throw new AuthenticationException('Unauthenticated.', [$this->auth->getDefaultDriver()], $this->redirectTo($request));
+            }
+        }
+
         if ($request->hasSession() && $request->user()) {
             $owner = (string) $request->user()->getAuthIdentifier();
 
@@ -82,5 +96,19 @@ class EndSessionsOnPasswordChange extends AuthenticateSession
             && (string) $user->getRememberToken() !== ''
             && hash_equals((string) $user->getRememberToken(), $parts[1])
             && $this->validatePasswordHash($user->getAuthPassword(), $parts[2]);
+    }
+
+    /** The request's "stay signed in" cookie names an account and its current token, but an older password. */
+    private function cookieOutlivedItsPassword($request): bool
+    {
+        $parts = explode('|', (string) $request->cookies->get($this->guard()->getRecallerName()), 3);
+        if (count($parts) !== 3 || $parts[0] === '' || $parts[1] === '') {
+            return false;
+        }
+
+        $user = $this->guard()->getProvider()->retrieveByToken($parts[0], $parts[1]);
+
+        return $user !== null && (string) $user->getAuthPassword() !== ''
+            && ! $this->validatePasswordHash($user->getAuthPassword(), $parts[2]);
     }
 }
