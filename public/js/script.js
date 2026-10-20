@@ -610,19 +610,28 @@ function nextSong() {
 
 function prevSong() {
     if (isChangingSong) return;
-    // Back from a queued song: the song before it, in any shuffle mode (the
-    // list's own Back would skip the song the queue interrupted)
-    if (currentRadioSong && currentRadioSong._queued && songHistory.length > 0) {
-        noteUserSongAsk();
-        const prev = songHistory.pop();
-        if (typeof prev === 'object' && prev.type === 'radio') {
-            // Out of the queue again: the next queued song notes its list anew
-            if (!prev.song._queued) queueReturn = null;
-            playRadioSong(prev.song);
-        } else {
-            switchSong(typeof prev === 'object' ? prev.index : prev);
+    if (currentRadioSong && currentRadioSong._queued) {
+        // A few seconds into a queued song, Back starts it again (as every
+        // Cloudflare song's does): it has already left the queue
+        if (ytPlayer && ytPlayer.getCurrentTime && ytPlayer.getCurrentTime() > 3) {
+            noteUserSongAsk();
+            restartSong();
+            return;
         }
-        return;
+        // Before that, the song before it, in any shuffle mode (the list's
+        // own Back would skip the song the queue interrupted)
+        if (songHistory.length > 0) {
+            noteUserSongAsk();
+            const prev = songHistory.pop();
+            if (typeof prev === 'object' && prev.type === 'radio') {
+                // Out of the queue again: the next queued song notes its list anew
+                if (!prev.song._queued) queueReturn = null;
+                playRadioSong(prev.song);
+            } else {
+                switchSong(typeof prev === 'object' ? prev.index : prev);
+            }
+            return;
+        }
     }
     if (cloudListOn()) { noteUserSongAsk(); cloudMusic.step(-1, true); return; }
     if (songsData.length === 0) return;
@@ -1746,6 +1755,10 @@ function playNextByLoop() {
         })();
         return;
     }
+    // A song change still going (Next or Play now in this song's last
+    // moments) decides what plays: nothing may start under it, nor use up
+    // the list to go back to. Its own song's end comes later.
+    if (isChangingSong) return;
     // The queue ran out: the list it interrupted goes on. With repeat one,
     // the song that was on repeat comes back, not the last queued one (a
     // song that isn't from the queue just repeats, below).

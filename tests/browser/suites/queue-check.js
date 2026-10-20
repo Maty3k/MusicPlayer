@@ -10,7 +10,8 @@
 //      "Next from" say so); and the reverse (queued Cloudflare songs during
 //      a playlist hand back to the playlist).
 //   D. Back during a queued song (shuffle off): the song before the queue,
-//      a playlist row and a Cloudflare song alike.
+//      a playlist row and a Cloudflare song alike; more than 3 s in, Back
+//      starts the queued song again.
 //   E. Up next shows the song that plays after Play now and after a song's
 //      end, while it is open.
 //   F. A queued song that fails moves on to the next queued one.
@@ -32,6 +33,8 @@
 //   N. A queue started on a page just opened (nothing played) notes no
 //      list: after it the last queued Cloudflare song's list goes on, with
 //      the playing playlist empty too, and Up next says so.
+//   O. The song playing ends while a queued song's record change is still
+//      going: the change decides (the list to go back to stays).
 //   P. Up next's "Next from Cloudflare" after a Cloudflare song played on
 //      its own (Jump back in): its rows play when tapped.
 // The page includes the Cloudflare source only when CLOUD_MUSIC_URL and
@@ -404,6 +407,32 @@ async function run(b) {
         check('J its Play next queues the song playing, to come again next', jq[0] === 'Cloud 6', jq);
     });
 
+    // ---- D, a few seconds in: Back starts the queued song again
+    await part('D 3 s', {}, async (p) => {
+        await searchTab(p);
+        await order(p);
+        await tapIn(p, '#mSearchResults [data-cloud="1"]'); await settle(p);
+        await enqueue(p, [KEY(6), KEY(7)]);
+        const d0 = await end(p);
+        // 30 s into the queued song (the silent test files are shorter)
+        await p.evaluate(() => {
+            window.__restarts = 0;
+            const restart = window.restartSong;
+            window.restartSong = function () { window.__restarts++; return restart.apply(this, arguments); };
+            window.__at = 30;
+            mp3PlayerProxy.getCurrentTime = () => window.__at;
+        });
+        await p.evaluate(() => prevSong()); await settle(p);
+        const d1 = await now(p);
+        const restarts = await p.evaluate(() => window.__restarts);
+        await p.evaluate(() => { window.__at = 1; });
+        await p.evaluate(() => prevSong()); await settle(p);
+        const d2 = await now(p);
+        check('D Back more than 3 s into a queued song starts it again: it keeps playing, the rest of the queue stays',
+            d0.queued && d0.cloud === KEY(6) && restarts === 1 && d1.queued && d1.cloud === KEY(6) && d1.queue.join('|') === 'Cloud 7', { d0, d1, restarts });
+        check('D ...within its first 3 s, Back plays the song before the queue', d2.cloud === KEY(2) && !d2.queued && d2.queue.join('|') === 'Cloud 7', d2);
+    });
+
     // ---- F + G + H + I. A song that fails; a reload; repeat one; the handle and Clear
     await part('F/G/H/I', {}, async (p) => {
         const titles = await p.evaluate(() => songsData.map((s) => s.title));
@@ -682,6 +711,28 @@ async function run(b) {
             e1.queued && e1.cloud === KEY(3) && e1.back === null && e2.queued && e2.cloud === KEY(5) && e3.cloud === KEY(6) && !e3.queued, { e1, e2, e3 });
         check('N Up next during the first queued song: the second under it, then "Next from Cloudflare" from the song after that one',
             u1.now === 'Cloud 3' && u1.items.join('|') === 'Cloud 5' && u1.nfLabel === 'Next from Cloudflare' && u1.nf[0] === 'Cloud 6', u1);
+    });
+
+    // ---- O. The song playing ends while a queued song's record change is
+    // still going (Next in its last moments): the change decides
+    await part('O', {}, async (p) => {
+        const titles = await p.evaluate(() => songsData.map((s) => s.title));
+        await searchTab(p);
+        await order(p);
+        await tapIn(p, '#mSearchResults [data-cloud="1"]'); await settle(p);
+        await enqueue(p, [3]);
+        const changing = await p.evaluate(() => {
+            nextSong();
+            const was = isChangingSong;
+            mp3PlayerProxy._audio.dispatchEvent(new Event('ended')); // Cloud 2's own end
+            return was;
+        });
+        await settle(p);
+        const o1 = await now(p);
+        const o2 = await end(p);
+        check('O a song\'s end during a queued song\'s record change starts nothing under it: the queued song plays, the list to go back to stays',
+            changing && o1.queued && o1.title === titles[3] && o1.back === 'cloud', { changing, o1 });
+        check('O ...then the Cloudflare list goes on after the song the queue interrupted (Cloud 3)', o2.cloud === KEY(3) && !o2.queued, o2);
     });
 
     // ---- P. "Next from Cloudflare" after a Cloudflare song played on its own
