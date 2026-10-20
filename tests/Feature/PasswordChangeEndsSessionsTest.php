@@ -138,6 +138,26 @@ class PasswordChangeEndsSessionsTest extends TestCase
             ->assertSee('The PIN or password of this account was changed');
     }
 
+    public function test_a_device_back_after_its_session_ran_out_returns_to_the_page_it_opened(): void
+    {
+        $cookie = $this->app['auth']->guard()->getRecallerName();
+        $oldCookie = $this->post('/member/start')->getCookie($cookie)?->getValue();
+        $number = session('member_card')['number'];
+        User::findOrFail(auth()->id())->forceFill(['password' => '654321'])->save();
+
+        $this->flushSession();
+        $this->nextRequest();
+        $this->withCookie($cookie, $oldCookie)->get('/?app=1')->assertRedirect(route('login'));
+        $this->nextRequest();
+        $this->withCookie($cookie, $oldCookie)->get(route('login'))->assertRedirect(route('login', ['ended' => 1]));
+
+        // The browser drops the cookie that answer cleared, then signs in with the new PIN.
+        $this->defaultCookies = [];
+        $this->nextRequest();
+        $signIn = $this->post('/member/login', ['member_number' => $number, 'pin' => '654321']);
+        $this->assertStringEndsWith('/?app=1', (string) $signIn->headers->get('Location'));
+    }
+
     public function test_a_device_back_after_its_session_ran_out_signs_in_again_when_nothing_changed(): void
     {
         $cookie = $this->app['auth']->guard()->getRecallerName();

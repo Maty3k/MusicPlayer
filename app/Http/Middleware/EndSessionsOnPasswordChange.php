@@ -33,12 +33,17 @@ class EndSessionsOnPasswordChange extends AuthenticateSession
         // cookie made under an older password, so a device whose session ran
         // out arrives as a guest. End it the way a session ends here: drop
         // the cookie and say why on the login page (once, so it can't loop).
+        // A protected page has already sent it to the login page and noted
+        // where it was going; a plain redirect from there keeps that note.
         if ($request->hasSession() && ! $request->user() && $this->cookieOutlivedItsPassword($request)) {
             $cookies = $this->guard()->getCookieJar();
             $cookies->queue($cookies->forget($this->guard()->getRecallerName()));
 
-            if (! ($request->routeIs('login') && $request->query('ended'))) {
+            if (! $request->routeIs('login')) {
                 throw new AuthenticationException('Unauthenticated.', [$this->auth->getDefaultDriver()], $this->redirectTo($request));
+            }
+            if (! $request->query('ended')) {
+                return redirect($this->redirectTo($request));
             }
         }
 
