@@ -667,13 +667,14 @@ function setActiveSongRow(index) {
 }
 
 // The record change, then the song: the crackle and the animation first, as
-// always. An automatic change (opts.auto: a song ended, an unplayable one
-// skipped) on an iPhone, or any change while the page is hidden, starts the
-// song first, inside the event that asked for it, and animates after: a
-// locked iPhone lets a song start only there (nothing awaited before it,
-// no timer), and suspends a page that has gone quiet.
+// always. On an iPhone (or iPad), an automatic change (opts.auto: a song
+// ended, an unplayable one skipped) or any change while the page is hidden
+// starts the song first, inside the event that asked for it, and animates
+// after: a locked iPhone lets a song start only there (nothing awaited
+// before it, no timer), and suspends a page that has gone quiet. Other
+// browsers keep a hidden page that plays going, crackle and all.
 async function changeRecord(song, opts) {
-    if (document.hidden || (IS_IOS && opts && opts.auto)) {
+    if (IS_IOS && (document.hidden || (opts && opts.auto))) {
         updateMediaSession(song);
         resetSleeveProgress();
         playSongSource(song, false);

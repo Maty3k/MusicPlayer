@@ -22,11 +22,12 @@
 //   J. Now Playing's ⋯ on a Cloudflare song: its own sheet, not the "not in
 //      this playlist" toast.
 //   K. Desktop (1024x768): the Search page's Cloudflare rows' ⋯, Now
-//      Playing's "Playing from" and its ⋯'s queue items; an automatic song
-//      change starts the next song inside the 'ended' event while the page
-//      is hidden (the locked-iPhone rule: a queued song, a playlist's MP3
-//      row, the Cloudflare list), while a visible page still has its crackle
-//      and record animation first.
+//      Playing's "Playing from" and its ⋯'s queue items; a song change has
+//      its crackle and record animation first, on a hidden tab too. On iOS
+//      (an iPad at that size), an automatic song change on a hidden page
+//      starts the next song inside the 'ended' event instead (the
+//      locked-iPhone rule: a queued song, a playlist's MP3 row, the
+//      Cloudflare list).
 //   L. Cloudflare shuffle plays every song once before any comes again.
 //   M. The ⋯ on library and YouTube rows of the Search page (phone and
 //      desktop), and on the library search window's hits (landscape).
@@ -64,6 +65,8 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
 
 const KEY = (n) => `Cloud ${n} - Tester.mp3`;
 const MISSING = 'Missing - Tester.mp3'; // not in the bucket: its file answers 404
+// iOS at a desktop size (script.js's IS_IOS)
+const IPAD = 'Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
 const YT = [
     { videoId: 'aaaaaaaaaa1', title: 'Band One - Great Song (Official Video)', channel: 'Band One', thumbnail: '' },
     { videoId: 'bbbbbbbbbb2', title: 'Another Tune', channel: 'Someone', thumbnail: '' },
@@ -140,6 +143,7 @@ async function run(b) {
             viewport: vp, isMobile: phone, hasTouch: phone, storageState: L.state(opts.acct || 'mid'),
             // Straight to the network: the routes below see every request
             serviceWorkers: 'block',
+            ...(opts.ua ? { userAgent: opts.ua } : {}),
         });
         await ctx.addInitScript((source) => {
             try {
@@ -248,6 +252,31 @@ async function run(b) {
         await p.waitForTimeout(100);
         await p.tap(sel);
     }
+    // The Cloudflare song playing ends, with the page hidden (as on a locked
+    // iPhone) or not. seen: play() on any media element and a 0 ms timer, in
+    // order (play() first: the next song started inside the 'ended' event);
+    // crackled: the crackle was asked for meanwhile.
+    const syncEnd = (p, hidden) => p.evaluate(async (hide) => {
+        const seen = [];
+        let crackled = false;
+        const play = HTMLMediaElement.prototype.play;
+        const crackle = window.playCrackleSound;
+        HTMLMediaElement.prototype.play = function () { seen.push('play'); return play.apply(this, arguments); };
+        window.playCrackleSound = function () { crackled = true; return crackle.apply(this, arguments); };
+        if (hide) Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        let during = 0;
+        try {
+            setTimeout(() => seen.push('timer'), 0);
+            mp3PlayerProxy._audio.dispatchEvent(new Event('ended'));
+            during = seen.length;
+            await new Promise((r) => setTimeout(r, 60));
+        } finally {
+            HTMLMediaElement.prototype.play = play;
+            window.playCrackleSound = crackle;
+            if (hide) delete document.hidden;
+        }
+        return { during, seen, crackled };
+    }, hidden);
     // Each part on a page of its own. A part that throws is a failed check
     // (with the error) and the next part still runs.
     async function part(name, opts, fn) {
@@ -534,37 +563,41 @@ async function run(b) {
         const dq = await p.evaluate(() => playQueue.map((q) => q.title));
         check('K desktop Now Playing: "Playing from Cloudflare" for a Cloudflare song; its ⋯ adds Play next and Add to queue for the song playing',
             from === 'Cloudflare' && items.join('|') === 'Make a GIF|Show in playlist|Play next|Add to queue' && dq.join('|') === 'Cloud 1|Cloud 2', { from, items, dq });
-        // The song playing ends with the page hidden (as on a locked iPhone):
-        // the next one must start inside the 'ended' event, before any timer,
-        // even with the crackle on and the desktop's record animation
-        const syncEnd = (hidden) => p.evaluate(async (hide) => {
-            const seen = [];
-            const play = HTMLMediaElement.prototype.play;
-            HTMLMediaElement.prototype.play = function () { seen.push('play'); return play.apply(this, arguments); };
-            if (hide) Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
-            let during = 0;
-            try {
-                setTimeout(() => seen.push('timer'), 0);
-                mp3PlayerProxy._audio.dispatchEvent(new Event('ended'));
-                during = seen.length;
-                await new Promise((r) => setTimeout(r, 60));
-            } finally {
-                HTMLMediaElement.prototype.play = play;
-                if (hide) delete document.hidden;
-            }
-            return { during, seen };
-        }, hidden);
+        // The song playing ends with the tab hidden (in the background): a
+        // desktop browser goes on playing there, so the crackle and the
+        // record change still come first, as on a visible page. (The queued
+        // song is the one playing, again: it is the one playing once the
+        // change is done.)
         await p.evaluate(() => setCrackleEnabled(true));
-        const k1 = await syncEnd(true);
-        await settle(p);
-        const k1s = await now(p);
-        check('K hidden page: a song\'s end starts the queued song inside the event (play() before a 0 ms timer), crackle on, desktop animation',
-            k1.during >= 1 && k1.seen[0] === 'play' && k1s.cloud === KEY(1) && k1s.queued, { k1, k1s });
-        const k2 = await syncEnd(false);
+        const k1 = await syncEnd(p, true);
+        const k1late = await until(p, (k) => !!currentRadioSong && currentRadioSong._queued && currentRadioSong.cloud_key === k && !isChangingSong, KEY(1), 8000);
+        check('K a hidden desktop tab (not iOS) keeps the crackle: it plays, then the record change, then the queued song',
+            k1.crackled && k1.during === 0 && k1.seen[0] === 'timer' && k1late, { k1, k1late });
+        const k2 = await syncEnd(p, false);
         const k2late = await until(p, (k) => !!currentRadioSong && currentRadioSong.cloud_key === k && !isChangingSong
             && mp3PlayerProxy._audio.src.includes(encodeURIComponent(k)), KEY(2), 8000);
-        check('K a visible page (not an iPhone) as before: the crackle and the record animation first, then the song',
-            k2.during === 0 && k2.seen[0] === 'timer' && k2late, { k2, k2late });
+        check('K a visible page (not iOS) as before: the crackle and the record animation first, then the song',
+            k2.crackled && k2.during === 0 && k2.seen[0] === 'timer' && k2late, { k2, k2late });
+        await p.evaluate(() => setCrackleEnabled(false));
+    });
+
+    // ---- K on iOS (an iPad, desktop size): songs started inside 'ended'
+    await part('K iPad', { vp: { width: 1024, height: 768 }, phone: false, ua: IPAD }, async (p) => {
+        await order(p);
+        await p.evaluate(() => window.dvSearch && window.dvSearch.open()); await p.waitForTimeout(400);
+        await p.waitForSelector('#mSearchResults [data-cloud="0"]', { timeout: 10000 }).catch(() => {});
+        const ios = await p.evaluate(() => IS_IOS && document.documentElement.classList.contains('dv2'));
+        await p.click('#mSearchResults [data-cloud="0"]'); await settle(p);
+        await enqueue(p, [KEY(2)]);
+        // The page hidden (a locked iPhone): the next song must start inside
+        // the 'ended' event, before any timer, even with the crackle on and
+        // the desktop's record animation
+        await p.evaluate(() => setCrackleEnabled(true));
+        const k1 = await syncEnd(p, true);
+        await settle(p);
+        const k1s = await now(p);
+        check('K iPad hidden page: a song\'s end starts the queued song inside the event (play() before a 0 ms timer), crackle on, desktop animation',
+            ios && k1.during >= 1 && k1.seen[0] === 'play' && k1s.cloud === KEY(2) && k1s.queued, { ios, k1, k1s });
         // A playlist's MP3 rows (as an upload is): its next row starts inside the event too
         const n = await p.evaluate((keys) => {
             const mk = (k, t) => ({ title: t, artist: 'Tester', album: '', cover: '', youtube_id: '', spotify_id: '', mp3_url: '/cloud-music/file?key=' + encodeURIComponent(k) });
@@ -573,16 +606,16 @@ async function run(b) {
             return songsData.length;
         }, [KEY(7), KEY(8)]);
         await p.evaluate((i) => switchSong(i), n - 2); await settle(p);
-        const k3 = await syncEnd(true);
+        const k3 = await syncEnd(p, true);
         await settle(p);
         const k3s = await now(p);
-        check('K ...and so does the playlist\'s next song (an MP3 row on the shared <audio>)',
+        check('K iPad ...and so does the playlist\'s next song (an MP3 row on the shared <audio>)',
             k3.during >= 1 && k3.seen[0] === 'play' && !k3s.radio && k3s.idx === n - 1 && k3s.title === 'Upload B', { k3, k3s });
         await p.evaluate(() => document.querySelector('#mSearchResults [data-cloud="2"]').click()); await settle(p);
-        const k4 = await syncEnd(true);
+        const k4 = await syncEnd(p, true);
         await settle(p);
         const k4s = await now(p);
-        check('K ...and the Cloudflare list\'s next song', k4.during >= 1 && k4.seen[0] === 'play' && k4s.cloud === KEY(4), { k4, k4s });
+        check('K iPad ...and the Cloudflare list\'s next song', k4.during >= 1 && k4.seen[0] === 'play' && k4s.cloud === KEY(4), { k4, k4s });
         await p.evaluate(() => setCrackleEnabled(false));
     });
 
