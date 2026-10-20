@@ -11,7 +11,8 @@
 //      a playlist hand back to the playlist).
 //   D. Back during a queued song (shuffle off): the song before the queue,
 //      a playlist row and a Cloudflare song alike; more than 3 s in, Back
-//      starts the queued song again.
+//      starts the queued song again. A queued Spotify song (a stand-in Web
+//      Playback SDK) starts at 0 s, not at the time of the song before it.
 //   E. Up next shows the song that plays after Play now and after a song's
 //      end, while it is open.
 //   F. A queued song that fails moves on to the next queued one (with
@@ -469,6 +470,50 @@ async function run(b) {
         check('D Back more than 3 s into a queued song starts it again: it keeps playing, the rest of the queue stays',
             d0.queued && d0.cloud === KEY(6) && restarts === 1 && d1.queued && d1.cloud === KEY(6) && d1.queue.join('|') === 'Cloud 7', { d0, d1, restarts });
         check('D ...within its first 3 s, Back plays the song before the queue', d2.cloud === KEY(2) && !d2.queued && d2.queue.join('|') === 'Cloud 7', d2);
+    });
+
+    // ---- D with Spotify (Premium playback): a track's time comes from the
+    // Web Playback SDK, a moment after it starts. Back in that moment goes
+    // by the new track's time, not the old one's. A stand-in SDK here: it
+    // reports only what the test says.
+    await part('D Spotify', {}, async (p) => {
+        await order(p);
+        await p.route('**/spotify?action=token', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ access_token: 'test-token' }) }));
+        await p.route(/api\.spotify\.com\/v1\/me\/player\/play/, (r) => r.fulfill({ status: 204, body: '' }));
+        const ready = await p.evaluate(async () => {
+            window.__sdk = {};
+            window.Spotify = { Player: function () {
+                this.addListener = (type, fn) => { window.__sdk[type] = fn; };
+                this.connect = () => Promise.resolve(true);
+                this.getCurrentState = () => Promise.resolve(null);
+                ['resume', 'pause', 'seek', 'setVolume'].forEach((f) => { this[f] = () => Promise.resolve(); });
+                this.disconnect = () => {};
+            } };
+            spotifyConnected = spotifyPremium = true;
+            await initSpotifyPlayer();
+            window.__sdk.ready({ device_id: 'test-device' });
+            return !!spotifyPlayerProxy && spotifyDeviceId === 'test-device';
+        });
+        const sp = (n) => ({ title: 'Spotify ' + n, artist: 'Tester', album: '', cover: '', youtube_id: '', mp3_url: '', spotify_id: String(n).repeat(22) });
+        // A Spotify song 1:30 in (as the SDK says), and one queued after it
+        await p.evaluate((s) => playRadioSong(s), sp(1)); await settle(p);
+        await p.evaluate(() => window.__sdk.player_state_changed({ paused: false, position: 90000, duration: 200000, track_window: { current_track: {} } }));
+        await p.evaluate((s) => queueSong(s, false), sp(2));
+        await p.evaluate(() => nextSong()); await settle(p);
+        const d1 = await p.evaluate(() => ({ title: currentRadioSong && currentRadioSong.title, queued: !!(currentRadioSong && currentRadioSong._queued),
+            spotify: ytPlayer === spotifyPlayerProxy, at: ytPlayer.getCurrentTime() }));
+        // Back before the SDK has said anything about the new track
+        await p.evaluate(() => {
+            window.__restarts = 0;
+            const restart = window.restartSong;
+            window.restartSong = function () { window.__restarts++; return restart.apply(this, arguments); };
+        });
+        await p.evaluate(() => prevSong()); await settle(p);
+        const d2 = await now(p);
+        const restarts = await p.evaluate(() => window.__restarts);
+        check('D Spotify: just after Next to a queued Spotify song, its time is 0 s (not the 1:30 of the song before)',
+            ready && d1.title === 'Spotify 2' && d1.queued && d1.spotify && d1.at === 0, { ready, d1 });
+        check('D Spotify: ...so Back then plays the song before (it doesn\'t restart the old track)', restarts === 0 && d2.title === 'Spotify 1' && !d2.queued, { restarts, d2 });
     });
 
     // ---- F + G + H + I. A song that fails; a reload; repeat one; the handle and Clear

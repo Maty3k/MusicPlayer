@@ -7355,6 +7355,12 @@ async function initSpotifyPlayer() {
         _currentTime: 0,
         _duration: 0,
         loadVideoById: async function(spotifyId) {
+            // A new track: until the SDK reports it, nothing of the old one's
+            // time counts (Back's 3 s rule reads it), as the MP3 engine's new
+            // src resets its own. Not playing yet, so the poll below waits too:
+            // meanwhile it would read the old track, still playing.
+            this._currentTime = 0;
+            this._state = 3;
             const uri = spotifyId.startsWith('spotify:') ? spotifyId : 'spotify:track:' + spotifyId;
             const t = await getSpotifyToken();
             if (!t || !spotifyDeviceId) return;
