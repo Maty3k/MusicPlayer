@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -24,31 +25,37 @@ class UploadSongController extends Controller
 
     public function __invoke(Request $request): JsonResponse
     {
-        $request->validate([
+        // Store what was validated, not whatever the request holds under the
+        // same name: since Laravel 13.38 an empty text field called 'cover'
+        // hides a file called 'cover' from validation, while file() and
+        // hasFile() still return that file.
+        $validated = $request->validate([
             // ~40 MB max — a full album-length FLAC won't fit, normal songs will.
             'audio' => ['required', 'file', 'max:40960', 'mimes:mp3,mpga,m4a,mp4,aac,ogg,oga,opus,wav,flac,webm'],
             'cover' => ['nullable', 'file', 'max:2048', 'mimes:jpg,jpeg,png,webp,gif'],
         ]);
+        $audio = $validated['audio'];
+        $cover = $validated['cover'] ?? null;
 
         $diskName = (string) config('filesystems.uploads', 'local');
         $disk = Storage::disk($diskName);
         $dir = 'music/'.$request->user()->id;
 
         $used = array_sum(array_map(fn ($f) => $disk->size($f), $disk->files($dir)));
-        if ($used + $request->file('audio')->getSize() > self::QUOTA_BYTES) {
+        if ($used + $audio->getSize() > self::QUOTA_BYTES) {
             return response()->json([
                 'success' => false,
                 'error' => 'Storage limit reached (500 MB). Delete some uploaded songs first.',
             ], 422);
         }
 
-        $audioName = (string) Str::uuid().'.'.$request->file('audio')->extension();
-        $request->file('audio')->storeAs($dir, $audioName, $diskName);
+        $audioName = (string) Str::uuid().'.'.$audio->extension();
+        $audio->storeAs($dir, $audioName, $diskName);
 
         $coverUrl = '';
-        if ($request->hasFile('cover')) {
-            $coverName = (string) Str::uuid().'.'.$request->file('cover')->extension();
-            $request->file('cover')->storeAs($dir, $coverName, $diskName);
+        if ($cover instanceof UploadedFile) {
+            $coverName = (string) Str::uuid().'.'.$cover->extension();
+            $cover->storeAs($dir, $coverName, $diskName);
             $coverUrl = '/media/'.$coverName;
         }
 

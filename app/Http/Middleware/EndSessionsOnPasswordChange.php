@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Session\Middleware\AuthenticateSession;
 
@@ -16,9 +17,10 @@ use Illuminate\Session\Middleware\AuthenticateSession;
  *  - it keeps one hash per session and nothing about whose it is, so a
  *    session that turns up under another account (a sign-in that kept the
  *    session, a test acting as two users) starts counting afresh;
- *  - it stores the hash only on requests that arrive signed in, so the
- *    session handed out by a sign-in carried none, and a copy kept back
- *    from that moment would have taken on the new hash later;
+ *  - the session handed out by a sign-in has to be bound to its owner too.
+ *    Laravel 13.19 stored no hash at sign-in, and 13.38 stores one without
+ *    an owner. Either way the next request started counting afresh, so a
+ *    copy kept back from that moment would have taken on the new hash later;
  *  - a request that overlapped a password change made on this device can
  *    write the old hash back. The device then also holds a "stay signed in"
  *    cookie made after the change, which proves it has the new password.
@@ -27,6 +29,24 @@ class EndSessionsOnPasswordChange extends AuthenticateSession
 {
     public function handle($request, Closure $next)
     {
+        // Laravel 13.38 no longer signs anyone in with a "stay signed in"
+        // cookie made under an older password, so a device whose session ran
+        // out arrives as a guest. End it the way a session ends here: drop
+        // the cookie and say why on the login page (once, so it can't loop).
+        // A protected page has already sent it to the login page and noted
+        // where it was going; a plain redirect from there keeps that note.
+        if ($request->hasSession() && ! $request->user() && $this->cookieOutlivedItsPassword($request)) {
+            $cookies = $this->guard()->getCookieJar();
+            $cookies->queue($cookies->forget($this->guard()->getRecallerName()));
+
+            if (! $request->routeIs('login')) {
+                throw new AuthenticationException('Unauthenticated.', [$this->auth->getDefaultDriver()], $this->redirectTo($request));
+            }
+            if (! $request->query('ended')) {
+                return redirect($this->redirectTo($request));
+            }
+        }
+
         if ($request->hasSession() && $request->user()) {
             $owner = (string) $request->user()->getAuthIdentifier();
 
@@ -40,12 +60,16 @@ class EndSessionsOnPasswordChange extends AuthenticateSession
 
         $response = parent::handle($request, $next);
 
-        // Bind the session to the password the moment it signs in.
+        // Bind the session to the password and its owner the moment it signs in.
         $user = $this->guard()->user();
-        if ($request->hasSession() && $user && $user->getAuthPassword()
-            && ! $request->session()->has($this->hashKey())) {
-            $request->session()->put('password_hash_owner', (string) $user->getAuthIdentifier());
-            $this->storePasswordHashInSession($request);
+        if ($request->hasSession() && $user && $user->getAuthPassword()) {
+            $owner = (string) $user->getAuthIdentifier();
+
+            if ((string) $request->session()->get('password_hash_owner') !== $owner
+                || ! $request->session()->has($this->hashKey())) {
+                $request->session()->put('password_hash_owner', $owner);
+                $this->storePasswordHashInSession($request);
+            }
         }
 
         return $response;
@@ -77,5 +101,19 @@ class EndSessionsOnPasswordChange extends AuthenticateSession
             && (string) $user->getRememberToken() !== ''
             && hash_equals((string) $user->getRememberToken(), $parts[1])
             && $this->validatePasswordHash($user->getAuthPassword(), $parts[2]);
+    }
+
+    /** The request's "stay signed in" cookie names an account and its current token, but an older password. */
+    private function cookieOutlivedItsPassword($request): bool
+    {
+        $parts = explode('|', (string) $request->cookies->get($this->guard()->getRecallerName()), 3);
+        if (count($parts) !== 3 || $parts[0] === '' || $parts[1] === '') {
+            return false;
+        }
+
+        $user = $this->guard()->getProvider()->retrieveByToken($parts[0], $parts[1]);
+
+        return $user !== null && (string) $user->getAuthPassword() !== ''
+            && ! $this->validatePasswordHash($user->getAuthPassword(), $parts[2]);
     }
 }
