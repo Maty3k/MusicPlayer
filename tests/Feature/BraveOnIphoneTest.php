@@ -32,9 +32,14 @@ class BraveOnIphoneTest extends TestCase
 
     public function test_the_install_sheet_first_sends_brave_to_safari(): void
     {
-        $this->actingAs($this->member())->get('/')
-            ->assertOk()
-            ->assertSee('<p class="m-sleep-status" id="mInstallBrave" hidden>Brave can\'t add apps to the Home Screen. Open <b>localhost</b> in Safari, then:</p>', false)
+        $response = $this->actingAs($this->member())->get('/');
+        // The address the page was opened at, as the view reads it (in a
+        // test it comes from APP_URL, which differs from machine to machine)
+        $host = $response->baseRequest->getHttpHost();
+
+        $this->assertNotSame('', $host);
+        $response->assertOk()
+            ->assertSee('<p class="m-sleep-status" id="mInstallBrave" hidden>Brave can\'t add apps to the Home Screen. Open <b>'.e($host).'</b> in Safari, then:</p>', false)
             ->assertSeeInOrder(['id="mInstallSheet"', 'id="mInstallBrave"', 'id="mInstallStepsIos"', 'In <b>Safari</b>, tap'], false);
     }
 
