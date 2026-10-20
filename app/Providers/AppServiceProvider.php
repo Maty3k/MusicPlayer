@@ -21,17 +21,18 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * On Laravel Cloud, Laravel 13.38 sends reads to a read replica whenever
-     * DB_READ_HOST is set, but fills in only the connection's 'read' half.
-     * Without a 'write' half the connection can't be built, so every request
+     * DB_READ_HOST is set, but fills in only the connection's 'read' half
+     * (and copies it to pgsql-unpooled, the connection migrations use).
+     * Without a 'write' half a connection can't be built, so every request
      * and artisan command would crash. 13.19 ignored the replica, and so does
      * this, until config/database.php describes both halves.
      */
     private function ignoreAReadReplicaTheConnectionCannotUse(): void
     {
-        $connection = 'database.connections.'.config('database.default');
-
-        if (config($connection.'.read') !== null && config($connection.'.write') === null) {
-            config([$connection.'.read' => null]);
+        foreach ((array) config('database.connections') as $name => $connection) {
+            if (is_array($connection) && isset($connection['read']) && ! isset($connection['write'])) {
+                config(["database.connections.{$name}.read" => null]);
+            }
         }
     }
 
