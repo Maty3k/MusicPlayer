@@ -23,6 +23,15 @@ class UploadSongTest extends TestCase
         return new UploadedFile($path, 'My Song.mp3', 'audio/mpeg', null, true);
     }
 
+    /** A real (1×1) PNG so mime sniffing sees image/png. */
+    private function makePng(): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'png');
+        file_put_contents($path, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
+
+        return new UploadedFile($path, 'cover.png', 'image/png', null, true);
+    }
+
     private function verifiedUser(): User
     {
         return User::forceCreate([
@@ -69,6 +78,31 @@ class UploadSongTest extends TestCase
         ])->assertJson(['success' => true]);
 
         Storage::disk('local')->assertMissing("music/{$user->id}/{$filename}");
+    }
+
+    public function test_a_cover_image_is_stored_with_the_song(): void
+    {
+        Storage::fake('local');
+        $user = $this->verifiedUser();
+
+        $res = $this->actingAs($user)->post('/upload-song', ['audio' => $this->makeMp3(), 'cover' => $this->makePng()]);
+
+        $res->assertOk()->assertJson(['success' => true]);
+        $this->assertMatchesRegularExpression('#^/media/[0-9a-f-]{36}\.png$#', $res->json('cover'));
+        Storage::disk('local')->assertExists("music/{$user->id}/".basename($res->json('cover')));
+    }
+
+    public function test_an_empty_field_named_cover_cannot_slip_an_unchecked_file_past_validation(): void
+    {
+        Storage::fake('local');
+        $user = $this->verifiedUser();
+        $page = UploadedFile::fake()->createWithContent('page.html', '<script>alert(1)</script>'.str_repeat(' ', 3 * 1024 * 1024));
+
+        // A hand-made request: an empty text part and a file part, both named cover.
+        $res = $this->actingAs($user)->call('POST', '/upload-song', ['cover' => ''], [], ['audio' => $this->makeMp3(), 'cover' => $page]);
+
+        $res->assertOk()->assertJson(['success' => true, 'cover' => '']);
+        $this->assertCount(1, Storage::disk('local')->files("music/{$user->id}"));
     }
 
     public function test_rejects_non_audio_and_traversal_probes(): void
