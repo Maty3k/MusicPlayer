@@ -15397,6 +15397,9 @@ if (IS_IOS) {
             const items = [...pop.querySelectorAll('.send-menu-item')];
             items.forEach((it) => {
                 it.setAttribute('role', 'menuitem');
+                // A menu item can't carry aria-pressed (the ♥ row's, from the
+                // phone's sheet): its label says which way it goes
+                it.removeAttribute('aria-pressed');
                 it.tabIndex = -1;
                 if (it.tagName !== 'BUTTON') {
                     const n = it.querySelector('.send-menu-name');
