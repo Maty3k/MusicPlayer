@@ -17,7 +17,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Laravel Cloud terminates TLS at its load balancer; trust its proxy
         // headers so signed URLs (email verification) and redirects use https.
-        $middleware->trustProxies(at: '*');
+        // Only the direct caller counts as a proxy. Laravel 13.38's '*' trusts
+        // every address, which makes the visitor's address the left-most
+        // X-Forwarded-For entry, one they can write themselves, so every
+        // per-address limit (PIN tries, new accounts, reset mails) could be
+        // dodged. 'REMOTE_ADDR' is what '*' meant up to 13.19.
+        $middleware->trustProxies(at: 'REMOTE_ADDR');
 
         // A changed password or PIN ends the sessions on every other device.
         $middleware->appendToGroup('web', EndSessionsOnPasswordChange::class);
