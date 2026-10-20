@@ -16,9 +16,10 @@ use Illuminate\Session\Middleware\AuthenticateSession;
  *  - it keeps one hash per session and nothing about whose it is, so a
  *    session that turns up under another account (a sign-in that kept the
  *    session, a test acting as two users) starts counting afresh;
- *  - it stores the hash only on requests that arrive signed in, so the
- *    session handed out by a sign-in carried none, and a copy kept back
- *    from that moment would have taken on the new hash later;
+ *  - the session handed out by a sign-in has to be bound to its owner too.
+ *    Laravel 13.19 stored no hash at sign-in, and 13.38 stores one without
+ *    an owner. Either way the next request started counting afresh, so a
+ *    copy kept back from that moment would have taken on the new hash later;
  *  - a request that overlapped a password change made on this device can
  *    write the old hash back. The device then also holds a "stay signed in"
  *    cookie made after the change, which proves it has the new password.
@@ -40,12 +41,16 @@ class EndSessionsOnPasswordChange extends AuthenticateSession
 
         $response = parent::handle($request, $next);
 
-        // Bind the session to the password the moment it signs in.
+        // Bind the session to the password and its owner the moment it signs in.
         $user = $this->guard()->user();
-        if ($request->hasSession() && $user && $user->getAuthPassword()
-            && ! $request->session()->has($this->hashKey())) {
-            $request->session()->put('password_hash_owner', (string) $user->getAuthIdentifier());
-            $this->storePasswordHashInSession($request);
+        if ($request->hasSession() && $user && $user->getAuthPassword()) {
+            $owner = (string) $user->getAuthIdentifier();
+
+            if ((string) $request->session()->get('password_hash_owner') !== $owner
+                || ! $request->session()->has($this->hashKey())) {
+                $request->session()->put('password_hash_owner', $owner);
+                $this->storePasswordHashInSession($request);
+            }
         }
 
         return $response;
