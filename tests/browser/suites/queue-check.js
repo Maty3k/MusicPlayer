@@ -38,6 +38,7 @@
 // and recorded (reads go through); /search-youtube is faked; YouTube songs
 // play on a stub, Cloudflare songs on the page's own MP3 engine.
 const fs = require('fs');
+const net = require('net');
 const path = require('path');
 const { spawn } = require('child_process');
 const L = require('../lib');
@@ -64,17 +65,37 @@ const keyOf = (s) => (s.youtube_id ? 'yt:' + s.youtube_id : s.spotify_id ? 'sp:'
     : s.mp3_url ? 'mp3:' + String(s.mp3_url).trim()
         : 'tt:' + String(s.title || '').trim().toLowerCase() + '|' + String(s.artist || '').trim().toLowerCase());
 
-// ---- The two servers, stopped however the suite ends
+// ---- The two servers, stopped however the suite ends. PHP's server forks
+// its workers (PHP_CLI_SERVER_WORKERS) and they keep the port when only the
+// first process stops: each server gets a process group of its own, and
+// the whole group is stopped.
 const children = [];
 function serve(name, args, cwd, env) {
     const log = fs.openSync(L.shot('logs', `queue-check.${name}.txt`), 'w');
-    const child = spawn('php', args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', log, log] });
+    const child = spawn('php', args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', log, log], detached: true });
     child.on('error', () => {}); // no php: the wait below says so
     children.push(child);
+    return child;
 }
-const stopServers = () => children.forEach((c) => { try { c.kill(); } catch (e) { /* gone */ } });
+const running = (c) => !!c.pid && c.exitCode === null && c.signalCode === null;
+function stopServers() {
+    for (const c of children.splice(0)) {
+        try { process.kill(-c.pid, 'SIGTERM'); } catch (e) { /* gone */ }
+    }
+}
 process.on('exit', stopServers);
-['SIGINT', 'SIGTERM'].forEach((sig) => process.on(sig, () => { stopServers(); process.exit(1); }));
+['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((sig) => process.on(sig, () => { stopServers(); process.exit(1); }));
+// Anything already listening there (servers a killed run left behind,
+// wrangler dev on 8787) would answer instead of the ones started here
+function listening(host, port) {
+    return new Promise((resolve) => {
+        const socket = net.connect({ host, port });
+        const done = (yes) => { socket.destroy(); resolve(yes); };
+        socket.setTimeout(1000, () => done(false));
+        socket.once('connect', () => done(true));
+        socket.once('error', () => done(false));
+    });
+}
 async function up(url, ms = 30000) {
     const stop = Date.now() + ms;
     while (Date.now() < stop) {
@@ -624,19 +645,29 @@ async function run(b) {
 }
 
 (async () => {
-    serve('worker', ['-S', '127.0.0.1:8787', path.join(L.ROOT, 'fixtures', 'cloud-worker.php')], path.join(L.ROOT, 'fixtures'),
-        { CLOUD_MUSIC_TOKEN: TOKEN, PHP_CLI_SERVER_WORKERS: '4' });
-    // Laravel's server.php serves from the working directory: public/
-    serve('app', ['-S', `${HOST}:8125`, '../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php'], path.join(REPO, 'public'),
-        { CLOUD_MUSIC_URL: WORKER, CLOUD_MUSIC_TOKEN: TOKEN, APP_URL: APP.slice(0, -1), PHP_CLI_SERVER_WORKERS: '4' });
-    const servers = { worker: await up(`${WORKER}/list?t=${TOKEN}`), app: await up(APP + 'up') };
-    check('setup: the stand-in Worker and the app with the Cloudflare source came up', servers.worker && servers.app, servers);
-    if (servers.worker && servers.app) {
-        const b = await L.launch();
-        try {
-            await run(b);
-        } finally {
-            await b.close();
+    const taken = { worker: await listening('127.0.0.1', 8787), app: await listening(HOST, 8125) };
+    check('setup: nothing else listens on 8787 or 8125 (else stop it: lsof -nP -iTCP:8787 -iTCP:8125 -sTCP:LISTEN)', !taken.worker && !taken.app, taken);
+    if (!taken.worker && !taken.app) {
+        const worker = serve('worker', ['-S', '127.0.0.1:8787', path.join(L.ROOT, 'fixtures', 'cloud-worker.php')], path.join(L.ROOT, 'fixtures'),
+            { CLOUD_MUSIC_TOKEN: TOKEN, PHP_CLI_SERVER_WORKERS: '4' });
+        // Laravel's server.php serves from the working directory: public/.
+        // Its cache lives in each request's memory: in the database, the
+        // rate limits' counters (written on every song file asked for) had
+        // its four workers writing the shared SQLite file at once, and one
+        // that found it locked failed its request (that song "can't play").
+        const app = serve('app', ['-S', `${HOST}:8125`, '../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php'], path.join(REPO, 'public'),
+            { CLOUD_MUSIC_URL: WORKER, CLOUD_MUSIC_TOKEN: TOKEN, APP_URL: APP.slice(0, -1), PHP_CLI_SERVER_WORKERS: '4', CACHE_STORE: 'array' });
+        const servers = { worker: await up(`${WORKER}/list?t=${TOKEN}`), app: await up(APP + 'up') };
+        // (a server that couldn't take its port has already exited)
+        servers.running = running(worker) && running(app);
+        check('setup: the stand-in Worker and the app with the Cloudflare source came up', servers.worker && servers.app && servers.running, servers);
+        if (servers.worker && servers.app && servers.running) {
+            const b = await L.launch();
+            try {
+                await run(b);
+            } finally {
+                await b.close();
+            }
         }
     }
     stopServers();
