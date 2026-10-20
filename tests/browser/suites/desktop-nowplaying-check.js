@@ -10,7 +10,8 @@
 // while lyrics are off); the song, artist and "Playing from" (also after
 // adopting a playlist that was only shown); the turntable extras (pitch as
 // a keyboard slider, crackle in step with the sidebar and Settings, ⋯ with
-// Make a GIF and Show in playlist); the deck's old transport and volume
+// Make a GIF, Show in playlist, Play next and Add to queue); the deck's old
+// transport and volume
 // knob hidden (the knob still following the bar's volume); the bar's
 // progress ticking with the page open; axe; reduced motion stopping the
 // platter; and that phones (390x844, 844x390) and the app shell (?app=1)
@@ -346,8 +347,8 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             const f2 = await p.evaluate(() => document.activeElement.textContent.trim());
             await p.keyboard.press('Escape'); await p.waitForTimeout(150);
             const m2 = await p.evaluate(() => ({ hidden: document.getElementById('dvNpMenu').hidden, exp: document.getElementById('dvNpMore').getAttribute('aria-expanded'), focus: document.activeElement.id, open: document.getElementById('musicPlayerView').classList.contains('dv-deck') }));
-            check(`${tag} D ⋯ opens Make a GIF / Show in playlist on screen above the bar, focus on the first; ↓ moves; Esc closes back onto ⋯ (the page stays)`,
-                m1.shown && m1.exp === 'true' && m1.items.join('|') === 'Make a GIF|Show in playlist' && m1.focus === 'Make a GIF' && m1.inView
+            check(`${tag} D ⋯ opens Make a GIF / Show in playlist / Play next / Add to queue on screen above the bar, focus on the first; ↓ moves; Esc closes back onto ⋯ (the page stays)`,
+                m1.shown && m1.exp === 'true' && m1.items.join('|') === 'Make a GIF|Show in playlist|Play next|Add to queue' && m1.focus === 'Make a GIF' && m1.inView
                 && f2 === 'Show in playlist' && m2.hidden && m2.exp === 'false' && m2.focus === 'dvNpMore' && m2.open, { m1, f2, m2 });
             // Make a GIF opens its window
             await p.click('#dvNpMore'); await p.waitForTimeout(100);

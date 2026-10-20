@@ -78,6 +78,43 @@ class AddToChosenPlaylistTest extends TestCase
         $this->assertSame(1, $gym->songs()->count());
     }
 
+    public function test_a_queued_song_saved_from_its_row_keeps_its_file_and_spotify_id(): void
+    {
+        // What the + beside a queued song sends (script.js saveRadioSong): the
+        // song's own fields, so an upload or a Spotify song isn't stored as a
+        // title-only copy that later plays some YouTube match
+        $this->add(['playlist' => 'gym', 'song' => [
+            'title' => 'Own Upload', 'artist' => 'C', 'album' => 'Demos', 'cover' => '/media/covers/own.jpg',
+            'youtube_id' => '', 'mp3_url' => '/media/uploads/own.mp3', 'spotify_id' => '',
+        ]])->assertOk()->assertJson(['success' => true, 'index' => 0]);
+        $this->add(['playlist' => 'gym', 'song' => [
+            'title' => 'Spotify Only', 'artist' => 'D', 'album' => '', 'cover' => '',
+            'youtube_id' => '', 'mp3_url' => '', 'spotify_id' => '4uLU6hMCjMI75M1A2tKUQC',
+        ]])->assertOk()->assertJson(['success' => true, 'index' => 1]);
+
+        $songs = $this->user->playlists()->where('slug', 'gym')->first()->songs()->orderBy('position')->get();
+        $this->assertSame('/media/uploads/own.mp3', $songs[0]->mp3_url);
+        $this->assertSame('/media/covers/own.jpg', $songs[0]->cover);
+        $this->assertSame('Demos', $songs[0]->album);
+        $this->assertSame('4uLU6hMCjMI75M1A2tKUQC', $songs[1]->spotify_id);
+        // The key the page gives the queued song: its row then shows ✓, not a second +
+        $this->assertSame(['mp3:/media/uploads/own.mp3', 'sp:4uLU6hMCjMI75M1A2tKUQC'], $songs->map->frontendKey()->all());
+        $this->assertSame(1, (int) $this->user->playlists()->where('slug', 'favorites')->first()->current_index, 'what plays is left alone');
+    }
+
+    public function test_a_saved_song_with_an_unsafe_file_address_keeps_only_what_is_safe(): void
+    {
+        $this->add(['playlist' => 'gym', 'song' => ['title' => 'Sneaky', 'artist' => 'E', 'mp3_url' => 'javascript:alert(1)', 'spotify_id' => '4uLU6hMCjMI75M1A2tKUQC']])
+            ->assertOk()->assertJson(['success' => true]);
+        $this->add(['playlist' => 'gym', 'song' => ['title' => 'Nothing Left', 'artist' => 'E', 'mp3_url' => 'data:audio/mpeg;base64,AAAA', 'spotify_id' => 'not-an-id']])
+            ->assertOk()->assertJson(['success' => false]);
+
+        $songs = $this->user->playlists()->where('slug', 'gym')->first()->songs()->get();
+        $this->assertCount(1, $songs);
+        $this->assertSame('', $songs[0]->mp3_url);
+        $this->assertSame('4uLU6hMCjMI75M1A2tKUQC', $songs[0]->spotify_id);
+    }
+
     public function test_someone_elses_or_unknown_playlist_is_refused(): void
     {
         $other = User::forceCreate(['name' => 'Other', 'email' => 'other@example.com', 'password' => bcrypt('x-password'), 'email_verified_at' => now()]);

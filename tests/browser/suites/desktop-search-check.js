@@ -195,6 +195,17 @@ const QUERY = 'song 1'; // seeded titles are "Song N of <playlist>"
             check(`${tag} B the live status line says what was found`, said.some(x => /in your library/.test(x)) && /YouTube/.test(st.status) && !st.overflowX, { said, now: st.status });
             const ax2 = await axeScan(p);
             check(`${tag} B axe: the results have no violations`, ax2.length === 0, ax2);
+            // A result's ⋯ menu, open: its ♥ row is a menu item there, which
+            // can't carry aria-pressed (its label says which way it goes)
+            await p.click('#mSearchResults [data-lib-more="0"]'); await p.waitForTimeout(300);
+            const menuAx = await axeScan(p);
+            const like = await p.evaluate(() => {
+                const it = document.querySelector('.send-menu[role="menu"] .send-menu-like');
+                return it ? { role: it.getAttribute('role'), pressed: it.getAttribute('aria-pressed'), name: it.textContent.trim() } : null;
+            });
+            await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+            check(`${tag} B axe: a result's ⋯ menu open has no violations (its ♥ row a menu item, no aria-pressed)`,
+                menuAx.length === 0 && !!like && like.role === 'menuitem' && like.pressed === null && /Favorites$/.test(like.name), { menuAx, like });
 
             // ---- C. A library hit in the playing list plays right here
             const activeName = await p.evaluate(() => playlistsMeta[String(activePlaylistId)].name);
@@ -269,7 +280,7 @@ const QUERY = 'song 1'; // seeded titles are "Song N of <playlist>"
             const end = (await look(p)).focus;
             await p.keyboard.press('Escape');
             const back = (await look(p)).focus;
-            check(`${tag} F End goes to the last result (the last +), Esc back to the field`, end === `add=${YT.length - 1}` && back === 'mSearchInput', { end, back });
+            check(`${tag} F End goes to the last result's last button (its ⋯), Esc back to the field`, end === `ytMore=${YT.length - 1}` && back === 'mSearchInput', { end, back });
 
             // ---- G. A pasted YouTube playlist link offers the import
             const url = 'https://www.youtube.com/playlist?list=PLabcdefghij0123';

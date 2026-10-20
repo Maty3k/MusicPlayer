@@ -1037,10 +1037,21 @@ body {
     justify-content: center;
     gap: 10px 14px;
     width: max-content;
+    /* Opaque: it stays up over the page's heading, which showed through */
+    background: rgb(24, 19, 14);
     border-color: rgba(var(--amber-rgb), 0.45);
     color: var(--cream);
     text-align: center;
 }
+
+/* Its display: flex would beat the hidden attribute */
+.app-flash-offer[hidden] { display: none; }
+
+/* Desktop: a song menu lives in #music-section, whose z-index (200) caps
+   its own, so one pushed up to the top of a short window would sit under
+   the offers (Play next covered). They wait while a menu is open, as on a
+   phone under Now Playing; any click away closes the menu. */
+html.dv2 body:has(.send-menu) .app-flash-offer { visibility: hidden; }
 
 .app-flash-actions { display: inline-flex; gap: 8px; }
 
@@ -1067,6 +1078,11 @@ body {
 .app-flash-btn-quiet:hover { background: rgba(255, 245, 233, 0.14); color: var(--cream); }
 
 .app-flash-btn:focus-visible { outline: 2px solid var(--cream-60); outline-offset: 2px; }
+
+/* Thumb-sized on touch screens */
+@media (pointer: coarse) {
+    .app-flash-btn { min-height: 44px; padding-inline: 18px; }
+}
 
 .record-card {
     position: relative;
@@ -10770,6 +10786,67 @@ html[data-theme="greenroom"] {
     font-size: 0.9rem;
 }
 
+/* Clear, armed: a second tap within 3 s clears (there's no undo) */
+.queue-clear-btn.is-armed,
+[data-theme] .queue-clear-btn.is-armed,
+html.dv2 #dvPanel .queue-clear-btn.is-armed {
+    background: rgba(232, 93, 117, 0.18);
+    border-color: rgba(232, 93, 117, 0.45);
+    color: #ffb3bf;
+}
+
+/* "Next from <the playlist, or Cloudflare>" under the queue, in the window
+   (the desktop's side panel styles its own) */
+#queueModal .dv-nf-label {
+    margin-top: 20px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+#queueModal .dv-nf-item { padding: 0; }
+#queueModal .dv-nf-row {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+#queueModal .dv-nf-row:active { background: rgba(255, 245, 233, 0.07); }
+#queueModal .dv-nf-row .queue-item-info { display: flex; flex-direction: column; }
+#queueModal .dv-nf-note {
+    margin: 0 4px;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--cream-60);
+}
+
+/* Phones: a 44px handle at the row's right edge, clear of the cover (a near
+   miss there plays the song now and drops the ones above it), and a 44px ×
+   beside it */
+@media (max-width: 600px), (max-height: 500px) and (pointer: coarse) {
+    #queueModal .queue-drag-handle {
+        order: 1;
+        width: 44px;
+        height: 44px;
+        margin: 0 -4px 0 0;
+    }
+    #queueModal .queue-drag-handle svg { width: 18px; height: 18px; }
+    #queueModal .queue-item-remove {
+        width: 44px;
+        height: 44px;
+    }
+}
+
 /* Stats */
 .stats-range { margin: 0 0 18px; }
 
@@ -14298,6 +14375,10 @@ button.send-menu-cancel {
         bottom: auto;
         pointer-events: none;
     }
+
+    /* The offers at the top (a new version, a shared playlist) would sit
+       on Now Playing's chevron and ⋯: they wait under it until it closes */
+    body.m-np-open .app-flash-offer { visibility: hidden; }
 }
 
 /* Short phones: the tools row costs height, so the record shrinks rather
@@ -14836,6 +14917,15 @@ button.send-menu-cancel {
     }
 
     .m-you-logout-form { margin: 28px 0 0; }
+
+    /* The build this phone runs, under Log out */
+    .m-you-version {
+        margin: 16px 0 0;
+        text-align: center;
+        font-size: 0.8rem;
+        font-variant-numeric: tabular-nums;
+        color: color-mix(in srgb, var(--cream) 65%, transparent);
+    }
 
     /* How to install, when the browser offers no prompt */
     .m-install-steps {
@@ -19520,6 +19610,61 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded {
 }
 html.dv2 #mSearchResults .m-sr-dl:hover { background: var(--dv-hover); color: var(--cream); }
 html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
+/* A Search row's ⋯ (Cloudflare, library and YouTube rows, and the library
+   search window's hits): the song sheet for songs that aren't playlist
+   rows. A playlist row's ⋯ (.song-send-btn): its glyph and colour, 44px on
+   phones, the desktop list's size there. */
+#mSearchResults .m-sr-more,
+#searchResults .m-sr-more {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: rgba(212, 165, 116, 0.8);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.m-sr-more::after {
+    content: '\22EF';
+    font-size: 1.4rem;
+    line-height: 1;
+}
+#mSearchResults .m-sr-more:active,
+#searchResults .m-sr-more:active { opacity: 0.7; }
+#mSearchResults .m-sr-more:focus-visible,
+#searchResults .m-sr-more:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+#searchResults .m-sr-more:hover { background: rgba(212, 165, 116, 0.08); }
+/* The library search window: a hit and its ⋯ side by side */
+.search-result-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.search-result-line .search-result {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+html.dv2 #mSearchResults .m-sr-more {
+    width: 36px;
+    height: 36px;
+    color: color-mix(in srgb, var(--cream) 70%, transparent);
+}
+html.dv2 #mSearchResults .m-sr-more::after { font-size: 1.3rem; }
+html.dv2 #mSearchResults .m-sr-more:hover { background: var(--dv-hover); color: var(--cream); }
+/* A YouTube card: at its bottom right, under the + on the cover (the order
+   Tab and the arrow keys take), the title kept clear of it */
+html.dv2 #mSearchResults .m-sr-yt .m-sr-more {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+}
+html.dv2 #mSearchResults .m-sr-yt .search-result-info { padding-right: 34px; }
 /* Settings → Source → On this device: a button that can't act now looks it,
    but stays focusable (aria-disabled, not disabled) */
 .settings-source-btn[aria-disabled="true"] { opacity: 0.45; pointer-events: none; }
@@ -19556,12 +19701,15 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
            showed as a line above Safari's toolbar */
         .send-menu-sheet { border-width: 1px 0 0; }
 
-        /* ---- In a Safari tab: what Safari paints at the edges ---- */
+        /* ---- In a Safari tab: what Safari paints at the edges ----
+           Not in Brave (html.m-brave, player.blade.php): its own bars are
+           opaque and cover that paint, so the strips would only show as
+           bands there, and everything else keeps its usual place */
         @media (display-mode: browser) {
             /* Real fixed strips in the colour each screen has at that edge
                (player.blade.php), so Safari's strips match the screen
                instead of keeping an earlier screen's colour */
-            html[data-m-tab] .m-edge {
+            html[data-m-tab]:not(.m-brave) .m-edge {
                 display: block;
                 position: fixed;
                 left: 0;
@@ -19570,21 +19718,21 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
                 z-index: 201; /* over the page and Now Playing, under the tab bar, the dock and sheets */
                 pointer-events: none;
             }
-            html[data-m-tab] #mEdgeTop { top: 0; background: var(--ink); }
-            html[data-m-tab="search"] #mEdgeTop { background: var(--sleeve); }
+            html[data-m-tab]:not(.m-brave) #mEdgeTop { top: 0; background: var(--ink); }
+            html[data-m-tab="search"]:not(.m-brave) #mEdgeTop { background: var(--sleeve); }
             /* The playlist screen and You have sticky bars Safari reads */
-            html[data-m-tab].m-pv #mEdgeTop,
-            html[data-m-tab].m-you #mEdgeTop { display: none; }
-            html[data-m-tab] #mEdgeBottom { bottom: 0; display: none; background: rgb(8 7 7); }
+            html[data-m-tab].m-pv:not(.m-brave) #mEdgeTop,
+            html[data-m-tab].m-you:not(.m-brave) #mEdgeTop { display: none; }
+            html[data-m-tab]:not(.m-brave) #mEdgeBottom { bottom: 0; display: none; background: rgb(8 7 7); }
             /* Search's field sticks below the strip (and its 8px ring meets
                it), not under it */
-            html[data-m-tab] #mSearchPage .m-search-field { top: 20px; }
+            html[data-m-tab]:not(.m-brave) #mSearchPage .m-search-field { top: 20px; }
 
             /* Now Playing: dark at both edges (its own colour at the bottom),
                the top fading into the cover art. Its header moves down by
                the strip. */
-            html[data-m-tab] body.m-np-open #mEdgeTop { display: block; background: rgb(10 8 8); }
-            html[data-m-tab] body.m-np-open #mEdgeTop::after {
+            html[data-m-tab]:not(.m-brave) body.m-np-open #mEdgeTop { display: block; background: rgb(10 8 8); }
+            html[data-m-tab]:not(.m-brave) body.m-np-open #mEdgeTop::after {
                 content: '';
                 position: absolute;
                 top: 100%;
@@ -19593,13 +19741,13 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
                 height: 16px;
                 background: linear-gradient(rgb(10 8 8), rgba(10, 8, 8, 0));
             }
-            html[data-m-tab] body.m-np-open #mEdgeBottom { display: block; }
-            html[data-m-tab] #mNpHeader { padding-top: 18px; }
-            html[data-m-tab] #mNpHeader .m-grab { top: 16px; }
+            html[data-m-tab]:not(.m-brave) body.m-np-open #mEdgeBottom { display: block; }
+            html[data-m-tab]:not(.m-brave) #mNpHeader { padding-top: 18px; }
+            html[data-m-tab]:not(.m-brave) #mNpHeader .m-grab { top: 16px; }
 
             /* Home and Library start in the strip's colour (the room's
                vignette and glow darkened and warmed the very top) */
-            html[data-m-tab] .room-bg::before {
+            html[data-m-tab]:not(.m-brave) .room-bg::before {
                 content: '';
                 position: absolute;
                 inset: 0 0 auto;
@@ -19611,8 +19759,8 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
 
             /* A dimming sheet can't reach Safari's strip: its top stays
                clear, so strip and page meet without a line */
-            .add-song-modal-backdrop { background: linear-gradient(rgba(18, 12, 8, 0), rgba(18, 12, 8, 0.6) 56px); }
-            .send-menu-backdrop { background: linear-gradient(rgba(18, 12, 8, 0), rgba(18, 12, 8, 0.55) 56px); }
+            html:not(.m-brave) .add-song-modal-backdrop { background: linear-gradient(rgba(18, 12, 8, 0), rgba(18, 12, 8, 0.6) 56px); }
+            html:not(.m-brave) .send-menu-backdrop { background: linear-gradient(rgba(18, 12, 8, 0), rgba(18, 12, 8, 0.55) 56px); }
         }
     }
 }
@@ -19627,6 +19775,7 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
     html[data-m-tab] #mDock,
     html[data-m-tab] .m-rp-tile,
     html[data-m-tab] .song-list-item,
+    html[data-m-tab] .queue-item,
     html[data-m-tab] .m-you-row {
         -webkit-user-select: none;
         -webkit-touch-callout: none;
@@ -19637,6 +19786,12 @@ html.dv2 #mSearchResults .m-sr-dl.is-downloaded:hover { color: var(--amber); }
        swipe shrank or grew the toolbar, moving every fixed bar with it.
        Everything on the player page is fixed; only its lists scroll. */
     html[data-m-tab] body { min-height: 0; }
+
+    /* Nor be pulled down: a drag past the top of a list could reach the
+       page, and Safari's and Brave's pull-to-refresh would reload it
+       mid-song. The root only (the property isn't inherited): every list
+       keeps its own scrolling and bounce. */
+    html[data-m-tab] { overscroll-behavior-y: none; }
 
     /* A field under 16px makes iOS zoom the page in on focus, and it stays
        zoomed: these were under the phone floor. Landscape too, where the

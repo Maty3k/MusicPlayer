@@ -26,9 +26,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    {{-- This page's build (App\Support\AppBuild): script.js compares it with
+         /version to notice a deploy that came out after the page opened --}}
+    <meta name="app-build" content="{{ \App\Support\AppBuild::id() }}">
     <title>Music Player</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#14262b">
+    {{-- Brave's Night Mode (Dark Reader) would recolour a page that is dark already --}}
+    <meta name="darkreader-lock">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -59,6 +64,12 @@
            and a reload reopens the tab its history entry was on. */
         (function () {
             var root = document.documentElement;
+            // Brave (on iPhone a WebKit browser like Safari, with opaque bars
+            // of its own): Safari's edge strips would only add bands there
+            // (styles.css, IPHONE), and it can't add apps to the Home Screen
+            // (script.js, the Install sheet)
+            window.IS_BRAVE = !!navigator.brave || /\bBrave\b/.test(navigator.userAgent);
+            if (window.IS_BRAVE) root.classList.add('m-brave');
             if (window.ReactNativeWebView || new URLSearchParams(location.search).has('app')) {
                 root.classList.add('app-shell');
                 return;
@@ -95,6 +106,33 @@
          display:none everywhere else). script.js (desktopKeys) moves focus
          to the page's heading (the Search page's field). --}}
     <a href="#music-section" class="dv-skip" id="dvSkip">Skip to content</a>
+
+    {{-- The offers at the top, outside #music-section: its z-index (200)
+         would cap theirs, and the desktop side panel (250) covered their
+         buttons. Here they sit over the page, its panel, bar and dock, and
+         under every sheet (10000). --}}
+    {{-- A newer build than this page (script.js, "New versions"). Shown
+         only when it can't reload by itself: music on, a sheet open… --}}
+    <div class="app-flash app-flash-offer" id="appUpdateOffer" role="status" hidden>
+        <span>A new version of the app is ready.</span>
+        <span class="app-flash-actions">
+            <button type="button" class="app-flash-btn" id="appUpdateNow">Refresh</button>
+            <button type="button" class="app-flash-btn app-flash-btn-quiet" id="appUpdateLater">Later</button>
+        </span>
+    </div>
+    @if (!empty($pendingShare))
+    {{-- Saved from a share page before signing in: offered, never copied
+         without a click. Named by its question (a form landmark, outside
+         the main one). --}}
+    <form class="app-flash app-flash-offer" id="pendingShareOffer" method="POST" action="{{ route('shared.add', $pendingShare['token']) }}" aria-labelledby="pendingShareText">
+        @csrf
+        <span id="pendingShareText">Save “{{ $pendingShare['name'] }}” ({{ $pendingShare['count'] }} {{ Str::plural('song', $pendingShare['count']) }}) to your library?</span>
+        <span class="app-flash-actions">
+            <button type="submit" class="app-flash-btn">Save</button>
+            <button type="button" class="app-flash-btn app-flash-btn-quiet" onclick="this.closest('form').remove()">No thanks</button>
+        </span>
+    </form>
+    @endif
 
     {{-- Desktop sidebar: Home, Search, Your Library, + (html.dv2 only;
          display:none everywhere else). script.js (desktopSidebar) fills the
@@ -246,17 +284,6 @@
         @if (session('status'))
         <div class="app-flash" id="appFlash">{{ session('status') }}</div>
         <script>setTimeout(function () { var f = document.getElementById('appFlash'); if (f) f.remove(); }, 4200);</script>
-        @endif
-        @if (!empty($pendingShare))
-        {{-- Saved from a share page before signing in: offered, never copied without a click --}}
-        <form class="app-flash app-flash-offer" id="pendingShareOffer" method="POST" action="{{ route('shared.add', $pendingShare['token']) }}">
-            @csrf
-            <span>Save “{{ $pendingShare['name'] }}” ({{ $pendingShare['count'] }} {{ Str::plural('song', $pendingShare['count']) }}) to your library?</span>
-            <span class="app-flash-actions">
-                <button type="submit" class="app-flash-btn">Save</button>
-                <button type="button" class="app-flash-btn app-flash-btn-quiet" onclick="this.closest('form').remove()">No thanks</button>
-            </span>
-        </form>
         @endif
         <div class="vinyl-crate-view" id="vinylCrateView">
             <!-- Room background: only its vignette (.room-bg::after) is left -->
@@ -723,6 +750,8 @@
                 @csrf
                 <button type="submit" class="m-you-logout">Log out</button>
             </form>
+            {{-- Which version this phone runs, to read out when asked --}}
+            <p class="m-you-version" id="mYouVersion">Version {{ \App\Support\AppBuild::label() }}</p>
         </section>
 
         <!-- Music Player View (hidden initially) -->
@@ -1254,6 +1283,8 @@
         <div class="dv-np-menu" id="dvNpMenu" role="menu" aria-label="More for this song" hidden>
             <button type="button" role="menuitem" data-dv-np="gif">Make a GIF</button>
             <button type="button" role="menuitem" data-dv-np="show">Show in playlist</button>
+            <button type="button" role="menuitem" data-dv-np="next">Play next</button>
+            <button type="button" role="menuitem" data-dv-np="queue">Add to queue</button>
         </div>
     </div>
     {{-- Show the bar from the first paint when the playing list has songs
@@ -1761,6 +1792,8 @@
                 <li>Tap <b>Install app</b>, or <b>Add to Home screen</b> and then <b>Install</b>.</li>
                 <li>Open Music from the new icon. You can remove the old one.</li>
             </ol>
+            {{-- Brave on iPhone has no Add to Home Screen (script.js shows this there) --}}
+            <p class="m-sleep-status" id="mInstallBrave" hidden>Brave can't add apps to the Home Screen. Open <b>{{ request()->getHttpHost() }}</b> in Safari, then:</p>
             <ol class="m-install-steps" id="mInstallStepsIos" hidden>
                 <li>In <b>Safari</b>, tap <b>⋯</b> (or <b>Share</b>) next to the address bar, then <b>Share</b>.</li>
                 <li>Scroll to <b>Add to Home Screen</b>, keep <b>Open as Web App</b> on, and tap <b>Add</b>.</li>
@@ -2113,7 +2146,7 @@
                     <button type="button" class="settings-source-btn" id="cloudRemoveDownloadsBtn" onclick="cloudMusic.removeDownloads()">Remove downloads</button>
                 </div>
                 <p class="settings-hint">Downloaded songs play with no internet, also with the phone locked. Offline, Search lists them. To keep just one song, use the button next to it in Search. Logging out removes them from this device.</p>
-                <p class="settings-hint" id="cloudIosNote" hidden>Safari removes downloads from sites you don't open for a week. The app on your Home Screen keeps them (in Safari: Share → Add to Home Screen).</p>
+                <p class="settings-hint" id="cloudIosNote" hidden>On iPhone, the browser removes downloads from sites you don't open for a week. The app on your Home Screen keeps them (add it in Safari: Share → Add to Home Screen).</p>
             </div>
             </div>
             </div>
@@ -2194,6 +2227,8 @@
                     @csrf
                     <button type="submit" class="add-song-btn-cancel">Log out</button>
                 </form>
+                {{-- Every layout reaches this (desktop, landscape, the app) --}}
+                <p class="settings-hint" id="settingsVersion">Version {{ \App\Support\AppBuild::label() }}</p>
             </div>
             </div>
             </div>

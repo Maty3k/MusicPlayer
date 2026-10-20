@@ -53,7 +53,9 @@ class SaveSharedThroughSignInTest extends TestCase
         // a ?save= link could come from anyone, so nothing is copied yet.
         $this->actingAs($newcomer)->get('/')->assertOk()
             ->assertSee('Save “Road Trip” (1 song) to your library?', false)
-            ->assertSee('/s/shareme12345/add', false);
+            ->assertSee('/s/shareme12345/add', false)
+            // Above the page (outside #music-section), a form named by its question
+            ->assertSeeInOrder(['<body>', 'id="pendingShareOffer"', 'aria-labelledby="pendingShareText"', 'id="pendingShareText"', '<main id="music-section">'], false);
         $this->assertSame(0, $newcomer->playlists()->where('name', 'Road Trip')->count());
 
         // Their click saves it, and the offer isn't repeated.

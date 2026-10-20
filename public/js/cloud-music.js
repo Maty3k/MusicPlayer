@@ -42,8 +42,11 @@ window.cloudMusic = (() => {
     let order = [];          // the list the playing song came from
     let pos = -1;            // its index in there
     let history = [];        // indexes played before (Back while shuffled)
+    let deck = [];           // shuffled: indexes of `order` still to come this pass
+    let deckFor = null;      // the order it was dealt for
     let shown = [];          // the rows on screen in Search
     let audioHooked = false;
+    let uploads = 0;         // upload batches going (they carry on after Settings closes)
 
     // On this device (see "On this device" below)
     const OFFLINE_CACHE = 'cloud-v1';          // sw.js serves it
@@ -288,11 +291,13 @@ window.cloudMusic = (() => {
                     + ' aria-pressed="' + (here || busy) + '" aria-busy="' + busy + '" aria-label="Keep ' + escapeHtml(s.title) + (s.artist ? ' by ' + escapeHtml(s.artist) : '') + ' on this device">'
                     + (busy ? SPIN : (here ? CHECK : DOWN)) + '</button>'
                 : '';
+            // Queue it, like it: the song sheet for songs that aren't playlist rows (script.js)
+            const more = '<button type="button" class="m-sr-more" data-cloud-more="' + i + '"' + key + ' aria-label="More options for ' + escapeHtml(s.title) + '"></button>';
             return '<div class="m-sr-row' + active + '">'
                 + '<button type="button" class="search-result" data-cloud="' + i + '"' + key + ' aria-label="Play ' + escapeHtml(s.title) + (s.artist ? ' by ' + escapeHtml(s.artist) : '') + '">'
                 + '<div class="search-result-cover search-result-cover-empty">' + NOTE + '</div>'
                 + '<span class="search-result-info"><span class="search-result-title">' + escapeHtml(s.title) + '</span>' + artist + '</span>'
-                + '</button>' + keep + '</div>';
+                + '</button>' + keep + more + '</div>';
         }).join('');
         if (n > MAX_ROWS) html += '<div class="m-search-hint m-search-hint-sm">Showing ' + MAX_ROWS + ' of ' + n + '. Type to narrow it down; Play all plays every one.</div>';
         // The library results' wrapper: the desktop Search page styles its rows by it
@@ -308,6 +313,17 @@ window.cloudMusic = (() => {
             if (s) toggleSong(s.cloud_key);
             return;
         }
+        // The phone keyboard would stay up (and keep the player dock hidden,
+        // or cover the song sheet)
+        const input = document.getElementById('mSearchInput');
+        const more = e.target.closest('[data-cloud-more]');
+        if (more) {
+            const i = parseInt(more.dataset.cloudMore, 10);
+            if (!shown[i] || typeof showLooseSongMenu !== 'function') return;
+            if (input && document.activeElement === input) input.blur();
+            showLooseSongMenu(more, shown, i); // Play next, Add to queue, ♥
+            return;
+        }
         const t = e.target.closest('[data-cloud], [data-cloud-all]');
         if (!t) return;
         const list = shown.slice();
@@ -320,8 +336,6 @@ window.cloudMusic = (() => {
         else if (typeof shuffleMode !== 'undefined' && shuffleMode !== 'off') idx = Math.floor(Math.random() * list.length);
         history = [];
         start(list, idx, true); // synchronous: this tap is what unlocks audio on iOS
-        // The phone keyboard would stay up (and keep the player dock hidden)
-        const input = document.getElementById('mSearchInput');
         if (input && document.activeElement === input) input.blur();
     }
 
@@ -333,8 +347,13 @@ window.cloudMusic = (() => {
     function start(list, idx, byUser) {
         const song = list[idx];
         if (!song) return;
+        // Another list: its shuffle deals a pass of its own
+        if (list !== order) { deck = []; deckFor = null; }
         order = list;
         pos = idx;
+        // A list song starts: a queued song played from here on notes this
+        // list as the one to come back to (script.js's queueReturn)
+        queueReturn = null;
         if (byUser && typeof noteUserSongAsk === 'function') noteUserSongAsk();
 
         currentRadioSong = song;
@@ -356,15 +375,23 @@ window.cloudMusic = (() => {
         markShownRow();
     }
 
-    // Next (dir 1) or back (dir -1) through the list the song came from.
-    // Offline (or with the server failing), only through the songs on this device.
-    function step(dir, byUser) {
+    // The playing song's place: in the list it came from, or else in the
+    // whole list (a Cloudflare song started elsewhere, e.g. Jump back in)
+    function locate() {
         if (!order.length) order = songs.slice();
         const cur = currentRadioSong && currentRadioSong.cloud_key;
         if (!order[pos] || order[pos].cloud_key !== cur) {
             pos = order.findIndex((s) => s.cloud_key === cur);
             if (pos < 0) { order = songs.slice(); pos = order.findIndex((s) => s.cloud_key === cur); }
         }
+    }
+
+    // Next (dir 1) or back (dir -1) through the list the song came from.
+    // Offline (or with the server failing), only through the songs on this
+    // device. keepPos: on from the place anchor() pinned (the song the queue
+    // interrupted), not from the song playing now (a queued one).
+    function step(dir, byUser, keepPos) {
+        if (keepPos) { if (!order.length) order = songs.slice(); } else locate();
         const n = order.length;
         if (!n) return;
         const limited = cantStream();
@@ -393,9 +420,31 @@ window.cloudMusic = (() => {
             if (next < 0) next = walk(from, -1, true);
         } else {
             if (shuffled && n > 1) {
-                const pool = [];
-                for (let i = 0; i < n; i++) if (i !== pos && playable(i)) pool.push(i);
-                next = pool.length ? pool[Math.floor(Math.random() * pool.length)] : walk(from, 1, true);
+                // A pass at a time, like a playlist's shuffle: every song
+                // that can play comes once before any comes again. A song
+                // that can't play now (offline) is skipped for this pass.
+                const deal = () => {
+                    deck = [];
+                    for (let i = 0; i < n; i++) if (i !== pos && playable(i)) deck.push(i);
+                    for (let i = deck.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [deck[i], deck[j]] = [deck[j], deck[i]];
+                    }
+                    deckFor = order;
+                };
+                let dealt = deckFor !== order;
+                if (dealt) deal();
+                while (next < 0) {
+                    if (!deck.length) {
+                        if (dealt) break; // nothing else can play
+                        deal();
+                        dealt = true;
+                        continue;
+                    }
+                    const i = deck.shift();
+                    if (i !== pos && i < n && playable(i)) next = i;
+                }
+                if (next < 0) next = walk(from, 1, true);
             } else {
                 // Loop off: the list played through, stop (a tap on Next still wraps)
                 next = walk(from, 1, byUser || typeof loopMode === 'undefined' || loopMode !== 'off');
@@ -405,6 +454,70 @@ window.cloudMusic = (() => {
         }
         if (next < 0) return;
         start(order, next, byUser);
+    }
+
+    // ---- The queue (script.js) interrupting the list ----
+    // A queued song is about to start: pin the list's place to the song
+    // playing now, so the list goes on after it, not after a queued song
+    function anchor() {
+        locate();
+    }
+    // The queue ran out: on from the pinned place, or (again: repeat one)
+    // that song once more
+    function resume(byUser, again) {
+        if (again && order[pos]) { start(order, pos, byUser); return; }
+        step(1, byUser, true);
+    }
+
+    // Where Up next's "Next from Cloudflare" counts from: the list, and the
+    // index in it the songs come after. place.anchored: the place anchor()
+    // pinned (the song the queue interrupted); place.after: that song's key
+    // (the queue's last song, script.js's queueTail); neither: the playing
+    // song. A song that isn't in the list it came from counts in the whole
+    // list, as step finds it.
+    function placeOf(place) {
+        let list = order.length ? order : songs;
+        if (place && place.anchored) return { list, at: pos };
+        const key = (place && place.after) || (currentRadioSong && currentRadioSong.cloud_key);
+        let at = list[pos] && list[pos].cloud_key === key ? pos : list.findIndex((s) => s.cloud_key === key);
+        if (at < 0) { list = songs; at = list.findIndex((s) => s.cloud_key === key); }
+        return { list, at };
+    }
+
+    // Up next's "Next from Cloudflare": the songs Next plays after the
+    // place (placeOf), in order, as step walks them. Shuffled there's no
+    // telling: none.
+    function upcoming(count, place) {
+        if (typeof shuffleMode !== 'undefined' && shuffleMode !== 'off') return [];
+        const { list, at } = placeOf(place);
+        const n = list.length;
+        const limited = cantStream();
+        // Loop off: the list plays through once (step's own rule for a song's end)
+        const wrap = typeof loopMode === 'undefined' || loopMode !== 'off';
+        const out = [];
+        for (let k = 1; k <= n && out.length < count; k++) {
+            let i = at + k;
+            if (i >= n) {
+                if (!wrap) break;
+                i %= n;
+            }
+            if (i === at) break; // round to the playing song
+            if (!limited || downloaded.has(list[i].cloud_key)) out.push(list[i]);
+        }
+        return out;
+    }
+
+    // A song picked in Up next's "Next from": on from there, in the list it
+    // was drawn from (place: as upcoming had it), which is the whole list
+    // when the playing song isn't in the one it came from
+    function jumpTo(key, place) {
+        if (typeof isChangingSong !== 'undefined' && isChangingSong) return;
+        const { list, at } = placeOf(place);
+        const i = list.findIndex((s) => s.cloud_key === key);
+        if (i < 0) return;
+        if (list !== order) history = []; // (Back while shuffled: indexes of the list played)
+        if (at >= 0 && at !== i) history.push(at);
+        start(list === songs ? songs.slice() : list, i, true);
     }
 
     function markShownRow() {
@@ -461,13 +574,15 @@ window.cloudMusic = (() => {
         const tooBig = ok.filter((f) => f.size > MAX_BYTES).length;
 
         say('Checking what is already there…');
+        uploads++;
         load(true).then(() => {
-            if (listState !== 'done') { say("Couldn't load the list, so nothing was uploaded.", 'err'); return; }
+            if (listState !== 'done') { uploads--; say("Couldn't load the list, so nothing was uploaded.", 'err'); return; }
             const have = new Set(songs.map((s) => s.cloud_key));
             const todo = ok.filter((f) => f.size <= MAX_BYTES && !have.has(f.name));
             let skipped = ok.length - tooBig - todo.length;
             let done = 0, failed = 0, lastError = '';
             const finish = (extra) => {
+                uploads--;
                 const parts = [done + ' uploaded'];
                 if (skipped) parts.push(skipped + ' already there');
                 if (tooBig) parts.push(tooBig + ' over 40 MB');
@@ -517,7 +632,7 @@ window.cloudMusic = (() => {
                 say('Uploading ' + label);
                 xhr.send(form);
             };
-            if (!todo.length && !tooBig) { say('All ' + ok.length + ' already in the bucket.', 'ok'); return; }
+            if (!todo.length && !tooBig) { uploads--; say('All ' + ok.length + ' already in the bucket.', 'ok'); return; }
             if (!todo.length) { finish(''); return; }
             next(0);
         });
@@ -1026,6 +1141,11 @@ window.cloudMusic = (() => {
         isPlaying,
         size: () => order.length || songs.length, // the list the playing song came from
         step,
+        // The queue (script.js): the list's place before it, and after it
+        anchor,
+        resume,
+        upcoming,
+        jumpTo,
         searchActive,
         renderSearch,
         displayName: (key) => splitName(cleanName(key)),
@@ -1036,5 +1156,7 @@ window.cloudMusic = (() => {
         removeKeys,
         keyOf,
         isKept: (key) => downloaded.has(key),
+        // A download run or an upload going: a reload would drop it (script.js, "New versions")
+        busy: () => runs.size > 0 || uploads > 0,
     };
 })();

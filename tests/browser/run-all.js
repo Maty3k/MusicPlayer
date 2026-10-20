@@ -106,6 +106,9 @@ const SUITES = [
     { name: 'desktop-a11y-check' },
     { name: 'desktop-polish-check' },
     { name: 'cleanup-check' },
+    { name: 'queue-check' },
+    { name: 'update-check' },
+    { name: 'brave-check' },
     { name: 'back-check', verify: verifyBack },
     { name: 'keys-check', verify: verifyKeys },
     { name: 'v11-a11y-axe', verify: verifyAxe, before: () => fs.rmSync(path.join(L.ARTIFACTS, 'v11-a11y', 'axe-all.json'), { force: true }) },
@@ -116,7 +119,13 @@ function runNode(script, args, logFile) {
         const out = [];
         const log = logFile ? fs.createWriteStream(logFile) : null;
         const child = spawn(process.execPath, [script, ...args], { cwd: L.ROOT, env: process.env });
-        const timer = setTimeout(() => { out.push(`\n[run-all] timed out after ${SUITE_TIMEOUT} ms\n`); child.kill('SIGKILL'); }, SUITE_TIMEOUT);
+        // A suite that runs too long is asked to stop first, so it can stop
+        // what it started (queue-check's servers); then it is killed
+        const timer = setTimeout(() => {
+            out.push(`\n[run-all] timed out after ${SUITE_TIMEOUT} ms\n`);
+            child.kill('SIGTERM');
+            setTimeout(() => child.kill('SIGKILL'), 10000).unref();
+        }, SUITE_TIMEOUT);
         const onData = (d) => { out.push(d.toString()); process.stdout.write(d); if (log) log.write(d); };
         child.stdout.on('data', onData);
         child.stderr.on('data', onData);
