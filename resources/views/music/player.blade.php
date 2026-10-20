@@ -107,6 +107,33 @@
          to the page's heading (the Search page's field). --}}
     <a href="#music-section" class="dv-skip" id="dvSkip">Skip to content</a>
 
+    {{-- The offers at the top, outside #music-section: its z-index (200)
+         would cap theirs, and the desktop side panel (250) covered their
+         buttons. Here they sit over the page, its panel, bar and dock, and
+         under every sheet (10000). --}}
+    {{-- A newer build than this page (script.js, "New versions"). Shown
+         only when it can't reload by itself: music on, a sheet open… --}}
+    <div class="app-flash app-flash-offer" id="appUpdateOffer" role="status" hidden>
+        <span>A new version of the app is ready.</span>
+        <span class="app-flash-actions">
+            <button type="button" class="app-flash-btn" id="appUpdateNow">Refresh</button>
+            <button type="button" class="app-flash-btn app-flash-btn-quiet" id="appUpdateLater">Later</button>
+        </span>
+    </div>
+    @if (!empty($pendingShare))
+    {{-- Saved from a share page before signing in: offered, never copied
+         without a click. Named by its question (a form landmark, outside
+         the main one). --}}
+    <form class="app-flash app-flash-offer" id="pendingShareOffer" method="POST" action="{{ route('shared.add', $pendingShare['token']) }}" aria-labelledby="pendingShareText">
+        @csrf
+        <span id="pendingShareText">Save “{{ $pendingShare['name'] }}” ({{ $pendingShare['count'] }} {{ Str::plural('song', $pendingShare['count']) }}) to your library?</span>
+        <span class="app-flash-actions">
+            <button type="submit" class="app-flash-btn">Save</button>
+            <button type="button" class="app-flash-btn app-flash-btn-quiet" onclick="this.closest('form').remove()">No thanks</button>
+        </span>
+    </form>
+    @endif
+
     {{-- Desktop sidebar: Home, Search, Your Library, + (html.dv2 only;
          display:none everywhere else). script.js (desktopSidebar) fills the
          playlist rows from playlistsMeta and keeps them in step. --}}
@@ -257,26 +284,6 @@
         @if (session('status'))
         <div class="app-flash" id="appFlash">{{ session('status') }}</div>
         <script>setTimeout(function () { var f = document.getElementById('appFlash'); if (f) f.remove(); }, 4200);</script>
-        @endif
-        {{-- A newer build than this page (script.js, "New versions"). Shown
-             only when it can't reload by itself: music on, a sheet open… --}}
-        <div class="app-flash app-flash-offer" id="appUpdateOffer" role="status" hidden>
-            <span>A new version of the app is ready.</span>
-            <span class="app-flash-actions">
-                <button type="button" class="app-flash-btn" id="appUpdateNow">Refresh</button>
-                <button type="button" class="app-flash-btn app-flash-btn-quiet" id="appUpdateLater">Later</button>
-            </span>
-        </div>
-        @if (!empty($pendingShare))
-        {{-- Saved from a share page before signing in: offered, never copied without a click --}}
-        <form class="app-flash app-flash-offer" id="pendingShareOffer" method="POST" action="{{ route('shared.add', $pendingShare['token']) }}">
-            @csrf
-            <span>Save “{{ $pendingShare['name'] }}” ({{ $pendingShare['count'] }} {{ Str::plural('song', $pendingShare['count']) }}) to your library?</span>
-            <span class="app-flash-actions">
-                <button type="submit" class="app-flash-btn">Save</button>
-                <button type="button" class="app-flash-btn app-flash-btn-quiet" onclick="this.closest('form').remove()">No thanks</button>
-            </span>
-        </form>
         @endif
         <div class="vinyl-crate-view" id="vinylCrateView">
             <!-- Room background: only its vignette (.room-bg::after) is left -->

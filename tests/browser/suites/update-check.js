@@ -8,16 +8,17 @@
 //      old server, the offline copy): no second reload, the offer shows. A
 //      reload that reaches the newer build says "Updated to the newest
 //      version" and offers nothing.
-//   C. Playing: no reload; the offer shows, off Now Playing's chevron and
-//      ⋯ on a phone (it waits under Now Playing) and off the desktop avatar;
-//      Later hides it for an hour; Refresh reloads.
+//   C. Playing: no reload; the offer shows, opaque, off Now Playing's
+//      chevron and ⋯ on a phone (it waits under Now Playing) and off the
+//      desktop avatar, and above the desktop side panel (820px); Later
+//      hides it for an hour; Refresh reloads.
 //   D. Paused 2 minutes ago: the offer. 11 minutes later, back in view: a
 //      reload.
-//   E. Now Playing open (the desktop deck too), the queue sheet, a song
-//      menu, typing in Search, a save going, or the sleep timer set: no
-//      reload. With none: one. Typing when a newer build is announced: the
-//      offer waits until the field is left. A Spotify library import going:
-//      no reload until it stops.
+//   E. Now Playing open (the desktop deck too), the queue sheet or a song
+//      menu (the offer waits under them), typing in Search, a save going,
+//      or the sleep timer set: no reload. With none: one. Typing when a
+//      newer build is announced: the offer waits until the field is left.
+//      A Spotify library import going: no reload until it stops.
 //   F. An older build, a 503, a page instead of JSON, a failed request, or
 //      none within 8 s: nothing happens, no page errors.
 //   G. Offline: no request. Back online: one, then a reload at rest.
@@ -152,16 +153,25 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
             return !!hit && el.contains(hit);
         };
+        const alpha = (/rgba?\(([^)]+)\)/.exec(cs.backgroundColor) || [, ''])[1].split(',')[3];
         return {
             same: window.__marker === 1,
             offer: !offer.hidden && cs.display !== 'none' && cs.visibility !== 'hidden' && r.height > 0,
             offerAttr: offer.hidden ? 'hidden' : 'shown',
             offerTop: Math.round(r.top),
+            // The offer, not something over it, at its middle; out of the Tab
+            // and swipe order with the page (a sheet or window over it)
+            offerOnTop: r.height > 0 && reach('appUpdateOffer'),
+            offerInert: !!offer.closest('[inert]'),
+            bg: cs.backgroundColor,
+            bgAlpha: alpha === undefined ? 1 : Number(alpha),
             toasts: window.__toasts.slice(),
             np: document.body.classList.contains('m-np-open'),
             reachCollapse: reach('mNpCollapse'),
             reachKebab: reach('mNpKebab'),
             reachAvatar: reach('dvAcctBtn'),
+            reachNow: reach('appUpdateNow'),
+            reachLater: reach('appUpdateLater'),
         };
     });
     const play = (p) => p.evaluate(() => onPlayerStateChange({ data: 1 }));
@@ -225,6 +235,8 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         check(`C ${tag}: playing: no reload, the offer asks`, s.same && p.__loads === 1 && s.offer, { s, loads: p.__loads });
         if (p.__phone) {
             check('C phone: the offer sits at the top, clear of the clock', s.offerTop >= 18 && s.offerTop < 120, s.offerTop);
+            // (it sits over Home's heading: nothing of it may show through)
+            check('C phone: the offer is opaque', s.bgAlpha === 1, s.bg);
             await p.evaluate(() => window.mOpenNowPlaying()); await p.waitForTimeout(900);
             s = await look(p);
             check('C phone: on Now Playing it waits underneath: the chevron and ⋯ take the taps', s.np && s.offerAttr === 'shown' && !s.offer && s.reachCollapse === true && s.reachKebab === true, s);
@@ -248,6 +260,27 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         s = await look(p);
         check(`C ${tag}: Refresh reloads, even with music on`, p.__loads === 2 && !s.same, { loads: p.__loads, s });
         check(`C ${tag}: errors`, p.__errs.length === 0, p.__errs);
+        await ctx.close();
+    }
+    // A narrow desktop window with the side panel open: the panel takes the
+    // right 280px, where the offer's buttons are
+    {
+        const { ctx, p } = await open({ vp: { width: 820, height: 700 }, answer: { build: 'newer' } });
+        await p.click('#dvBarQueue'); await p.waitForTimeout(600);
+        await play(p);
+        await after(p, 31 * 1000);
+        const s = await look(p);
+        const panel = await p.evaluate(() => document.documentElement.classList.contains('dv-panel'));
+        check('C desktop 820px, Up next open in the side panel: the offer shows over the panel, Refresh and Later both take clicks',
+            panel && s.offer && s.reachNow === true && s.reachLater === true, { panel, s });
+        // A window (Settings) over it all: the offer waits under it, inert with the page
+        await p.evaluate(() => showSettingsModal()); await p.waitForTimeout(500);
+        const w = await look(p);
+        await p.evaluate(() => hideSettingsModal()); await p.waitForTimeout(500);
+        const back = await look(p);
+        check('C desktop 820px: a window open: the offer waits under it, out of the Tab order; closed, it takes clicks again',
+            w.offer && w.offerOnTop === false && w.offerInert && back.offer && !back.offerInert && back.reachLater === true, { w, back });
+        check('C desktop 820px: errors', p.__errs.length === 0, p.__errs);
         await ctx.close();
     }
 
@@ -275,13 +308,14 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         check('E phone: Now Playing open: no reload', s.same && p.__loads === 1 && p.__asks === 1, { s, loads: p.__loads, asks: p.__asks });
         await p.evaluate(() => history.back()); await p.waitForTimeout(900);
         // [what, start, then (once start has settled), end, what has to be
-        // true meanwhile]; steps take the page
+        // true meanwhile, whether the offer (shown) waits under it]; steps
+        // take the page
         const inPage = (fn) => (pg) => pg.evaluate(fn);
         const cases = [
             ['the queue sheet open', inPage(() => openQueueModal()), null, inPage(() => hideQueueModal()),
-                () => document.getElementById('queueModal').classList.contains('active')],
+                () => document.getElementById('queueModal').classList.contains('active'), true],
             ['a song menu open', inPage(() => showSendMenu(document.getElementById('mNpKebab'), currentSongIndex)), null, inPage(() => closeSendMenu()),
-                () => !!document.querySelector('.send-menu')],
+                () => !!document.querySelector('.send-menu'), true],
             // (the Search page takes focus only once it's no longer inert; a
             // key in the field, as typing is; Tab out of it, a key too)
             ['typing in Search', inPage(() => document.querySelector('#mTabs .m-tab[data-tab="search"]').click()),
@@ -293,7 +327,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             ['the sleep timer set to the end of the song', inPage(() => setSleepTimer('end')), null, inPage(() => clearSleepTimer()), () => sleepEndOfTrack === true],
             ['the sleep timer set to 60 minutes', inPage(() => setSleepTimer(60)), null, inPage(() => clearSleepTimer()), () => sleepDeadline > Date.now()],
         ];
-        for (const [what, start, then, end, holds] of cases) {
+        for (const [what, start, then, end, holds, under] of cases) {
             await start(p); await p.waitForTimeout(600);
             if (then) { await then(p); await p.waitForTimeout(300); }
             const asks = p.__asks;
@@ -301,6 +335,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             s = await look(p);
             const held = await p.evaluate(holds).catch(() => false);
             check(`E phone: ${what}: no reload`, held && s.same && p.__loads === 1 && p.__asks === asks + 1, { held, s, loads: p.__loads, asks: p.__asks });
+            if (under) check(`E phone: ${what}: the offer waits under it, out of reach of Tab and swipes`, s.offer && s.offerOnTop === false && s.offerInert, s);
             await end(p); await p.waitForTimeout(600);
         }
         await after(p, 6 * MIN, true);

@@ -1037,6 +1037,8 @@ body {
     justify-content: center;
     gap: 10px 14px;
     width: max-content;
+    /* Opaque: it stays up over the page's heading, which showed through */
+    background: rgb(24, 19, 14);
     border-color: rgba(var(--amber-rgb), 0.45);
     color: var(--cream);
     text-align: center;

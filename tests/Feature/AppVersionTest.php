@@ -58,7 +58,10 @@ class AppVersionTest extends TestCase
             ->assertSee('<div class="app-flash app-flash-offer" id="appUpdateOffer" role="status" hidden>', false)
             ->assertSee('<span>A new version of the app is ready.</span>', false)
             ->assertSee('<button type="button" class="app-flash-btn" id="appUpdateNow">Refresh</button>', false)
-            ->assertSee('<button type="button" class="app-flash-btn app-flash-btn-quiet" id="appUpdateLater">Later</button>', false);
+            ->assertSee('<button type="button" class="app-flash-btn app-flash-btn-quiet" id="appUpdateLater">Later</button>', false)
+            // Outside the page's #music-section, whose stacking would cap it
+            // under the desktop side panel
+            ->assertSeeInOrder(['<body>', 'id="appUpdateOffer"', '<main id="music-section">'], false);
     }
 
     public function test_the_label_is_the_build_as_a_utc_date(): void

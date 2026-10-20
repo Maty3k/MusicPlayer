@@ -12047,6 +12047,8 @@ if (IS_IOS) {
             add(musicSectionEl);
             add(dock);
             add(tabBar);
+            // (the offers at the top, outside the page: the sheet covers them too)
+            document.querySelectorAll('.app-flash-offer').forEach(add);
             document.querySelectorAll(SHEETS).forEach((s) => { if (s !== top) add(s); });
         } else if (top === npMainEl) {
             [crateViewEl, searchPage, youPage, sidebarEl, dock, tabBar].forEach(add);
@@ -16245,8 +16247,9 @@ if (IS_IOS) {
         const isDesk = () => htmlEl.classList.contains('dv2');
         const WINDOWS = '.add-song-modal, .vgm-modal';
         const OPEN = '.add-song-modal.active, .vgm-modal.active';
-        // The page around the windows (they live after it, in the body)
-        const PAGE = ['dvSkip', 'dvSide', 'music-section', 'dvPanel', 'dvBar'].map($).filter(Boolean);
+        // The page around the windows (they live after it, in the body),
+        // with the offers at its top
+        const PAGE = ['dvSkip', 'appUpdateOffer', 'pendingShareOffer', 'dvSide', 'music-section', 'dvPanel', 'dvBar'].map($).filter(Boolean);
         const HIDE = {
             settingsModal: 'hideSettingsModal',
             statsModal: 'hideStatsModal',
