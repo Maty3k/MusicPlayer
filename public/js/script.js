@@ -2059,36 +2059,73 @@ function songToQueueItem(song) {
 // playing then (null: a playlist row) }. When the queue runs out that list
 // goes on, whatever the queued songs were. A list song starting clears it
 // (switchSong, cloud-music.js's start): the next queued song notes that list.
+// Nothing had played before the queue (a page just opened): nothing is
+// noted, and the last queued song's own list goes on after it, as it did
+// before lists were noted (a Cloudflare song's is the Cloudflare list).
 let queueReturn = null;
 
+// A list has played: a radio, preview or Cloudflare song is on (not one
+// from the queue), or the playing list's current row has started, more
+// than cued (a page that has just opened only cues it)
+function listHasPlayed() {
+    if (currentRadioSong) return !currentRadioSong._queued;
+    if (!currentRowStarted()) return false;
+    const state = ytPlayer && ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : -1;
+    return state !== -1 && state !== 5;
+}
+
 // The Cloudflare list is what plays (cloud-music.js): a Cloudflare song is
-// on and it isn't one from the queue
+// on and it isn't one from the queue, or it is and no list was noted to go
+// back to (it goes on through the Cloudflare list itself)
 function cloudListOn() {
-    return !!(window.cloudMusic && cloudMusic.isPlaying() && !(currentRadioSong && currentRadioSong._queued));
+    if (!window.cloudMusic || !cloudMusic.isPlaying()) return false;
+    return !(currentRadioSong && currentRadioSong._queued) || !queueReturn;
 }
 
 // A queued song is about to start: note the list it interrupts (once for
-// a run of queued songs), pinning the Cloudflare list's place to its song
+// a run of queued songs, and only a list that has played), pinning the
+// Cloudflare list's place to its song
 function noteQueueStart() {
-    if (queueReturn) return;
+    if (queueReturn || !listHasPlayed()) return;
     const cloud = cloudListOn();
     if (cloud) cloudMusic.anchor();
     queueReturn = { list: cloud ? 'cloud' : 'playlist', song: currentRadioSong };
 }
 
+// The song the list after the queue goes on from when the queue notes no
+// list (nothing played before it): the queue's last song, or the queued
+// song playing once it is the last. Null when the queue notes, or noted,
+// the list itself.
+function queueTail() {
+    if (queueReturn) return null;
+    if (playQueue.length) return listHasPlayed() ? null : playQueue[playQueue.length - 1];
+    return currentRadioSong && currentRadioSong._queued ? currentRadioSong : null;
+}
+
+// Where Up next's "Next from Cloudflare" counts from (cloud-music.js's
+// upcoming and jumpTo): the place the queue noted, or the queue's own last
+// song (else the song playing)
+function cloudNextPlace() {
+    const tail = queueTail();
+    return { anchored: !!queueReturn, after: tail ? tail.cloud_key : '' };
+}
+
 // The queue ran out: back to the list it interrupted. again (repeat one):
 // the song that was on repeat, not the next one. True when it started a
 // song; false leaves it to the playlist, which goes on from its own place
-// (currentSongIndex doesn't move while queued songs play).
+// (currentSongIndex doesn't move while queued songs play). The note stays
+// until the playlist's row starts (switchSong clears it): meanwhile the
+// last queued song mustn't pass for one with no list noted (cloudListOn).
 function returnFromQueue(byUser, again) {
     const from = queueReturn;
-    queueReturn = null;
     if (!from) return false;
     if (from.list === 'cloud' && window.cloudMusic) {
+        queueReturn = null;
         cloudMusic.resume(byUser, again);
         return true;
     }
     if (!again) return false;
+    queueReturn = null;
     if (from.song) playRadioSong(from.song, { auto: true });
     else switchSong(currentSongIndex, { auto: true });
     return true;
@@ -2480,17 +2517,19 @@ function nextIndices() {
 }
 
 // The list the queue goes back to (or the one playing, with no queued song
-// on): its name, and its next songs in order. Shuffled, only its name: the
-// order isn't known ahead.
+// on; or, when the queue notes none, its last song's): its name, and its
+// next songs in order. Shuffled, only its name: the order isn't known ahead.
 function nextFrom() {
     const shuffled = shuffleMode !== 'off';
-    if (window.cloudMusic && (queueReturn ? queueReturn.list === 'cloud' : cloudListOn())) {
+    const tail = queueTail();
+    const cloud = queueReturn ? queueReturn.list === 'cloud' : (tail ? !!tail.cloud_key : cloudListOn());
+    if (window.cloudMusic && cloud) {
         return {
             name: 'Cloudflare',
             shuffled,
             any: cloudMusic.size() > 0,
             // While the queue plays, from the song it interrupted
-            rows: shuffled ? [] : cloudMusic.upcoming(NEXT_FROM_MAX, !!queueReturn).map((song) => ({ song, key: song.cloud_key })),
+            rows: shuffled ? [] : cloudMusic.upcoming(NEXT_FROM_MAX, cloudNextPlace()).map((song) => ({ song, key: song.cloud_key })),
         };
     }
     return {
@@ -2577,7 +2616,8 @@ function renderQueue() {
         if (row.dataset.nfKey !== undefined) {
             if (!window.cloudMusic) return;
             noteUserSongAsk();
-            cloudMusic.jumpTo(row.dataset.nfKey);
+            // From the list it was drawn from (nextFrom)
+            cloudMusic.jumpTo(row.dataset.nfKey, cloudNextPlace());
             return;
         }
         const i = parseInt(row.dataset.nfIndex, 10);

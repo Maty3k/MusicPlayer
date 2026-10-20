@@ -469,18 +469,27 @@ window.cloudMusic = (() => {
         step(1, byUser, true);
     }
 
-    // Up next's "Next from Cloudflare": the songs Next plays after the
-    // playing one (anchored: after the song the queue interrupted), in
-    // order, as step walks them. Shuffled there's no telling: none.
-    function upcoming(count, anchored) {
-        if (typeof shuffleMode !== 'undefined' && shuffleMode !== 'off') return [];
+    // Where Up next's "Next from Cloudflare" counts from: the list, and the
+    // index in it the songs come after. place.anchored: the place anchor()
+    // pinned (the song the queue interrupted); place.after: that song's key
+    // (the queue's last song, script.js's queueTail); neither: the playing
+    // song. A song that isn't in the list it came from counts in the whole
+    // list, as step finds it.
+    function placeOf(place) {
         let list = order.length ? order : songs;
-        let at = pos;
-        if (!anchored) {
-            const cur = currentRadioSong && currentRadioSong.cloud_key;
-            if (!list[at] || list[at].cloud_key !== cur) at = list.findIndex((s) => s.cloud_key === cur);
-            if (at < 0) { list = songs; at = list.findIndex((s) => s.cloud_key === cur); }
-        }
+        if (place && place.anchored) return { list, at: pos };
+        const key = (place && place.after) || (currentRadioSong && currentRadioSong.cloud_key);
+        let at = list[pos] && list[pos].cloud_key === key ? pos : list.findIndex((s) => s.cloud_key === key);
+        if (at < 0) { list = songs; at = list.findIndex((s) => s.cloud_key === key); }
+        return { list, at };
+    }
+
+    // Up next's "Next from Cloudflare": the songs Next plays after the
+    // place (placeOf), in order, as step walks them. Shuffled there's no
+    // telling: none.
+    function upcoming(count, place) {
+        if (typeof shuffleMode !== 'undefined' && shuffleMode !== 'off') return [];
+        const { list, at } = placeOf(place);
         const n = list.length;
         const limited = cantStream();
         // Loop off: the list plays through once (step's own rule for a song's end)
@@ -498,14 +507,17 @@ window.cloudMusic = (() => {
         return out;
     }
 
-    // A song of the list picked in Up next's "Next from": on from there
-    function jumpTo(key) {
+    // A song picked in Up next's "Next from": on from there, in the list it
+    // was drawn from (place: as upcoming had it), which is the whole list
+    // when the playing song isn't in the one it came from
+    function jumpTo(key, place) {
         if (typeof isChangingSong !== 'undefined' && isChangingSong) return;
-        if (!order.length) order = songs.slice();
-        const i = order.findIndex((s) => s.cloud_key === key);
+        const { list, at } = placeOf(place);
+        const i = list.findIndex((s) => s.cloud_key === key);
         if (i < 0) return;
-        if (pos >= 0 && pos !== i) history.push(pos);
-        start(order, i, true);
+        if (list !== order) history = []; // (Back while shuffled: indexes of the list played)
+        if (at >= 0 && at !== i) history.push(at);
+        start(list === songs ? songs.slice() : list, i, true);
     }
 
     function markShownRow() {

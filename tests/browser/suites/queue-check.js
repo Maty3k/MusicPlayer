@@ -29,6 +29,11 @@
 //   L. Cloudflare shuffle plays every song once before any comes again.
 //   M. The ⋯ on library and YouTube rows of the Search page (phone and
 //      desktop), and on the library search window's hits (landscape).
+//   N. A queue started on a page just opened (nothing played) notes no
+//      list: after it the last queued Cloudflare song's list goes on, with
+//      the playing playlist empty too, and Up next says so.
+//   P. Up next's "Next from Cloudflare" after a Cloudflare song played on
+//      its own (Jump back in): its rows play when tapped.
 // The page includes the Cloudflare source only when CLOUD_MUSIC_URL and
 // CLOUD_MUSIC_TOKEN are set, and the shared server runs without them, so
 // this suite starts its own pair: a stand-in Worker on 127.0.0.1:8787
@@ -641,6 +646,70 @@ async function run(b) {
         const oq = await p.evaluate(() => playQueue.map((x) => x.title));
         check('M landscape: the library search window\'s hits have a 44px ⋯ that queues them',
             !!m && m.w >= 44 && m.h >= 44 && m.label === 'More options for ' + m.title && om.open && om.items[1] === 'Add to queue' && oq[0] === m.title, { m, om, oq });
+    });
+
+    // ---- N. A queue started on a page just opened: nothing had played, so
+    // it notes no list to go back to
+    await part('N', {}, async (p) => {
+        await order(p);
+        await enqueue(p, [KEY(3), KEY(5)]);
+        await p.evaluate(() => openQueueModal()); await p.waitForTimeout(500);
+        const u0 = await queueLook(p);
+        await p.evaluate(() => hideQueueModal()); await p.waitForTimeout(400);
+        await p.evaluate(() => nextSong()); await settle(p);
+        const n1 = await now(p);
+        const n2 = await end(p);
+        const n3 = await end(p);
+        check('N a queue started on a page just opened notes no list; after it the last queued Cloudflare song\'s list goes on (Cloud 6, not the playlist)',
+            n1.queued && n1.cloud === KEY(3) && n1.back === null && n2.queued && n2.cloud === KEY(5) && n3.cloud === KEY(6) && !n3.queued, { n1, n2, n3 });
+        check('N ...and Up next says so before it starts: "Next from Cloudflare", from the song after the last queued one',
+            u0.items.join('|') === 'Cloud 3|Cloud 5' && u0.nfLabel === 'Next from Cloudflare' && u0.nf[0] === 'Cloud 6', u0);
+    });
+    await part('N empty playlist', {}, async (p) => {
+        await order(p);
+        // The playing playlist has no songs (a new one, or all removed)
+        await p.evaluate(() => { songsData.splice(0); rebuildSongList(); });
+        await enqueue(p, [KEY(3), KEY(5)]);
+        await p.evaluate(() => openQueueModal()); await p.waitForTimeout(500);
+        await tapIn(p, '#queueModal .queue-item[data-qindex="0"] .queue-item-play'); await settle(p);
+        const e1 = await now(p);
+        const u1 = await queueLook(p);
+        await p.evaluate(() => hideQueueModal()); await p.waitForTimeout(400);
+        const e2 = await end(p);
+        await p.evaluate(() => nextSong()); await settle(p);
+        const e3 = await now(p);
+        check('N with the playing playlist empty: Play now in Up next, then Next on the last queued song goes on in the Cloudflare list (Cloud 6)',
+            e1.queued && e1.cloud === KEY(3) && e1.back === null && e2.queued && e2.cloud === KEY(5) && e3.cloud === KEY(6) && !e3.queued, { e1, e2, e3 });
+        check('N Up next during the first queued song: the second under it, then "Next from Cloudflare" from the song after that one',
+            u1.now === 'Cloud 3' && u1.items.join('|') === 'Cloud 5' && u1.nfLabel === 'Next from Cloudflare' && u1.nf[0] === 'Cloud 6', u1);
+    });
+
+    // ---- P. "Next from Cloudflare" after a Cloudflare song played on its own
+    await part('P', {}, async (p) => {
+        await searchTab(p);
+        await order(p);
+        // A search narrows the list: Next walks its one hit
+        await p.fill('#mSearchInput', 'cloud 1');
+        await until(p, () => document.querySelectorAll('#mSearchResults [data-cloud]').length === 1);
+        await tapIn(p, '#mSearchResults [data-cloud="0"]'); await settle(p);
+        // Then one outside it plays on its own, as from Home's Jump back in
+        await p.evaluate((k) => {
+            recentSongs.unshift({ title: 'Cloud 5', artist: 'Tester', album: '', cover: '', youtube_id: '', spotify_id: '',
+                mp3_url: '/cloud-music/file?key=' + encodeURIComponent(k), cloud_key: k });
+            playRecentSong(0, { stay: true });
+        }, KEY(5));
+        await settle(p);
+        await p.evaluate(() => openQueueModal()); await p.waitForTimeout(500);
+        const u = await queueLook(p);
+        await tapIn(p, '#queueModal .dv-nf-row'); await settle(p);
+        const p1 = await now(p);
+        await p.evaluate(() => hideQueueModal()); await p.waitForTimeout(400);
+        await p.evaluate(() => nextSong()); await settle(p);
+        const p2 = await now(p);
+        check('P after a Cloudflare song played on its own, "Next from Cloudflare" lists the songs after it in the whole list',
+            u.nfLabel === 'Next from Cloudflare' && u.nf.join('|') === 'Cloud 6|Cloud 7|Cloud 8|Cloud 1|Cloud 2', u);
+        check('P a row there plays when tapped (not only songs of the list played before), and Next goes on in the order shown',
+            p1.cloud === KEY(6) && p2.cloud === KEY(7), { p1, p2 });
     });
 }
 
