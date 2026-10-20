@@ -18,8 +18,9 @@
 //   E. Now Playing open (the desktop deck too), the queue sheet or a song
 //      menu (the offer waits under them), typing in Search, a save going,
 //      or the sleep timer set: no reload. With none: one. Typing when a
-//      newer build is announced: the offer waits until the field is left.
-//      A Spotify library import going: no reload until it stops.
+//      newer build is announced: the offer waits until the field is left;
+//      already up, it steps aside while the field is in use (not after
+//      Later). A Spotify library import going: no reload until it stops.
 //   F. An older build, a 503, a page instead of JSON, a failed request, or
 //      none within 8 s: nothing happens, no page errors.
 //   G. Offline: no request. Back online: one, then a reload at rest.
@@ -173,6 +174,7 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
             reachAvatar: reach('dvAcctBtn'),
             reachNow: reach('appUpdateNow'),
             reachLater: reach('appUpdateLater'),
+            reachSearch: reach('mSearchInput'),
         };
     });
     const play = (p) => p.evaluate(() => onPlayerStateChange({ data: 1 }));
@@ -394,6 +396,20 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         await p.keyboard.press('Tab'); await p.waitForTimeout(400);
         s = await look(p);
         check('E phone: the field left: the offer shows (just touched, so no reload)', s.offer && s.same && p.__loads === 1, { s, loads: p.__loads });
+        // The offer up, the field in use again: it steps aside (the field
+        // under it takes taps), and comes back once the field is left
+        await p.evaluate(() => document.getElementById('mSearchInput').focus()); await p.keyboard.press('ArrowRight'); await p.waitForTimeout(300);
+        const typing = await look(p);
+        await p.keyboard.press('Tab'); await p.waitForTimeout(400);
+        const left = await look(p);
+        check('E phone: the offer up, then the field in use: the offer steps aside, nothing covers the field; left, the offer is back',
+            !typing.offer && typing.reachSearch === true && left.offer && left.same && p.__loads === 1, { typing, left, loads: p.__loads });
+        // After Later: the field in use and left again brings nothing back
+        await press(p, '#appUpdateLater'); await p.waitForTimeout(300);
+        await p.evaluate(() => document.getElementById('mSearchInput').focus()); await p.waitForTimeout(300);
+        await p.keyboard.press('Tab'); await p.waitForTimeout(400);
+        const later = await look(p);
+        check('E phone: after Later, the field in use and left again doesn\'t bring the offer back', !later.offer && later.offerAttr === 'hidden', later);
         check('E phone (typing): errors', p.__errs.length === 0, p.__errs);
         await ctx.close();
     }

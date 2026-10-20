@@ -10580,8 +10580,8 @@ if (IS_IOS) {
 // open, untouched for a minute, and open for 30 s.
 // And only once per build in a tab: while a deploy rolls over, old and new
 // servers answer in turn, and a reload can land on an old one (or on the
-// offline copy). Otherwise the offer at the top asks (once a text field in
-// use is left). A playing song is never cut.
+// offline copy). Otherwise the offer at the top asks (out of the way while
+// a text field is in use). A playing song is never cut.
 // ============================================================
 (function newVersions() {
     const meta = document.querySelector('meta[name="app-build"]');
@@ -10669,23 +10669,27 @@ if (IS_IOS) {
     }
 
     // The offer sits at the top, over Search's field on a phone: not while
-    // a field is in use. Once it's left (focus settled where it went), again.
-    let waitingForFocusOut = false;
+    // a field is in use. It waits, or steps aside when it's already up, and
+    // comes back once the field is left (focus settled where it went),
+    // unless Later was pressed.
+    let offerWaits = false;
     function act() {
         if (newest <= mine) return;
         if (atRest() && mayReloadFor(newest)) { reload(); return; }
-        if (typing()) {
-            if (!waitingForFocusOut) {
-                waitingForFocusOut = true;
-                document.addEventListener('focusout', () => {
-                    waitingForFocusOut = false;
-                    setTimeout(act, 0);
-                }, { once: true });
-            }
-            return;
-        }
+        offerWaits = typing();
+        if (offerWaits) return;
         if (Date.now() >= laterUntil) offer.hidden = false;
     }
+    // A field taken while the offer is up: it steps aside
+    document.addEventListener('focusin', () => {
+        if (offer.hidden || !typing()) return;
+        offer.hidden = true;
+        offerWaits = true;
+    });
+    // Focus has left something: once it has settled (another field?), again
+    document.addEventListener('focusout', () => {
+        if (offerWaits) setTimeout(() => { if (offerWaits) act(); }, 0);
+    });
 
     // force: a reason to ask now (just opened, Back, online), still at most every 30 s
     async function ask(force) {
