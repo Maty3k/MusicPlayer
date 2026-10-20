@@ -40,6 +40,10 @@
 //   P. Up next's "Next from Cloudflare" after a Cloudflare song played on
 //      its own (Jump back in): its rows play when tapped.
 //   Q. The + on a queued song's row saves the song whole.
+//   R. A list noted for a queue counts for that queue only: after a
+//      Cloudflare song from Jump back in, Up next and a new queue follow
+//      the Cloudflare list (the playlist went back to before had played
+//      through).
 // The page includes the Cloudflare source only when CLOUD_MUSIC_URL and
 // CLOUD_MUSIC_TOKEN are set, and the shared server runs without them, so
 // this suite starts its own pair: a stand-in Worker on 127.0.0.1:8787
@@ -832,6 +836,38 @@ async function run(b) {
         check('Q the + on a queued upload\'s row saves it with its file, Spotify id and album (not as a title-only copy)',
             row.btn && row.title === 'Own Upload' && !!add && !!add.song && add.song.mp3_url === song.mp3_url
             && add.song.spotify_id === song.spotify_id && add.song.album === 'Demos', { row, add });
+    });
+
+    // ---- R. A noted list counts for its own queue only. Repeat off: the
+    // playlist's last row, one song queued after it. The queue goes back to
+    // the playlist, which has played through, so the music stops there.
+    // Then a Cloudflare song from Jump back in, and another song queued.
+    await part('R', {}, async (p) => {
+        await order(p);
+        await p.evaluate(() => { loopMode = 'off'; });
+        await p.evaluate(() => playListRow(songsData.length - 1)); await settle(p);
+        await enqueue(p, [KEY(3)]);
+        const r1 = await end(p);
+        const r2 = await end(p);
+        await p.evaluate((k) => {
+            recentSongs.unshift({ title: 'Cloud 6', artist: 'Tester', album: '', cover: '', youtube_id: '', spotify_id: '',
+                mp3_url: '/cloud-music/file?key=' + encodeURIComponent(k), cloud_key: k });
+            playRecentSong(0, { stay: true });
+        }, KEY(6));
+        await settle(p);
+        const r3 = await now(p);
+        await p.evaluate(() => openQueueModal()); await p.waitForTimeout(500);
+        const u = await queueLook(p);
+        await p.evaluate(() => hideQueueModal()); await p.waitForTimeout(400);
+        await enqueue(p, [KEY(2)]);
+        const r4 = await end(p);
+        const r5 = await end(p);
+        check('R (setup) the first queue goes back to the playlist, which has played through: the music stops after it',
+            r1.queued && r1.cloud === KEY(3) && r1.back === 'playlist' && r2.queued && r2.cloud === KEY(3), { r1, r2 });
+        check('R then a Cloudflare song from Jump back in: Up next says "Next from Cloudflare", the songs after it (repeat off: to the end)',
+            r3.cloud === KEY(6) && !r3.queued && u.nfLabel === 'Next from Cloudflare' && u.nf.join('|') === 'Cloud 7|Cloud 8', { r3, u });
+        check('R ...and a song queued then notes the Cloudflare list: after it, the song after Cloud 6 plays (not the playlist, nor a stop)',
+            r4.queued && r4.cloud === KEY(2) && r4.back === 'cloud' && r5.cloud === KEY(7) && !r5.queued, { r4, r5 });
     });
 }
 
