@@ -14,7 +14,10 @@
 //   D. Paused 2 minutes ago: the offer. 11 minutes later, back in view: a
 //      reload.
 //   E. Now Playing open (the desktop deck too), the queue sheet, a song
-//      menu, typing in Search, or a save going: no reload. With none: one.
+//      menu, typing in Search, a save going, or the sleep timer set: no
+//      reload. With none: one. Typing when a newer build is announced: the
+//      offer waits until the field is left. A Spotify library import going:
+//      no reload until it stops.
 //   F. An older build, a 503, a page instead of JSON, a failed request, or
 //      none within 8 s: nothing happens, no page errors.
 //   G. Offline: no request. Back online: one, then a reload at rest.
@@ -271,27 +274,34 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         let s = await look(p);
         check('E phone: Now Playing open: no reload', s.same && p.__loads === 1 && p.__asks === 1, { s, loads: p.__loads, asks: p.__asks });
         await p.evaluate(() => history.back()); await p.waitForTimeout(900);
-        // [what, start, then (once start has settled), end, what has to be true meanwhile]
+        // [what, start, then (once start has settled), end, what has to be
+        // true meanwhile]; steps take the page
+        const inPage = (fn) => (pg) => pg.evaluate(fn);
         const cases = [
-            ['the queue sheet open', () => openQueueModal(), null, () => hideQueueModal(),
+            ['the queue sheet open', inPage(() => openQueueModal()), null, inPage(() => hideQueueModal()),
                 () => document.getElementById('queueModal').classList.contains('active')],
-            ['a song menu open', () => showSendMenu(document.getElementById('mNpKebab'), currentSongIndex), null, () => closeSendMenu(),
+            ['a song menu open', inPage(() => showSendMenu(document.getElementById('mNpKebab'), currentSongIndex)), null, inPage(() => closeSendMenu()),
                 () => !!document.querySelector('.send-menu')],
-            // (the Search page takes focus only once it's no longer inert)
-            ['typing in Search', () => document.querySelector('#mTabs .m-tab[data-tab="search"]').click(), () => document.getElementById('mSearchInput').focus(),
-                () => { document.getElementById('mSearchInput').blur(); document.querySelector('#mTabs .m-tab[data-tab="home"]').click(); },
+            // (the Search page takes focus only once it's no longer inert; a
+            // key in the field, as typing is; Tab out of it, a key too)
+            ['typing in Search', inPage(() => document.querySelector('#mTabs .m-tab[data-tab="search"]').click()),
+                async (pg) => { await pg.evaluate(() => document.getElementById('mSearchInput').focus()); await pg.keyboard.press('ArrowRight'); },
+                async (pg) => { await pg.keyboard.press('Tab'); await pg.evaluate(() => document.querySelector('#mTabs .m-tab[data-tab="home"]').click()); },
                 () => document.activeElement === document.getElementById('mSearchInput')],
-            ['a song edit being saved', () => { songOpInFlight = true; }, null, () => { songOpInFlight = false; }, () => songOpInFlight === true],
+            ['a song edit being saved', inPage(() => { songOpInFlight = true; }), null, inPage(() => { songOpInFlight = false; }), () => songOpInFlight === true],
+            // The sleep timer lives only in the page: a reload would drop it
+            ['the sleep timer set to the end of the song', inPage(() => setSleepTimer('end')), null, inPage(() => clearSleepTimer()), () => sleepEndOfTrack === true],
+            ['the sleep timer set to 60 minutes', inPage(() => setSleepTimer(60)), null, inPage(() => clearSleepTimer()), () => sleepDeadline > Date.now()],
         ];
         for (const [what, start, then, end, holds] of cases) {
-            await p.evaluate(start); await p.waitForTimeout(600);
-            if (then) { await p.evaluate(then); await p.waitForTimeout(300); }
+            await start(p); await p.waitForTimeout(600);
+            if (then) { await then(p); await p.waitForTimeout(300); }
             const asks = p.__asks;
             await after(p, 6 * MIN, true);
             s = await look(p);
             const held = await p.evaluate(holds).catch(() => false);
             check(`E phone: ${what}: no reload`, held && s.same && p.__loads === 1 && p.__asks === asks + 1, { held, s, loads: p.__loads, asks: p.__asks });
-            await p.evaluate(end); await p.waitForTimeout(600);
+            await end(p); await p.waitForTimeout(600);
         }
         await after(p, 6 * MIN, true);
         s = await look(p);
@@ -310,6 +320,54 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         s = await look(p);
         check('E desktop: closed, untouched since: it reloads', p.__loads === 2 && !s.same, { loads: p.__loads, s });
         check('E desktop: errors', p.__errs.length === 0, p.__errs);
+        await ctx.close();
+    }
+    // Typing in Search when a newer build is announced: the offer would sit
+    // over the field, so it waits until the field is left
+    {
+        const { ctx, p } = await open({ answer: { build: 'newer' } });
+        await press(p, '#mTabs .m-tab[data-tab="search"]'); await p.waitForTimeout(600);
+        await press(p, '#mSearchInput'); await p.keyboard.press('ArrowRight');
+        await after(p, 31 * 1000);
+        let s = await look(p);
+        const inField = await p.evaluate(() => document.activeElement === document.getElementById('mSearchInput'));
+        check('E phone: typing in Search when a newer build is announced: no offer over the field yet, no reload', inField && !s.offer && s.same && p.__loads === 1 && p.__asks === 1, { inField, s, loads: p.__loads, asks: p.__asks });
+        await p.keyboard.press('Tab'); await p.waitForTimeout(400);
+        s = await look(p);
+        check('E phone: the field left: the offer shows (just touched, so no reload)', s.offer && s.same && p.__loads === 1, { s, loads: p.__loads });
+        check('E phone (typing): errors', p.__errs.length === 0, p.__errs);
+        await ctx.close();
+    }
+    // A Spotify library import keeps going after its window closes (minutes
+    // on a big library): a reload would cut it off
+    {
+        const { ctx, p } = await open({ answer: { build: 'newer' } });
+        let chunk = null; // its first chunk, held until the check is done
+        await p.route('**/spotify-library', (route) => {
+            const body = JSON.parse(route.request().postData() || '{}');
+            if (body.action === 'plan') {
+                return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, sources: [{ kind: 'liked', id: 'liked', name: 'Liked Songs', total: 900 }], skipped: 0 }) });
+            }
+            chunk = route;
+        });
+        // Its button and status line (the window shows them with Spotify set up)
+        await p.evaluate(() => {
+            const btn = document.createElement('button');
+            const status = document.createElement('div');
+            document.body.append(btn, status);
+            runSpotifyLibraryImport({ action: 'plan' }, btn, status);
+        });
+        for (let i = 0; i < 30 && !chunk; i++) await p.waitForTimeout(100);
+        await after(p, 31 * 1000);
+        let s = await look(p);
+        check('E phone: a Spotify library import going, its window closed: no reload, the offer asks', !!chunk && s.same && p.__loads === 1 && p.__asks === 1 && s.offer, { chunk: !!chunk, s, loads: p.__loads, asks: p.__asks });
+        // The chunk fails: the import stops there (and doesn't reload by itself)
+        if (chunk) await chunk.abort().catch(() => {}); // (gone with a reload)
+        await p.waitForTimeout(500);
+        await after(p, 6 * MIN, true);
+        s = await look(p);
+        check('E phone: the import stopped: it reloads', p.__loads === 2 && !s.same, { loads: p.__loads, s });
+        check('E phone (import): errors', p.__errs.length === 0, p.__errs);
         await ctx.close();
     }
 

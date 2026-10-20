@@ -7532,6 +7532,9 @@ function hideSpotifyImportModal() {
 // library never ties up a single request. Progress goes to `status`, and the
 // page reloads at the end. The server replaces each mirrored playlist's
 // songs, so re-running syncs rather than duplicates.
+// The imports going: they carry on after their window closes, and a reload
+// for a new version would cut one off ("New versions" waits for them).
+let libraryImportsRunning = 0;
 async function runSpotifyLibraryImport(planBody, btn, status) {
     if (!btn || !status || btn.disabled) return;
     btn.disabled = true;
@@ -7550,6 +7553,7 @@ async function runSpotifyLibraryImport(planBody, btn, status) {
     };
 
     try {
+        libraryImportsRunning++;
         say('Reading the Spotify library\u2026');
         const plan = await post(planBody);
         if (!plan.success) throw new Error(plan.error || 'Could not read that library');
@@ -7588,6 +7592,8 @@ async function runSpotifyLibraryImport(planBody, btn, status) {
     } catch (e) {
         say(e.message || 'Import failed');
         btn.disabled = false;
+    } finally {
+        libraryImportsRunning--;
     }
 }
 
@@ -10540,13 +10546,13 @@ if (IS_IOS) {
 // back into view (at most every 5 minutes), comes back online, is restored
 // by Back, 30 s after it opens and every half hour while in view.
 // A newer build reloads the page by itself only at rest: online, nothing
-// played for 10 minutes, nothing saving, downloading or uploading, no
-// sheet, menu, Now Playing or text field open, untouched for a minute, and
-// open for 30 s.
+// played for 10 minutes, nothing saving, downloading, uploading or
+// importing, no sleep timer set, no sheet, menu, Now Playing or text field
+// open, untouched for a minute, and open for 30 s.
 // And only once per build in a tab: while a deploy rolls over, old and new
 // servers answer in turn, and a reload can land on an old one (or on the
-// offline copy). Otherwise the offer at the top asks. A playing song is
-// never cut.
+// offline copy). Otherwise the offer at the top asks (once a text field in
+// use is left). A playing song is never cut.
 // ============================================================
 (function newVersions() {
     const meta = document.querySelector('meta[name="app-build"]');
@@ -10602,9 +10608,12 @@ if (IS_IOS) {
         const now = Date.now();
         if (navigator.onLine === false || performance.now() < SETTLED) return false;
         if (playing() || now - playedAt < SILENT || now - touchedAt < QUIET) return false;
-        // Saving, downloading or uploading: a reload would drop it
-        if (songOpInFlight || reordersPending > 0 || importInProgress || importSaving || offlineSaving) return false;
+        // Saving, downloading, uploading or importing: a reload would drop it
+        if (songOpInFlight || reordersPending > 0 || importInProgress || importSaving || offlineSaving || libraryImportsRunning > 0) return false;
         if (window.cloudMusic && typeof cloudMusic.busy === 'function' && cloudMusic.busy()) return false;
+        // The sleep timer set: it lives only in this page, and a reload would
+        // drop it without a word (the music then never stops)
+        if (sleepDeadline || sleepEndOfTrack) return false;
         // Something open a reload would close: Now Playing (the phone's
         // sheet, the desktop deck), a sheet or window, a song menu
         if (document.body.classList.contains('m-np-open') || document.querySelector('#musicPlayerView.active.dv-deck')) return false;
@@ -10630,9 +10639,22 @@ if (IS_IOS) {
         location.reload();
     }
 
+    // The offer sits at the top, over Search's field on a phone: not while
+    // a field is in use. Once it's left (focus settled where it went), again.
+    let waitingForFocusOut = false;
     function act() {
         if (newest <= mine) return;
         if (atRest() && mayReloadFor(newest)) { reload(); return; }
+        if (typing()) {
+            if (!waitingForFocusOut) {
+                waitingForFocusOut = true;
+                document.addEventListener('focusout', () => {
+                    waitingForFocusOut = false;
+                    setTimeout(act, 0);
+                }, { once: true });
+            }
+            return;
+        }
         if (Date.now() >= laterUntil) offer.hidden = false;
     }
 
