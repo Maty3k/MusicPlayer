@@ -98,6 +98,16 @@ While the Resend domain is unverified (test mode delivers only to the account
 owner), `php artisan user:verify user@example.com` (Cloud → Commands) marks an
 account verified manually.
 
+## Undoing a deploy
+
+Open pages notice a deploy by themselves (`GET /version`): they reload when
+nobody is using them, or offer Refresh. They only ever move forward, to a
+newer build. So **to undo a bad deploy, push a revert** to `main`: it
+deploys as a newer build and open pages pick it up. A rollback to an
+earlier deployment brings back an older build, which open pages ignore:
+those already on the bad deploy keep it until someone reloads them by hand,
+and the app on a Home Screen has no reload button.
+
 ## Notes / limitations
 
 - **Local dev**: `php artisan serve` + SQLite works out of the box
