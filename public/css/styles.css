@@ -1047,6 +1047,12 @@ body {
 /* Its display: flex would beat the hidden attribute */
 .app-flash-offer[hidden] { display: none; }
 
+/* Desktop: a song menu lives in #music-section, whose z-index (200) caps
+   its own, so one pushed up to the top of a short window would sit under
+   the offers (Play next covered). They wait while a menu is open, as on a
+   phone under Now Playing; any click away closes the menu. */
+html.dv2 body:has(.send-menu) .app-flash-offer { visibility: hidden; }
+
 .app-flash-actions { display: inline-flex; gap: 8px; }
 
 .app-flash-btn {

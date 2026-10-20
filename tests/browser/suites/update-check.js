@@ -10,8 +10,9 @@
 //      version" and offers nothing.
 //   C. Playing: no reload; the offer shows, opaque, off Now Playing's
 //      chevron and ⋯ on a phone (it waits under Now Playing) and off the
-//      desktop avatar, and above the desktop side panel (820px); Later
-//      hides it for an hour; Refresh reloads.
+//      desktop avatar, and above the desktop side panel (820px), where it
+//      waits while a song menu pushed up to the top is open; Later hides it
+//      for an hour; Refresh reloads.
 //   D. Paused 2 minutes ago: the offer. 11 minutes later, back in view: a
 //      reload.
 //   E. Now Playing open (the desktop deck too), the queue sheet or a song
@@ -280,6 +281,29 @@ const check = (name, ok, info) => results.push({ name, ok: !!ok, info });
         const back = await look(p);
         check('C desktop 820px: a window open: the offer waits under it, out of the Tab order; closed, it takes clicks again',
             w.offer && w.offerOnTop === false && w.offerInert && back.offer && !back.offerInert && back.reachLater === true, { w, back });
+        // A song menu with no room under its row (a row mid-list, the
+        // playlists to copy to in it) goes up to the top of the window, where
+        // the offer is: the offer waits while it's open, so Play next takes
+        // the click
+        await p.evaluate(() => openPlayerView()); await p.waitForTimeout(800);
+        const row = '#songList .song-list-item[data-index="5"]';
+        await p.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'center' }), row); await p.waitForTimeout(200);
+        await p.hover(row);
+        await p.click(row + ' .song-send-btn'); await p.waitForTimeout(400);
+        const menu = await p.evaluate(() => {
+            const m = document.querySelector('.send-menu');
+            const first = m && m.querySelector('.send-menu-item');
+            if (!first) return null;
+            const r = first.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return { item: first.textContent.trim(), top: Math.round(r.top), offerBottom: Math.round(document.getElementById('appUpdateOffer').getBoundingClientRect().bottom), reached: !!hit && first.contains(hit) };
+        });
+        const menuOpen = await look(p);
+        await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+        const menuShut = await look(p);
+        check('C desktop 820px: a song menu pushed up to the top: the offer waits while it is open, so Play next takes the click; closed, the offer is back and takes clicks',
+            !!menu && menu.item === 'Play next' && menu.top < menu.offerBottom && menu.reached && !menuOpen.offer && menuOpen.offerAttr === 'shown'
+            && menuShut.offer && menuShut.reachLater === true, { menu, menuOpen, menuShut });
         check('C desktop 820px: errors', p.__errs.length === 0, p.__errs);
         await ctx.close();
     }
